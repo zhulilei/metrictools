@@ -1,11 +1,11 @@
 package main
 
 import (
+	"github.com/datastream/metrictools/types"
 	"io"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"net/http"
-	"../types"
 )
 
 func type_controller(w http.ResponseWriter, req *http.Request) {

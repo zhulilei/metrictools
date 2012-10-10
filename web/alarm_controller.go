@@ -1,9 +1,9 @@
 package main
 
 import (
+	"github.com/datastream/metrictools/types"
 	"io"
 	"net/http"
-	"../types"
 	"strconv"
 )
 
@@ -11,18 +11,18 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
 	w.WriteHeader(http.StatusOK)
 	a_r := &types.Alarm{
-		M : req.FormValue("metric"),
-		V : atof64(req.FormValue("value")),
-		T : atoi(req.FormValue("statistic_type")),
-		J : atoi(req.FormValue("trigger_type")),
-		P : atoi(req.FormValue("period")),
+		M: req.FormValue("metric"),
+		V: atof64(req.FormValue("value")),
+		T: atoi(req.FormValue("statistic_type")),
+		J: atoi(req.FormValue("trigger_type")),
+		P: atoi(req.FormValue("period")),
 	}
 	a_r2 := &types.Alarm{
-		M : req.FormValue("metric_b"),
-		V : atof64(req.FormValue("value_b")),
-		T : atoi(req.FormValue("statistic_type_b")),
-		J : atoi(req.FormValue("trigger_type_b")),
-		P : atoi(req.FormValue("period_b")),
+		M: req.FormValue("metric_b"),
+		V: atof64(req.FormValue("value_b")),
+		T: atoi(req.FormValue("statistic_type_b")),
+		J: atoi(req.FormValue("trigger_type_b")),
+		P: atoi(req.FormValue("period_b")),
 	}
 
 	r_type := tologic(req.FormValue("r_type"))

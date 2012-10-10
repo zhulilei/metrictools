@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/datastream/metrictools/types"
 	"log"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-	"../types"
 )
 
 func json_metrics_value(m []types.Record, app string) *string {

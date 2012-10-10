@@ -1,14 +1,14 @@
 package mongo
 
 import (
+	"github.com/datastream/metrictools/notify"
+	"github.com/datastream/metrictools/types"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"regexp"
 	"strings"
 	"time"
-	"../types"
-	"../notify"
 )
 
 type Mongo struct {
@@ -212,7 +212,7 @@ func (this *Mongo) trigger(metric string, stat int) {
 	if err == nil {
 		if am.Stat != stat {
 			go notify.Send(am.C, metric, stat)
-			am.Count ++
+			am.Count++
 			_ = session.DB(this.dbname).C("AlarmAction").Update(bson.M{"m": metric}, bson.M{"stat": stat, "count": am.Count})
 		}
 	}

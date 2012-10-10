@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	"../amqp"
-	"../mongo"
-	"../types"
+	"github.com/datastream/metrictools/amqp"
+	"github.com/datastream/metrictools/mongo"
+	"github.com/datastream/metrictools/types"
 )
 
 var (

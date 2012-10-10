@@ -1,9 +1,9 @@
 package notify
 
 import (
-	"log"
 	"../types"
-	)
+	"log"
+)
 
 func Send(addr []types.Address, metric string, stat int) {
 	for i := range addr {

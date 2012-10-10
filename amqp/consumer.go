@@ -1,10 +1,10 @@
 package amqp
 
 import (
+	"github.com/datastream/metrictools/types"
 	"github.com/streadway/amqp"
 	"log"
 	"time"
-	"../types"
 )
 
 type Consumer struct {
