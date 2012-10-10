@@ -1,7 +1,7 @@
 package notify
 
 import (
-	"../types"
+	"github.com/datastream/metrictools/types"
 	"log"
 )
 
