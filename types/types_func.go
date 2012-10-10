@@ -9,49 +9,11 @@ import (
 
 func NewMetric(s string) *Metric {
 	splitstring := strings.Split(s, " ")
-	splitname := strings.Split(splitstring[0], ".")
-	if len(splitname) < 3 {
-		return nil
-	}
-	var App string
-	var Retention string
-	var Name string
-	var Hostname string
-	var Colo string
-	var Value float64
-	var Timestamp int64
-	Hostname = splitname[len(splitname)-1]
-	Colo = splitname[len(splitname)-2]
-	var p int
-	if rst, _ := regexp.MatchString("(1sec|10sec|1min|5min|10min|15min)", splitname[0]); rst {
-		Retention = splitname[0]
-		App = splitname[1]
-		p = 2
-	} else {
-		App = splitname[0]
-		p = 1
-	}
+	this := NewLiteMetric(splitstring[0])
 
-	for i := p; i < len(splitname)-2; i++ {
-		if len(Name) > 0 {
-			Name += "."
-		}
-		Name += splitname[i]
-	}
-	if len(splitstring) == 3 {
-		Value, _ = strconv.ParseFloat(splitstring[1], 64)
-		Timestamp, _ = strconv.ParseInt(splitstring[2], 10, 64)
-		this := &Metric{
-			App: App,
-			Record: Record{
-				Rt: Retention,
-				Nm: Name,
-				Cl: Colo,
-				Hs: Hostname,
-				V:  Value,
-				Ts: Timestamp,
-			},
-		}
+	if (len(splitstring) == 3) && (this != nil) {
+		this.V, _ = strconv.ParseFloat(splitstring[1], 64)
+		this.Ts, _ = strconv.ParseInt(splitstring[2], 10, 64)
 		return this
 	} else if len(splitstring) != 1 {
 		log.Println("metric not recognized: ", s)
