@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/datastream/metrictools/types"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 )
@@ -25,6 +26,7 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 		P: atoi(req.FormValue("period_b")),
 	}
 
+	log.Println(a_r, a_r2)
 	r_type := tologic(req.FormValue("r_type"))
 
 	switch r_type {
@@ -44,8 +46,8 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 
 	session := mogo.session.Clone()
 	defer session.Close()
-	var query []types.Host
-	var json string
+	//	var query []types.Host
+	//	var json string
 	io.WriteString(w, "Add metric")
 }
 
