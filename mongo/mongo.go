@@ -149,7 +149,6 @@ func (this *Mongo) handle_scan(message_chan chan *types.Message) {
 func (this *Mongo) check_metric(alm []types.Alarm) {
 	session := this.session.Copy()
 	defer session.Close()
-	var err error
 	for i := range alm {
 		var stat int
 		if alm[i].T == types.EXP {
@@ -161,7 +160,7 @@ func (this *Mongo) check_metric(alm []types.Alarm) {
 					k_v[exps[i]] = float32(types.Avg_value(result))
 				}
 			}
-			value, err := cal.Cal(alm[i].Exp, k_v)
+			value, _ := cal.Cal(alm[i].Exp, k_v)
 			stat = types.Judge_value(alm[i], float64(value))
 		} else {
 			stat = this.check_value(alm[i])
