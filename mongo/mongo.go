@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"github.com/datastream/cal"
 	"github.com/datastream/metrictools/notify"
 	"github.com/datastream/metrictools/types"
 	"labix.org/v2/mgo"
@@ -105,6 +106,7 @@ func (this *Mongo) handle_insert(message_chan chan *types.Message) {
 		msg.Done <- 1
 	}
 }
+
 func (this *Mongo) Scan_record(message_chan chan *types.Message) {
 	this.connect_mongodb()
 	go this.handle_scan(message_chan)
@@ -128,7 +130,11 @@ func (this *Mongo) handle_scan(message_chan chan *types.Message) {
 			if len(strings.TrimSpace(metric[0])) < 1 {
 				continue
 			}
-			err = this.check_metric(metric[0])
+			var alm []types.Alarm
+			err = this.session.DB(this.dbname).C("Alarm").Find(bson.M{"exp": bson.M{"$regex": metric[0]}}).All(&alm)
+			if len(alm) > 0 {
+				go this.check_metric(alm)
+			}
 		}
 		if err != nil {
 			go func() {
@@ -140,106 +146,32 @@ func (this *Mongo) handle_scan(message_chan chan *types.Message) {
 	}
 }
 
-func (this *Mongo) check_metric(m string) error {
+func (this *Mongo) check_metric(alm []types.Alarm) {
 	session := this.session.Copy()
 	defer session.Close()
 	var err error
-	var alm []types.Alarm
-	var alm_relation []types.AlarmRelation
-
-	err = session.DB(this.dbname).C("Alarm").Find(bson.M{"M": m}).All(&alm)
-	stat := 0
-	if len(alm) < 1 {
-		return nil
-	} else {
-		stat = this.check_value(alm[0])
-	}
-
-	err = session.DB(this.dbname).C("AlarmRelation").Find(bson.M{"M1": m}).All(&alm_relation)
-	if err != nil {
-		log.Println("mongodb find failed", err)
-		this.done <- err
-		return err
-	}
-	stat2 := stat
-	for i := range alm_relation {
-		var am []types.Alarm
-		_ = session.DB(this.dbname).C("Alarm").Find(bson.M{"M": alm_relation[i].M2}).All(&am)
-		switch alm_relation[i].R {
-		case types.AND:
-			{
-				if len(am) > 0 {
-					stat &= this.check_value(am[0])
-				} else {
-					stat = 0
+	for i := range alm {
+		var stat int
+		if alm[i].T == types.EXP {
+			exps := cal.Parser(alm[i].Exp)
+			k_v := make(map[string]float32)
+			for i := range exps {
+				if len(exps[i]) > 1 {
+					result := this.get_values(exps[i], alm[i].P)
+					k_v[exps[i]] = float32(types.Avg_value(result))
 				}
 			}
-		case types.OR:
-			{
-				if len(am) > 0 {
-					stat |= this.check_value(am[0])
-				} else {
-					stat = 0
-				}
-			}
-		case types.XOR:
-			{
-				if len(am) > 0 {
-					stat ^= this.check_value(am[0])
-				} else {
-					stat = 0
-				}
-			}
-		case types.DIV:
-			{
-				stat = this.check_relation(alm[0], alm_relation[i])
-			}
+			value, err := cal.Cal(alm[i].Exp, k_v)
+			stat = types.Judge_value(alm[i], float64(value))
+		} else {
+			stat = this.check_value(alm[i])
 		}
-		go this.trigger(m, stat)
-		stat = stat2
+		go this.trigger(alm[i].Exp, stat)
 	}
-	if len(alm_relation) == 0 {
-		go this.trigger(m, stat)
-	}
-	return err
-}
-
-func (this *Mongo) trigger(metric string, stat int) {
-	var am types.AlarmAction
-	session := this.session.Copy()
-	defer session.Close()
-	err := session.DB(this.dbname).C("AlarmAction").Find(bson.M{"M": metric}).One(&am)
-	if err == nil {
-		if am.Stat != stat {
-			go notify.Send(am.C, metric, stat)
-			am.Count++
-			_ = session.DB(this.dbname).C("AlarmAction").Update(bson.M{"m": metric}, bson.M{"stat": stat, "count": am.Count})
-		}
-	}
-}
-
-func (this *Mongo) get_values(metric string, interval int) []types.Record {
-	session := this.session.Clone()
-	defer session.Close()
-	var result []types.Record
-	end := time.Now().Unix()
-	start := end - int64(60*interval)
-	var hosts []types.Host
-	_ = session.DB(this.dbname).C("host_metric").Find(bson.M{"metric": bson.M{"$regex": metric}}).All(&hosts)
-
-	for i := range hosts {
-		m := types.NewMetric(hosts[i].Metric)
-		var tmp []types.Record
-		err := session.DB(this.dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).All(&tmp)
-		if err == nil {
-			result = append(result, tmp...)
-		}
-	}
-	return result
 }
 
 func (this *Mongo) check_value(v types.Alarm) int {
-	result := this.get_values(v.M, v.P)
+	result := this.get_values(v.Exp, v.P)
 	if len(result) < 1 {
 		return 0
 	}
@@ -264,30 +196,36 @@ func (this *Mongo) check_value(v types.Alarm) int {
 	return 0
 }
 
-func (this *Mongo) check_relation(v types.Alarm, r types.AlarmRelation) int {
-	result := this.get_values(v.M, v.P)
-	result2 := this.get_values(r.M2, v.P)
-	if len(result2) < 1 || len(result) < 1 {
-		return 0
-	}
-	rst := types.Div_value(result, result2)
-	switch v.T {
-	case types.AVG:
-		{
-			return types.Judge_value(v, types.Avg_value(rst))
-		}
-	case types.SUM:
-		{
-			return types.Judge_value(v, types.Sum_value(rst))
-		}
-	case types.MAX:
-		{
-			return types.Judge_value(v, types.Max_value(rst))
-		}
-	case types.MIN:
-		{
-			return types.Judge_value(v, types.Min_value(rst))
+func (this *Mongo) trigger(metric string, stat int) {
+	var am types.AlarmAction
+	session := this.session.Copy()
+	defer session.Close()
+	err := session.DB(this.dbname).C("AlarmAction").Find(bson.M{"exp": metric}).One(&am)
+	if err == nil {
+		if am.Stat != stat {
+			go notify.Send(am.C, metric, stat)
+			am.Count++
+			_ = session.DB(this.dbname).C("AlarmAction").Update(bson.M{"exp": metric}, bson.M{"stat": stat, "count": am.Count})
 		}
 	}
-	return 1
+}
+
+func (this *Mongo) get_values(metric string, interval int) []types.Record {
+	session := this.session.Clone()
+	defer session.Close()
+	var result []types.Record
+	end := time.Now().Unix()
+	start := end - int64(60*interval)
+	var hosts []types.Host
+	_ = session.DB(this.dbname).C("host_metric").Find(bson.M{"metric": bson.M{"$regex": metric}}).All(&hosts)
+
+	for i := range hosts {
+		m := types.NewMetric(hosts[i].Metric)
+		var tmp []types.Record
+		err := session.DB(this.dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).All(&tmp)
+		if err == nil {
+			result = append(result, tmp...)
+		}
+	}
+	return result
 }

@@ -5,12 +5,9 @@ const (
 	SUM     = 2
 	MAX     = 3
 	MIN     = 4
-	AND     = 5
-	OR      = 6
-	XOR     = 7
-	DIV     = 8
-	LESS    = 9
-	GREATER = 10
+	EXP     = 5
+	LESS    = 6
+	GREATER = 7
 )
 
 type Message struct {
@@ -39,17 +36,11 @@ type Host struct {
 }
 
 type Alarm struct {
-	M string  //Metric name
-	T int     // AVG, SUM, MAX, MIN
-	P int     //1min, 5min, 15min
-	J int     //LESS, GREATER
-	V float64 //value
-}
-
-type AlarmRelation struct {
-	M1 string //metric1
-	R  int    // AND, OR, XOR, DIV
-	M2 string //metric2
+	Exp string  //Metric expression name
+	T   int     // AVG, SUM, MAX, MIN
+	P   int     //1min, 5min, 15min
+	J   int     //LESS, GREATER
+	V   float64 //value
 }
 
 type Address struct {
@@ -58,7 +49,7 @@ type Address struct {
 }
 
 type AlarmAction struct {
-	M     string    //Metric name
+	Exp   string    //Metric expression name
 	C     []Address //email,phone, im
 	Count int
 	Stat  int
