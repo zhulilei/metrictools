@@ -12,14 +12,14 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
 	w.WriteHeader(http.StatusOK)
 	a_r := &types.Alarm{
-		M: req.FormValue("metric"),
+		Exp: req.FormValue("metric"),
 		V: atof64(req.FormValue("value")),
 		T: atoi(req.FormValue("statistic_type")),
 		J: atoi(req.FormValue("trigger_type")),
 		P: atoi(req.FormValue("period")),
 	}
 	a_r2 := &types.Alarm{
-		M: req.FormValue("metric_b"),
+		Exp: req.FormValue("metric_b"),
 		V: atof64(req.FormValue("value_b")),
 		T: atoi(req.FormValue("statistic_type_b")),
 		J: atoi(req.FormValue("trigger_type_b")),
@@ -27,22 +27,7 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 	}
 
 	log.Println(a_r, a_r2)
-	r_type := tologic(req.FormValue("r_type"))
-
-	switch r_type {
-	case types.AND:
-		{
-		}
-	case types.OR:
-		{
-		}
-	case types.XOR:
-		{
-		}
-	case types.DIV:
-		{
-		}
-	}
+	//r_type := tologic(req.FormValue("r_type"))
 
 	session := mogo.session.Clone()
 	defer session.Close()
@@ -53,16 +38,16 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 
 func tologic(s string) int {
 	switch s {
-	case "and":
-		return types.AND
-	case "or":
-		return types.OR
-	case "xor":
-		return types.XOR
-	case "div":
-		return types.DIV
+	case "avg":
+		return types.AVG
+	case "sum":
+		return types.SUM
+	case "max":
+		return types.MAX
+	case "min":
+		return types.MIN
 	}
-	return 0
+	return types.EXP
 }
 
 func atof64(s string) float64 {

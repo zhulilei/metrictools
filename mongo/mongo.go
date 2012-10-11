@@ -157,6 +157,9 @@ func (this *Mongo) check_metric(alm []types.Alarm) {
 			for i := range exps {
 				if len(exps[i]) > 1 {
 					result := this.get_values(exps[i], alm[i].P)
+					if len(result) < 1 {
+						return
+					}
 					k_v[exps[i]] = float32(types.Avg_value(result))
 				}
 			}
