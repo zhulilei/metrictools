@@ -51,8 +51,8 @@ type Action struct {
 type AlarmAction struct {
 	Exp  string //Metric expression name
 	Type string //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
-	Pb   string //blog, photo, reader
-	Act  []byte //action json
+	Pd   string //blog, photo, reader
+	Act  [][]byte //action json
 	Stat int
 	Ts   int64
 }
