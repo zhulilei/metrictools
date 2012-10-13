@@ -37,7 +37,7 @@ type Host struct {
 
 type Alarm struct {
 	Exp string    //Metric expression name
-	T   int       // AVG, SUM, MAX, MIN
+	T   int       //AVG, SUM, MAX, MIN
 	P   int       //1min, 5min, 15min
 	J   int       //LESS, GREATER
 	V   []float64 //value
@@ -50,7 +50,9 @@ type Action struct {
 
 type AlarmAction struct {
 	Exp  string //Metric expression name
-	Act  []string
+	Type string //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
+	Pb   string //blog, photo, reader
+	Act  []byte //action json
 	Stat int
 	Ts   int64
 }
