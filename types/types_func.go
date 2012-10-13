@@ -117,16 +117,25 @@ func Min_value(r []Record) float64 {
 }
 
 func Judge_value(S Alarm, value float64) int {
+	if len(S.V) != 2 {
+		return 0
+	}
 	switch S.J {
 	case LESS:
 		{
-			if value < S.V {
+			if value < S.V[1] {
+				return 2
+			}
+			if value < S.V[0] {
 				return 1
 			}
 		}
 	case GREATER:
 		{
-			if value > S.V {
+			if value > S.V[1] {
+				return 2
+			}
+			if value > S.V[0] {
 				return 1
 			}
 		}

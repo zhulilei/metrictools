@@ -5,16 +5,24 @@ import (
 	"log"
 )
 
-func Send(addr []types.Address, metric string, stat int) {
-	for i := range addr {
-		switch addr[i].T {
+func Send(act []types.Action, metric string, value float64, level int) {
+	for i := range act {
+		switch act[i].T {
 		case "phone":
 			{
-				log.Println(addr[i].ID)
+				log.Println(act[i].Nm)
 			}
 		case "email":
 			{
-				log.Println(addr[i].ID)
+				log.Println(act[i].Nm)
+			}
+		case "email":
+			{
+				log.Println(act[i].Nm)
+			}
+		case "mq":
+			{
+				log.Println(act[i].Nm)
 			}
 		}
 	}

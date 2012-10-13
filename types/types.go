@@ -40,18 +40,17 @@ type Alarm struct {
 	T   int     // AVG, SUM, MAX, MIN
 	P   int     //1min, 5min, 15min
 	J   int     //LESS, GREATER
-	V   float64 //value
+	V   []float64 //value
 }
 
-type Address struct {
-	T  string //email, phone, im
-	ID string
+type Action struct {
+	T string //email, phone, im, mq
+	Nm string // email address, phone number, im id, mq name
 }
 
 type AlarmAction struct {
 	Exp   string    //Metric expression name
-	C     []Address //email,phone, im
-	Count int
+	Action []string
 	Stat  int
 	Ts    int64
 }

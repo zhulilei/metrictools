@@ -150,6 +150,7 @@ func (this *Mongo) check_metric(alm []types.Alarm) {
 	session := this.session.Copy()
 	defer session.Close()
 	for i := range alm {
+		var value float64
 		var stat int
 		if alm[i].T == types.EXP {
 			exps := cal.Parser(alm[i].Exp)
@@ -163,51 +164,55 @@ func (this *Mongo) check_metric(alm []types.Alarm) {
 					k_v[exps[i]] = float32(types.Avg_value(result))
 				}
 			}
-			value, _ := cal.Cal(alm[i].Exp, k_v)
+			value, _ = cal.Cal(alm[i].Exp, k_v)
 			stat = types.Judge_value(alm[i], float64(value))
 		} else {
-			stat = this.check_value(alm[i])
+			stat, value = this.check_value(alm[i])
 		}
-		go this.trigger(alm[i].Exp, stat)
+		go this.trigger(alm[i].Exp, stat, value)
 	}
 }
 
-func (this *Mongo) check_value(v types.Alarm) int {
+func (this *Mongo) check_value(v types.Alarm) (int, float64) {
 	result := this.get_values(v.Exp, v.P)
 	if len(result) < 1 {
 		return 0
 	}
+	var rst float64
 	switch v.T {
 	case types.AVG:
 		{
-			return types.Judge_value(v, types.Avg_value(result))
+			rst = types.Avg_value(result)
+			return types.Judge_value(v, rst), rst
 		}
 	case types.SUM:
 		{
-			return types.Judge_value(v, types.Sum_value(result))
+			rst = types.Sum_value(result)
+			return types.Judge_value(v, rst), rst
 		}
 	case types.MAX:
 		{
-			return types.Judge_value(v, types.Max_value(result))
+			rst = types.Max_value(result)
+			return types.Judge_value(v, rst), rst
 		}
 	case types.MIN:
 		{
-			return types.Judge_value(v, types.Min_value(result))
+			min := types.Min_value(result)
+			return types.Judge_value(v, rst), rst
 		}
 	}
-	return 0
+	return 0, rst
 }
 
-func (this *Mongo) trigger(metric string, stat int) {
-	var am types.AlarmAction
+func (this *Mongo) trigger(metric string, stat int, value float64) {
+	var almaction types.AlarmAction
 	session := this.session.Copy()
 	defer session.Close()
-	err := session.DB(this.dbname).C("AlarmAction").Find(bson.M{"exp": metric}).One(&am)
+	err := session.DB(this.dbname).C("AlarmAction").Find(bson.M{"exp": metric}).One(&almaction)
 	if err == nil {
-		if am.Stat != stat {
-			go notify.Send(am.C, metric, stat)
-			am.Count++
-			_ = session.DB(this.dbname).C("AlarmAction").Update(bson.M{"exp": metric}, bson.M{"stat": stat, "count": am.Count})
+		if almaction.Stat != stat {
+			go notify.Send(almaction.Action, value, stat)
+			_ = session.DB(this.dbname).C("AlarmAction").Update(bson.M{"exp": metric}, bson.M{"stat": stat})
 		}
 	}
 }
