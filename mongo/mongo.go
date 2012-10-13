@@ -198,7 +198,7 @@ func (this *Mongo) check_value(v types.Alarm) (int, float64) {
 		}
 	case types.MIN:
 		{
-			min := types.Min_value(result)
+			rst = types.Min_value(result)
 			return types.Judge_value(v, rst), rst
 		}
 	}
