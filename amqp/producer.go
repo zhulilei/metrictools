@@ -9,7 +9,7 @@ type Producer struct {
 	amqpURI      string
 	exchange     string
 	exchangeType string
-	reliable     bool
+	Reliable     bool
 	channel      *amqp.Channel
 	Ack          chan uint64
 	Nack         chan uint64
@@ -20,7 +20,7 @@ func NewProducer(amqpURI, exchange, exchangeType string, reliable bool) *Produce
 		amqpURI:      amqpURI,
 		exchange:     exchange,
 		exchangeType: exchangeType,
-		reliable:     reliable,
+		Reliable:     reliable,
 	}
 	return this
 }
@@ -56,7 +56,7 @@ func (this *Producer) Connect_mq() {
 
 		// Reliable publisher confirms require confirm.select support from the
 		// connection.
-		if this.reliable {
+		if this.Reliable {
 			if err := this.channel.Confirm(false); err != nil {
 				log.Println("Channel could not be put into confirm mode: ", err)
 				continue

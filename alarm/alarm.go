@@ -30,13 +30,13 @@ func main() {
 	for i := 0; i < nWorker; i++ {
 		message_chan := make(chan *types.Message)
 		notify_chan := make(chan *notify.Notify)
-		mq_chan := make(chan []byte)
+		msg_chan := make(chan []byte)
 		consumer := amqp.NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
 		producer := amqp.NewProducer(*uri, "alarm_message", "topic", true)
 		go consumer.Read_record(message_chan)
 		go db.Scan_record(message_chan, notify_chan)
-		go notify.Send(notify_chan, mq_chan)
-		go dosend(producer, mq_chan)
+		go notify.Send(notify_chan, msg_chan)
+		go dosend(producer, msg_chan)
 	}
 	select {}
 }
@@ -50,14 +50,15 @@ func dosend(producer *amqp.Producer, msg_chan chan []byte) {
 				msg_chan <- msg
 			}()
 		}
-		select {
-		case <-producer.Ack:
-		case <-producer.Nack:
-			go func() {
-				time.Sleep(time.Second * 1)
-				msg_chan <- msg
-			}()
-
+		if producer.Reliable {
+			select {
+			case <-producer.Ack:
+			case <-producer.Nack:
+				go func() {
+					time.Sleep(time.Second * 1)
+					msg_chan <- msg
+				}()
+			}
 		}
 	}
 }
