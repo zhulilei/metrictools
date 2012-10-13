@@ -164,8 +164,9 @@ func (this *Mongo) check_metric(alm []types.Alarm) {
 					k_v[exps[i]] = float32(types.Avg_value(result))
 				}
 			}
-			value, _ = cal.Cal(alm[i].Exp, k_v)
-			stat = types.Judge_value(alm[i], float64(value))
+			t_value, _ := cal.Cal(alm[i].Exp, k_v)
+			value = float64(t_value)
+			stat = types.Judge_value(alm[i], value)
 		} else {
 			stat, value = this.check_value(alm[i])
 		}
@@ -176,7 +177,7 @@ func (this *Mongo) check_metric(alm []types.Alarm) {
 func (this *Mongo) check_value(v types.Alarm) (int, float64) {
 	result := this.get_values(v.Exp, v.P)
 	if len(result) < 1 {
-		return 0
+		return 0, 0
 	}
 	var rst float64
 	switch v.T {
@@ -211,7 +212,7 @@ func (this *Mongo) trigger(metric string, stat int, value float64) {
 	err := session.DB(this.dbname).C("AlarmAction").Find(bson.M{"exp": metric}).One(&almaction)
 	if err == nil {
 		if almaction.Stat != stat {
-			go notify.Send(almaction.Action, value, stat)
+			go notify.Send(almaction, stat, value)
 			_ = session.DB(this.dbname).C("AlarmAction").Update(bson.M{"exp": metric}, bson.M{"stat": stat})
 		}
 	}
