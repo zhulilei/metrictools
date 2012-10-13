@@ -13,14 +13,14 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	a_r := &types.Alarm{
 		Exp: req.FormValue("metric"),
-		V: atof64(req.FormValue("value")),
+		V: []float64{atof64(req.FormValue("wrong_value")), atof64(req.FormValue("err_value"))},
 		T: atoi(req.FormValue("statistic_type")),
 		J: atoi(req.FormValue("trigger_type")),
 		P: atoi(req.FormValue("period")),
 	}
 	a_r2 := &types.Alarm{
 		Exp: req.FormValue("metric_b"),
-		V: atof64(req.FormValue("value_b")),
+		V: []float64{atof64(req.FormValue("wrong_value")), atof64(req.FormValue("err_value")),},
 		T: atoi(req.FormValue("statistic_type_b")),
 		J: atoi(req.FormValue("trigger_type_b")),
 		P: atoi(req.FormValue("period_b")),
