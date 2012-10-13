@@ -4,7 +4,9 @@ import (
 	"flag"
 	"github.com/datastream/metrictools/amqp"
 	"github.com/datastream/metrictools/mongo"
+	"github.com/datastream/metrictools/notify"
 	"github.com/datastream/metrictools/types"
+	"time"
 )
 
 var (
@@ -24,12 +26,29 @@ const nWorker = 10
 
 func main() {
 	flag.Parse()
-	producer := mongo.NewMongo(*mongouri, *dbname, *user, *password)
+	db := mongo.NewMongo(*mongouri, *dbname, *user, *password)
 	for i := 0; i < nWorker; i++ {
 		message_chan := make(chan *types.Message)
+		notify_chan := make(chan *notify.Notify)
+		mq_chan := make(chan []byte)
 		consumer := amqp.NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
+		producer := amqp.NewProducer(*uri, "alarm_message", "topic", true)
 		go consumer.Read_record(message_chan)
-		go producer.Scan_record(message_chan)
+		go db.Scan_record(message_chan, notify_chan)
+		go notify.Send(notify_chan, mq_chan)
+		go dosend(producer, mq_chan)
 	}
 	select {}
+}
+func dosend(producer *amqp.Producer, msg_chan chan []byte) {
+	producer.Connect_mq()
+	for {
+		msg := <-msg_chan
+		if err := producer.Deliver(msg, ""); err != nil {
+			time.Sleep(time.Second * 2)
+			go func() {
+				msg_chan <- msg
+			}()
+		}
+	}
 }
