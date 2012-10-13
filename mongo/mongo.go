@@ -107,17 +107,17 @@ func (this *Mongo) handle_insert(message_chan chan *types.Message) {
 	}
 }
 
-func (this *Mongo) Scan_record(message_chan chan *types.Message) {
+func (this *Mongo) Scan_record(message_chan chan *types.Message, notify_chan chan *notify.Notify) {
 	this.connect_mongodb()
-	go this.handle_scan(message_chan)
+	go this.handle_scan(message_chan, notify_chan)
 	for {
 		<-this.done
 		this.session.Refresh()
-		go this.handle_scan(message_chan)
+		go this.handle_scan(message_chan, notify_chan)
 	}
 }
 
-func (this *Mongo) handle_scan(message_chan chan *types.Message) {
+func (this *Mongo) handle_scan(message_chan chan *types.Message, notify_chan chan *notify.Notify) {
 	for {
 		msg := <-message_chan
 		metrics := strings.Split(strings.TrimSpace(msg.Content), "\n")
@@ -133,7 +133,7 @@ func (this *Mongo) handle_scan(message_chan chan *types.Message) {
 			var alm []types.Alarm
 			err = this.session.DB(this.dbname).C("Alarm").Find(bson.M{"exp": bson.M{"$regex": metric[0]}}).All(&alm)
 			if len(alm) > 0 {
-				go this.check_metric(alm)
+				go this.check_metric(alm, notify_chan)
 			}
 		}
 		if err != nil {
@@ -146,7 +146,7 @@ func (this *Mongo) handle_scan(message_chan chan *types.Message) {
 	}
 }
 
-func (this *Mongo) check_metric(alm []types.Alarm) {
+func (this *Mongo) check_metric(alm []types.Alarm, notify_chan chan *notify.Notify) {
 	session := this.session.Copy()
 	defer session.Close()
 	for i := range alm {
@@ -170,7 +170,7 @@ func (this *Mongo) check_metric(alm []types.Alarm) {
 		} else {
 			stat, value = this.check_value(alm[i])
 		}
-		go this.trigger(alm[i].Exp, stat, value)
+		go this.trigger(alm[i].Exp, stat, value, notify_chan)
 	}
 }
 
@@ -205,14 +205,19 @@ func (this *Mongo) check_value(v types.Alarm) (int, float64) {
 	return 0, rst
 }
 
-func (this *Mongo) trigger(metric string, stat int, value float64) {
+func (this *Mongo) trigger(metric string, stat int, value float64, notify_chan chan *notify.Notify) {
 	var almaction types.AlarmAction
 	session := this.session.Copy()
 	defer session.Close()
 	err := session.DB(this.dbname).C("AlarmAction").Find(bson.M{"exp": metric}).One(&almaction)
 	if err == nil {
 		if almaction.Stat != stat {
-			go notify.Send(almaction, stat, value)
+			nt := &notify.Notify{
+				Alarmaction: almaction,
+				Level:       stat,
+				Value:       value,
+			}
+			notify_chan <- nt
 			_ = session.DB(this.dbname).C("AlarmAction").Update(bson.M{"exp": metric}, bson.M{"stat": stat})
 		}
 	}
