@@ -16,7 +16,7 @@ func Send(act []types.Action, metric string, value float64, level int) {
 			{
 				log.Println(act[i].Nm)
 			}
-		case "email":
+		case "im":
 			{
 				log.Println(act[i].Nm)
 			}
