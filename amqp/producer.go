@@ -11,6 +11,8 @@ type Producer struct {
 	exchangeType string
 	reliable     bool
 	channel      *amqp.Channel
+	ack          chan uint64
+	nack         chan uint64
 }
 
 func NewProducer(amqpURI, exchange, exchangeType string, reliable bool) *Producer {
@@ -59,8 +61,7 @@ func (this *Producer) Connect_mq() {
 				log.Println("Channel could not be put into confirm mode: ", err)
 				continue
 			}
-			ack, nack := this.channel.NotifyConfirm(make(chan uint64), make(chan uint64))
-			defer confirmOne(ack, nack)
+			this.ack, this.nack = this.channel.NotifyConfirm(make(chan uint64), make(chan uint64))
 		}
 		break
 	}
@@ -85,18 +86,4 @@ func (this *Producer) Deliver(body []byte, key string) error {
 		log.Println("Exchange Publish: ", err)
 	}
 	return err
-}
-
-// One would typically keep a channel of publishings, a sequence number, and a
-// set of unacknowledged sequence numbers and loop until the publishing channel
-// is closed.
-func confirmOne(ack, nack chan uint64) {
-	log.Println("waiting for confirmation of one publishing")
-
-	select {
-	case tag := <-ack:
-		log.Println("confirmed delivery with delivery tag: ", tag)
-	case tag := <-nack:
-		log.Println("failed delivery of delivery tag: ", tag)
-	}
 }
