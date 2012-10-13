@@ -36,21 +36,21 @@ type Host struct {
 }
 
 type Alarm struct {
-	Exp string  //Metric expression name
-	T   int     // AVG, SUM, MAX, MIN
-	P   int     //1min, 5min, 15min
-	J   int     //LESS, GREATER
+	Exp string    //Metric expression name
+	T   int       // AVG, SUM, MAX, MIN
+	P   int       //1min, 5min, 15min
+	J   int       //LESS, GREATER
 	V   []float64 //value
 }
 
 type Action struct {
-	T string //email, phone, im, mq
+	T  string //email, phone, im, mq
 	Nm string // email address, phone number, im id, mq name
 }
 
 type AlarmAction struct {
-	Exp   string    //Metric expression name
-	Action []string
-	Stat  int
-	Ts    int64
+	Exp  string //Metric expression name
+	Act  []string
+	Stat int
+	Ts   int64
 }
