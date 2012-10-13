@@ -11,8 +11,8 @@ type Producer struct {
 	exchangeType string
 	reliable     bool
 	channel      *amqp.Channel
-	ack          chan uint64
-	nack         chan uint64
+	Ack          chan uint64
+	Nack         chan uint64
 }
 
 func NewProducer(amqpURI, exchange, exchangeType string, reliable bool) *Producer {
@@ -61,7 +61,7 @@ func (this *Producer) Connect_mq() {
 				log.Println("Channel could not be put into confirm mode: ", err)
 				continue
 			}
-			this.ack, this.nack = this.channel.NotifyConfirm(make(chan uint64), make(chan uint64))
+			this.Ack, this.Nack = this.channel.NotifyConfirm(make(chan uint64), make(chan uint64))
 		}
 		break
 	}

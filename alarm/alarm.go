@@ -45,10 +45,19 @@ func dosend(producer *amqp.Producer, msg_chan chan []byte) {
 	for {
 		msg := <-msg_chan
 		if err := producer.Deliver(msg, ""); err != nil {
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Second * 1)
 			go func() {
 				msg_chan <- msg
 			}()
+		}
+		select {
+		case <-producer.Ack:
+		case <-producer.Nack:
+			go func() {
+				time.Sleep(time.Second * 1)
+				msg_chan <- msg
+			}()
+
 		}
 	}
 }
