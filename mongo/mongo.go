@@ -211,13 +211,15 @@ func (this *Mongo) trigger(metric string, stat int, value float64, notify_chan c
 	defer session.Close()
 	err := session.DB(this.dbname).C("AlarmAction").Find(bson.M{"exp": metric}).One(&almaction)
 	if err == nil {
-		if almaction.Stat != stat {
-			nt := &notify.Notify{
-				Alarmaction: almaction,
-				Level:       stat,
-				Value:       value,
-			}
+		nt := &notify.Notify{
+			Alarmaction: almaction,
+			Level:       stat,
+			Value:       value,
+		}
+		if almaction.Stat > 0 {
 			notify_chan <- nt
+		}
+		if almaction.Stat != stat {
 			_ = session.DB(this.dbname).C("AlarmAction").Update(bson.M{"exp": metric}, bson.M{"stat": stat})
 		}
 	}
