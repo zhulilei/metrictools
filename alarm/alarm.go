@@ -2,10 +2,12 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/datastream/metrictools/amqp"
 	"github.com/datastream/metrictools/mongo"
 	"github.com/datastream/metrictools/notify"
 	"github.com/datastream/metrictools/types"
+	"os"
 	"time"
 )
 
@@ -26,6 +28,11 @@ const nWorker = 10
 
 func main() {
 	flag.Parse()
+	if len(flag.Args()) != 1 {
+		fmt.Printf("Usage: %s n\n\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
 	db := mongo.NewMongo(*mongouri, *dbname, *user, *password)
 	for i := 0; i < nWorker; i++ {
 		message_chan := make(chan *types.Message)

@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 )
 
 var (
@@ -23,6 +25,11 @@ var mogo *Mongo
 
 func main() {
 	flag.Parse()
+	if len(flag.Args()) != 1 {
+		fmt.Printf("Usage: %s n\n\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
 	http.HandleFunc("/monitorapi/metric", metric_controller)
 	http.HandleFunc("/monitorapi/host", host_controller)
 	http.HandleFunc("/monitorapi/types", type_controller)
