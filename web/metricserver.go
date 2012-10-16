@@ -22,8 +22,8 @@ var mogo *Mongo
 
 func main() {
 	flag.Parse()
-	if len(flag.Args()) != 1 {
-		fmt.Printf("Usage: %s n\n\n", os.Args[0])
+	if len(flag.Args()) < 1 {
+		fmt.Println("Usage:")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
