@@ -20,11 +20,6 @@ const nWorker = 10
 
 func main() {
 	flag.Parse()
-	if len(flag.Args()) < 1 {
-		fmt.Println("Usage:")
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
 	c, err := config.ReadDefault(*conf_file)
 	if err != nil {
 		fmt.Println(err)
