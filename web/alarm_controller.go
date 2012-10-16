@@ -1,64 +1,44 @@
 package main
 
 import (
-	"github.com/datastream/metrictools/types"
-	"io"
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
 )
 
 func alarm_controller(w http.ResponseWriter, req *http.Request) {
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		log.Println(err)
+	}
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	w.WriteHeader(http.StatusOK)
-	a_r := &types.Alarm{
-		Exp: req.FormValue("metric"),
-		V: []float64{atof64(req.FormValue("wrong_value")), atof64(req.FormValue("err_value"))},
-		T: atoi(req.FormValue("statistic_type")),
-		J: atoi(req.FormValue("trigger_type")),
-		P: atoi(req.FormValue("period")),
+	var alm_req AlarmRequest
+	if err = json.Unmarshal(body, &alm_req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Deny"))
+		return
+	} else {
+		w.WriteHeader(http.StatusOK)
 	}
-	a_r2 := &types.Alarm{
-		Exp: req.FormValue("metric_b"),
-		V: []float64{atof64(req.FormValue("wrong_value")), atof64(req.FormValue("err_value")),},
-		T: atoi(req.FormValue("statistic_type_b")),
-		J: atoi(req.FormValue("trigger_type_b")),
-		P: atoi(req.FormValue("period_b")),
-	}
-
-	log.Println(a_r, a_r2)
-	//r_type := tologic(req.FormValue("r_type"))
-
 	session := mogo.session.Clone()
 	defer session.Close()
-	//	var query []types.Host
-	//	var json string
-	io.WriteString(w, "Add metric")
-}
-
-func tologic(s string) int {
-	switch s {
-	case "avg":
-		return types.AVG
-	case "sum":
-		return types.SUM
-	case "max":
-		return types.MAX
-	case "min":
-		return types.MIN
+	for i := range alm_req.Act {
+		body, err := json.Marshal(alm_req.Act[i])
+		if err != nil {
+			alm_req.Almact.Act = append(alm_req.Almact.Act, body)
+	 	}
 	}
-	return types.EXP
-}
-
-func atof64(s string) float64 {
-	v, _ := strconv.ParseFloat(s, 64)
-	return v
-}
-
-func atoi(s string) int {
-	to, err := strconv.Atoi(s)
+	alm_req.Almact.Exp = alm_req.Alm.Exp
+	if len(alm_req.Almact.Act) < 1 {
+		w.Write([]byte("Failed insert"))
+		return
+	}
+	err = session.DB(mogo.dbname).C("Alarm").Insert(alm_req.Alm)
+	err = session.DB(mogo.dbname).C("AlarmAction").Insert(alm_req.Almact)
 	if err != nil {
-		return -1
+		w.Write([]byte("Failed insert"))
+	} else {
+		w.Write([]byte("Add successful"))
 	}
-	return to
 }
