@@ -3,17 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/kless/goconfig/config"
 	"log"
 	"net/http"
 	"os"
 )
 
 var (
-	mongouri = flag.String("mongouri", "mongodb://myuser:mypass@localhost:27017/mydatabase", "MONGODB RUI")
-	user     = flag.String("user", "admin", "mongodb user")
-	password = flag.String("passwd", "admin", "mongodb password")
-	dbname   = flag.String("db", "mydatabase", "mongodb database")
-	port     = flag.String("port", "1234", "server listean")
+	conf_file = flag.String("conf", "metrictools.conf", "analyst config file")
 )
 
 const (
@@ -30,15 +27,26 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
+	c, err := config.ReadDefault(*conf_file)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	mongouri, _ := c.String("Generic", "mongodb")
+	dbname, _ := c.String("Generic", "dbname")
+	user, _ := c.String("Generic", "user")
+	password, _ := c.String("Generic", "password")
+	port, _ := c.String("web", "port")
+
 	http.HandleFunc("/monitorapi/metric", metric_controller)
 	http.HandleFunc("/monitorapi/host", host_controller)
 	http.HandleFunc("/monitorapi/types", type_controller)
 	http.HandleFunc("/monitorapi/relation", relation_controller)
 	http.HandleFunc("/monitorapi/alarm", alarm_controller)
 
-	mogo = NewMongo(*mongouri, *dbname, *user, *password)
+	mogo = NewMongo(mongouri, dbname, user, password)
 
-	err := http.ListenAndServe(":"+*port, nil)
+	err = http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		log.Println(err)
 	}

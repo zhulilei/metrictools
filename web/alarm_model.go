@@ -5,7 +5,7 @@ import (
 )
 
 type AlarmRequest struct {
-	Alm types.Alarm
+	Alm    types.Alarm
 	Almact types.AlarmAction
-	Act []types.Action
+	Act    []types.Action
 }

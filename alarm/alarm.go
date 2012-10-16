@@ -7,21 +7,13 @@ import (
 	"github.com/datastream/metrictools/mongo"
 	"github.com/datastream/metrictools/notify"
 	"github.com/datastream/metrictools/types"
+	"github.com/kless/goconfig/config"
 	"os"
 	"time"
 )
 
 var (
-	uri          = flag.String("uri", "amqp://guest:guest@localhost:5672/", "AMQP URI")
-	exchange     = flag.String("exchange", "test-exchange", "Durable AMQP exchange name")
-	exchangeType = flag.String("exchange-type", "direct", "Exchange type - direct|fanout|topic|x-custom")
-	queue        = flag.String("queue", "test-queue", "Ephemeral AMQP queue name")
-	bindingKey   = flag.String("key", "test-key", "AMQP binding key")
-	consumerTag  = flag.String("consumer-tag", "simple-consumer", "AMQP consumer tag (should not be blank)")
-	mongouri     = flag.String("mongouri", "mongodb://myuser:mypass@localhost:27017/mydatabase", "MONGODB RUI")
-	user         = flag.String("user", "admin", "mongodb user")
-	password     = flag.String("passwd", "admin", "mongodb password")
-	dbname       = flag.String("db", "mydatabase", "mongodb database")
+	conf_file = flag.String("conf", "metrictools.conf", "analyst config file")
 )
 
 const nWorker = 10
@@ -33,13 +25,30 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
-	db := mongo.NewMongo(*mongouri, *dbname, *user, *password)
+	c, err := config.ReadDefault(*conf_file)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	mongouri, _ := c.String("Generic", "mongodb")
+	dbname, _ := c.String("Generic", "dbname")
+	user, _ := c.String("Generic", "user")
+	password, _ := c.String("Generic", "password")
+	uri, _ := c.String("Generic", "amqpuri")
+	exchange, _ := c.String("Generic", "exchange")
+	exchange_type, _ := c.String("Generic", "exchange-type")
+	queue, _ := c.String("alarm", "queue")
+	binding_key, _ := c.String("alarm", "bindingkey")
+	consumer_tag, _ := c.String("alarm", "consumertag")
+	alarm_exchange, _ := c.String("alarm", "alarm_exchange")
+	alarm_exchange_type, _ := c.String("alarm", "alarm_exchange_type")
+	db := mongo.NewMongo(mongouri, dbname, user, password)
 	for i := 0; i < nWorker; i++ {
 		message_chan := make(chan *types.Message)
 		notify_chan := make(chan *notify.Notify)
 		msg_chan := make(chan []byte)
-		consumer := amqp.NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
-		producer := amqp.NewProducer(*uri, "alarm_message", "topic", true)
+		consumer := amqp.NewConsumer(uri, exchange, exchange_type, queue, binding_key, consumer_tag)
+		producer := amqp.NewProducer(uri, alarm_exchange, alarm_exchange_type, true)
 		go consumer.Read_record(message_chan)
 		go db.Scan_record(message_chan, notify_chan)
 		go notify.Send(notify_chan, msg_chan)

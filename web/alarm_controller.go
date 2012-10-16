@@ -27,7 +27,7 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 		body, err := json.Marshal(alm_req.Act[i])
 		if err != nil {
 			alm_req.Almact.Act = append(alm_req.Almact.Act, body)
-	 	}
+		}
 	}
 	alm_req.Almact.Exp = alm_req.Alm.Exp
 	if len(alm_req.Almact.Act) < 1 {
