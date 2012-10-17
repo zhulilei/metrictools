@@ -25,6 +25,7 @@ func NewMongo(mongouri, dbname, user, password string) *Mongo {
 	this.session, err = mgo.Dial(this.mongouri)
 	if err != nil {
 		log.Println(err)
+		return nil
 	}
 	if len(this.user) > 0 {
 		err = this.session.DB(this.dbname).Login(this.user, this.password)
