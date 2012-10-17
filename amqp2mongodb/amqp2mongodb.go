@@ -47,4 +47,5 @@ func main() {
 		session := db_session.Copy()
 		go insert_record(message_chan, session, dbname)
 	}
+	select {}
 }
