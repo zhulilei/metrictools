@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/datastream/cal"
+	"github.com/datastream/metrictools/amqp"
 	"github.com/datastream/metrictools/notify"
 	"github.com/datastream/metrictools/types"
 	"labix.org/v2/mgo"
@@ -11,7 +12,7 @@ import (
 	"time"
 )
 
-func scan_record(message_chan chan *types.Message, notify_chan chan *notify.Notify, session *mgo.Session, dbname string) {
+func scan_record(message_chan chan *amqp.Message, notify_chan chan *notify.Notify, session *mgo.Session, dbname string) {
 	defer session.Close()
 	for {
 		msg := <-message_chan

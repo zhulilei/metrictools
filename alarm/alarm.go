@@ -6,8 +6,8 @@ import (
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
 	"github.com/datastream/metrictools/notify"
-	"github.com/datastream/metrictools/types"
 	"github.com/kless/goconfig/config"
+	"log"
 	"os"
 	"time"
 )
@@ -38,8 +38,13 @@ func main() {
 	alarm_exchange, _ := c.String("alarm", "alarm_exchange")
 	alarm_exchange_type, _ := c.String("alarm", "alarm_exchange_type")
 	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
+	if db_session == nil {
+		log.Println("connect database error")
+		os.Exit(1)
+	}
+
 	for i := 0; i < nWorker; i++ {
-		message_chan := make(chan *types.Message)
+		message_chan := make(chan *amqp.Message)
 		notify_chan := make(chan *notify.Notify)
 		msg_chan := make(chan []byte)
 		consumer := amqp.NewConsumer(uri, exchange, exchange_type, queue, binding_key, consumer_tag)

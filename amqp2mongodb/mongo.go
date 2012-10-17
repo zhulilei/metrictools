@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/datastream/metrictools/amqp"
 	"github.com/datastream/metrictools/types"
 	"labix.org/v2/mgo"
 	"log"
@@ -9,7 +10,7 @@ import (
 	"time"
 )
 
-func insert_record(message_chan chan *types.Message, session *mgo.Session, dbname string) {
+func insert_record(message_chan chan *amqp.Message, session *mgo.Session, dbname string) {
 	defer session.Close()
 	var err error
 	for {
