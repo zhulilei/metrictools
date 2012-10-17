@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 var (
@@ -39,7 +40,13 @@ func main() {
 	http.HandleFunc("/monitorapi/relation", relation_controller)
 	http.HandleFunc("/monitorapi/alarm", alarm_controller)
 
-	mogo = NewMongo(mongouri, dbname, user, password)
+	for {
+		mogo = NewMongo(mongouri, dbname, user, password)
+		if mogo != nil {
+			break
+		}
+		time.Sleep(time.Second * 2)
+	}
 
 	err = http.ListenAndServe(":"+port, nil)
 	if err != nil {
