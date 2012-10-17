@@ -35,7 +35,7 @@ func main() {
 	binding_key, _ := c.String("amqp2mongo", "bindingkey")
 	consumer_tag, _ := c.String("amqp2mongo", "consumertag")
 
-	db_session := NewMongo(mongouri, dbname, user, password)
+	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
 	if db_session == nil {
 		log.Println("connect database error")
 		os.Exit(1)

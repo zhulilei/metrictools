@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
-	"github.com/datastream/metrictools/mongo"
 	"github.com/datastream/metrictools/notify"
 	"github.com/datastream/metrictools/types"
 	"github.com/kless/goconfig/config"
@@ -37,7 +37,7 @@ func main() {
 	consumer_tag, _ := c.String("alarm", "consumertag")
 	alarm_exchange, _ := c.String("alarm", "alarm_exchange")
 	alarm_exchange_type, _ := c.String("alarm", "alarm_exchange_type")
-	db := mongo.NewMongo(mongouri, dbname, user, password)
+	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
 	for i := 0; i < nWorker; i++ {
 		message_chan := make(chan *types.Message)
 		notify_chan := make(chan *notify.Notify)
@@ -45,7 +45,8 @@ func main() {
 		consumer := amqp.NewConsumer(uri, exchange, exchange_type, queue, binding_key, consumer_tag)
 		producer := amqp.NewProducer(uri, alarm_exchange, alarm_exchange_type, true)
 		go consumer.Read_record(message_chan)
-		go db.Scan_record(message_chan, notify_chan)
+		session := db_session.Copy()
+		go scan_record(message_chan, notify_chan, session, dbname)
 		go notify.Send(notify_chan, msg_chan)
 		go dosend(producer, msg_chan)
 	}
