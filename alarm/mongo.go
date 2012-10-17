@@ -37,11 +37,10 @@ func scan_record(message_chan chan *types.Message, notify_chan chan *notify.Noti
 			}
 		}
 		if err != nil {
-			go func() {
-				message_chan <- msg
-			}()
+			msg.Done <- -1
+		} else {
+			msg.Done <- 1
 		}
-		msg.Done <- 1
 	}
 }
 
