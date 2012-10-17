@@ -38,6 +38,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 					err := session.DB(dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
 					if err != nil {
 						log.Printf("query error:%s\n", err)
+						db_session.Refresh()
 					} else {
 						json += *json_metrics_value(query, m.App)
 					}
@@ -47,7 +48,8 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 	} else {
 		err := session.DB(dbname).C("host_metric").Find(bson.M{"host": host, "metric": bson.M{"$regex": metric_type}}).Sort("metric").All(&query)
 		if err != nil {
-			log.Printf("query error:%s\n", err)
+			log.Printf("query types error:%s\n", err)
+			db_session.Refresh()
 		} else {
 			json = *json_host_type(query, host)
 		}

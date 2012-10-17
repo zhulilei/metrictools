@@ -30,8 +30,8 @@ func metric_controller(w http.ResponseWriter, req *http.Request) {
 			var query []types.Record
 			err := session.DB(dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
 			if err != nil {
-				log.Printf("query error:%s\n", err)
-				session.Refresh()
+				log.Printf("query metric error:%s\n", err)
+				db_session.Refresh()
 			} else {
 				json += *json_metrics_value(query, m.App)
 			}
