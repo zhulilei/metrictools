@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
-	"github.com/datastream/metrictools/mongo"
 	"github.com/datastream/metrictools/types"
 	"github.com/kless/goconfig/config"
+	"log"
 	"os"
 )
 
@@ -33,13 +34,17 @@ func main() {
 	queue, _ := c.String("amqp2mongo", "queue")
 	binding_key, _ := c.String("amqp2mongo", "bindingkey")
 	consumer_tag, _ := c.String("amqp2mongo", "consumertag")
-	producer := mongo.NewMongo(mongouri, dbname, user, password)
 
+	db_session := NewMongo(mongouri, dbname, user, password)
+	if db_session == nil {
+		log.Println("connect database error")
+		os.Exit(1)
+	}
 	for i := 0; i < nWorker; i++ {
 		message_chan := make(chan *types.Message)
 		consumer := amqp.NewConsumer(uri, exchange, exchange_type, queue, binding_key, consumer_tag)
 		go consumer.Read_record(message_chan)
-		go producer.Insert_record(message_chan)
+		session := db_session.Copy()
+		go insert_record(message_chan, session, dbname)
 	}
-	select {}
 }
