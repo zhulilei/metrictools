@@ -35,9 +35,9 @@ func main() {
 	password, _ := c.String("Generic", "password")
 	port, _ := c.String("web", "port")
 
-	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
+	db_session = metrictools.NewMongo(mongouri, dbname, user, password)
 	if db_session == nil {
-		log.Println("connect mongodb error")
+		log.Println("connect database error")
 		os.Exit(1)
 	}
 
