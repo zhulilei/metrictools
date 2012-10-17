@@ -54,7 +54,8 @@ func (this *Mongo) Insert_record(message_chan chan *types.Message) {
 	go this.handle_insert(message_chan)
 	for {
 		<-this.done
-		this.session.Refresh()
+		this.session.Close()
+		this.connect_mongodb()
 		go this.handle_insert(message_chan)
 	}
 }
@@ -112,7 +113,8 @@ func (this *Mongo) Scan_record(message_chan chan *types.Message, notify_chan cha
 	go this.handle_scan(message_chan, notify_chan)
 	for {
 		<-this.done
-		this.session.Refresh()
+		this.session.Close()
+		this.connect_mongodb()
 		go this.handle_scan(message_chan, notify_chan)
 	}
 }
