@@ -132,8 +132,12 @@ func (this *Consumer) handle(message_chan chan *types.Message) {
 				}
 				message_chan <- msg
 				go func() {
-					<-msg.Done
-					d.Ack(false)
+					stat := <-msg.Done
+					if stat > 0 {
+						d.Ack(false)
+					} else {
+						d.Nack(false,false)
+					}
 				}()
 			}
 		}
