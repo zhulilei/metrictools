@@ -10,8 +10,6 @@ import (
 
 func relation_controller(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	w.WriteHeader(http.StatusOK)
-
 	metrics_a := req.FormValue("a")
 	metrics_b := req.FormValue("b")
 	statistic := req.FormValue("statistic")
@@ -23,11 +21,11 @@ func relation_controller(w http.ResponseWriter, req *http.Request) {
 		start = end - 360
 	}
 
-	session := mogo.session.Clone()
+	session := db_session.Clone()
 	defer session.Close()
 
 	var hosts []types.Host
-	err := session.DB(mogo.dbname).C("host_metric").Find(bson.M{"metric": bson.M{"$regex": metrics_a}}).Sort("host_metric").All(&hosts)
+	err := session.DB(dbname).C("host_metric").Find(bson.M{"metric": bson.M{"$regex": metrics_a}}).Sort("host_metric").All(&hosts)
 	if err != nil || len(hosts) == 0 {
 		return
 	}
@@ -40,7 +38,7 @@ func relation_controller(w http.ResponseWriter, req *http.Request) {
 		var json string
 		if m != nil {
 			var q []types.Record
-			err := session.DB(mogo.dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&q)
+			err := session.DB(dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&q)
 			if err != nil {
 				log.Printf("query error:%s\n", err)
 				return
@@ -54,10 +52,10 @@ func relation_controller(w http.ResponseWriter, req *http.Request) {
 	m2 := types.NewLiteMetric(metrics_b)
 	var query2 []types.Record
 	if m2 != nil {
-		err := session.DB(mogo.dbname).C(m2.App).Find(bson.M{"hs": m2.Hs, "rt": m2.Rt, "nm": m2.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query2)
+		err := session.DB(dbname).C(m2.App).Find(bson.M{"hs": m2.Hs, "rt": m2.Rt, "nm": m2.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query2)
 		if err != nil {
 			log.Printf("query error:%s\n", err)
-			return
+			db_session.Refresh()
 		} else {
 			json += *json_metrics_value(query2, m2.App)
 		}
@@ -67,8 +65,10 @@ func relation_controller(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if len(json) > 0 {
+		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, "["+json[:len(json)-1]+"]")
 	} else {
+		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, "internal error")
 	}
 }

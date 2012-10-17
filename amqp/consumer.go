@@ -136,7 +136,7 @@ func (this *Consumer) handle(message_chan chan *types.Message) {
 					if stat > 0 {
 						d.Ack(false)
 					} else {
-						d.Nack(false,false)
+						d.Nack(false, false)
 					}
 				}()
 			}

@@ -11,8 +11,6 @@ import (
 
 func host_controller(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	w.WriteHeader(http.StatusOK)
-
 	hosts := req.FormValue("host")
 	starttime := req.FormValue("starttime")
 	endtime := req.FormValue("endtime")
@@ -24,22 +22,24 @@ func host_controller(w http.ResponseWriter, req *http.Request) {
 
 	host_list := strings.Split(hosts, ",")
 	var rsp []types.Host
-	session := mogo.session.Clone()
+	session := db_session.Clone()
 	defer session.Close()
 	for l := range host_list {
 		var query []types.Host
-		err := session.DB(mogo.dbname).C("host_metric").Find(bson.M{"host": host_list[l]}).Sort("metric").All(&query)
+		err := session.DB(dbname).C("host_metric").Find(bson.M{"host": host_list[l]}).Sort("metric").All(&query)
 		if err != nil {
 			log.Printf("query error:%s\n", err)
-			break
+			db_session.Refresh()
 		} else {
 			rsp = append(rsp, query...)
 		}
 	}
 	if len(rsp) > 0 {
+		w.WriteHeader(http.StatusOK)
 		json := json_host_list(rsp)
 		io.WriteString(w, *json)
 	} else {
+		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, "internal error")
 	}
 }

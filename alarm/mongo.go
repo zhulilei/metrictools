@@ -2,13 +2,13 @@ package main
 
 import (
 	"github.com/datastream/cal"
-        "github.com/datastream/metrictools/types"
 	"github.com/datastream/metrictools/notify"
-        "labix.org/v2/mgo"
-        "labix.org/v2/mgo/bson"
-        "log"
-        "strings"
-        "time"
+	"github.com/datastream/metrictools/types"
+	"labix.org/v2/mgo"
+	"labix.org/v2/mgo/bson"
+	"log"
+	"strings"
+	"time"
 )
 
 func scan_record(message_chan chan *types.Message, notify_chan chan *notify.Notify, session *mgo.Session, dbname string) {
@@ -29,7 +29,7 @@ func scan_record(message_chan chan *types.Message, notify_chan chan *notify.Noti
 			err = session.DB(dbname).C("Alarm").Find(bson.M{"exp": bson.M{"$regex": metric[0]}}).All(&alm)
 			if err != nil {
 				log.Println("mongodb error", err)
-				time.Sleep(time.Second*2)
+				time.Sleep(time.Second * 2)
 				session.Refresh()
 			}
 			if len(alm) > 0 {

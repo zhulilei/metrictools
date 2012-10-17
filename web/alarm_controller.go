@@ -21,7 +21,7 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
-	session := mogo.session.Clone()
+	session := db_session.Clone()
 	defer session.Close()
 	for i := range alm_req.Act {
 		body, err := json.Marshal(alm_req.Act[i])
@@ -31,14 +31,17 @@ func alarm_controller(w http.ResponseWriter, req *http.Request) {
 	}
 	alm_req.Almact.Exp = alm_req.Alm.Exp
 	if len(alm_req.Almact.Act) < 1 {
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 		return
 	}
-	err = session.DB(mogo.dbname).C("Alarm").Insert(alm_req.Alm)
-	err = session.DB(mogo.dbname).C("AlarmAction").Insert(alm_req.Almact)
+	err = session.DB(dbname).C("Alarm").Insert(alm_req.Alm)
+	err = session.DB(dbname).C("AlarmAction").Insert(alm_req.Almact)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
+		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Add successful"))
 	}
 }

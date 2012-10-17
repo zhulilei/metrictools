@@ -11,7 +11,6 @@ import (
 
 func metric_controller(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	w.WriteHeader(http.StatusOK)
 	metricsname := req.FormValue("metricsname") // all
 	starttime := req.FormValue("starttime")
 	endtime := req.FormValue("endtime")
@@ -22,24 +21,27 @@ func metric_controller(w http.ResponseWriter, req *http.Request) {
 	}
 
 	nm := strings.Split(metricsname, ",")
-	session := mogo.session.Clone()
+	session := db_session.Clone()
 	defer session.Close()
 	var json string
 	for l := range nm {
 		m := types.NewLiteMetric(nm[l])
 		if m != nil {
 			var query []types.Record
-			err := session.DB(mogo.dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
+			err := session.DB(dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
 			if err != nil {
 				log.Printf("query error:%s\n", err)
+				session.Refresh()
 			} else {
 				json += *json_metrics_value(query, m.App)
 			}
 		}
 	}
 	if len(json) > 1 {
+		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, "["+json[:len(json)-1]+"]")
 	} else {
+		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, "[]")
 	}
 }

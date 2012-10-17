@@ -22,12 +22,12 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 		start = end - 360
 	}
 
-	session := mogo.session.Clone()
+	session := db_session.Clone()
 	defer session.Close()
 	var query []types.Host
 	var json string
 	if len(metric_type) > 0 {
-		err := session.DB(mogo.dbname).C("host_metric").Find(bson.M{"host": host, "metric": bson.M{"$regex": metric_type}}).Sort("metric").All(&query)
+		err := session.DB(dbname).C("host_metric").Find(bson.M{"host": host, "metric": bson.M{"$regex": metric_type}}).Sort("metric").All(&query)
 		if err != nil {
 			log.Printf("query error:%s\n", err)
 		} else {
@@ -36,7 +36,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 				m := types.NewLiteMetric(query[l].Metric)
 				if m != nil {
 					var query []types.Record
-					err := session.DB(mogo.dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
+					err := session.DB(dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
 					if err != nil {
 						log.Printf("query error:%s\n", err)
 					} else {
@@ -46,7 +46,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 			}
 		}
 	} else {
-		err := session.DB(mogo.dbname).C("host_metric").Find(bson.M{"host": host, "metric": bson.M{"$regex": metric_type}}).Sort("metric").All(&query)
+		err := session.DB(dbname).C("host_metric").Find(bson.M{"host": host, "metric": bson.M{"$regex": metric_type}}).Sort("metric").All(&query)
 		if err != nil {
 			log.Printf("query error:%s\n", err)
 		} else {

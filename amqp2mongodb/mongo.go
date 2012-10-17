@@ -38,7 +38,7 @@ func insert_record(message_chan chan *types.Message, session *mgo.Session, dbnam
 					} else {
 						log.Println("mongodb insert failed", err)
 						session.Refresh()
-						time.Sleep(time.Second*2)
+						time.Sleep(time.Second * 2)
 					}
 				}
 			} else {

@@ -2,12 +2,12 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"github.com/datastream/metrictools"
 	"github.com/kless/goconfig/config"
+	"labix.org/v2/mgo"
 	"log"
 	"net/http"
 	"os"
-	"time"
 )
 
 var (
@@ -19,17 +19,18 @@ const (
 	APP    = 2
 )
 
-var mogo *Mongo
+var db_session *mgo.Session
+var dbname string
 
 func main() {
 	flag.Parse()
 	c, err := config.ReadDefault(*conf_file)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		os.Exit(1)
 	}
 	mongouri, _ := c.String("Generic", "mongodb")
-	dbname, _ := c.String("Generic", "dbname")
+	dbname, _ = c.String("Generic", "dbname")
 	user, _ := c.String("Generic", "user")
 	password, _ := c.String("Generic", "password")
 	port, _ := c.String("web", "port")
@@ -40,12 +41,10 @@ func main() {
 	http.HandleFunc("/monitorapi/relation", relation_controller)
 	http.HandleFunc("/monitorapi/alarm", alarm_controller)
 
-	for {
-		mogo = NewMongo(mongouri, dbname, user, password)
-		if mogo != nil {
-			break
-		}
-		time.Sleep(time.Second * 2)
+	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
+	if db_session == nil {
+		log.Println("connect mongodb error")
+		os.Exit(1)
 	}
 
 	err = http.ListenAndServe(":"+port, nil)
