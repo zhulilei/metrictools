@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
-	"github.com/datastream/metrictools/types"
 	"github.com/kless/goconfig/config"
 	"log"
 	"os"
@@ -41,7 +40,7 @@ func main() {
 		os.Exit(1)
 	}
 	for i := 0; i < nWorker; i++ {
-		message_chan := make(chan *types.Message)
+		message_chan := make(chan *amqp.Message)
 		consumer := amqp.NewConsumer(uri, exchange, exchange_type, queue, binding_key, consumer_tag)
 		go consumer.Read_record(message_chan)
 		session := db_session.Copy()
