@@ -10,11 +10,6 @@ const (
 	GREATER = 7
 )
 
-type Message struct {
-	Done    chan int
-	Content string
-}
-
 type Record struct {
 	Rt string
 	Nm string

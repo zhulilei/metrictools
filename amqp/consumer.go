@@ -1,7 +1,6 @@
 package amqp
 
 import (
-	"github.com/datastream/metrictools/types"
 	"github.com/streadway/amqp"
 	"log"
 	"time"
@@ -18,6 +17,11 @@ type Consumer struct {
 	queue        string
 	key          string
 	done         chan error
+}
+
+type Message struct {
+	Done    chan int
+	Content string
 }
 
 func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) *Consumer {
@@ -108,7 +112,7 @@ func (this *Consumer) connect_mq() {
 	}
 }
 
-func (this *Consumer) Read_record(message_chan chan *types.Message) {
+func (this *Consumer) Read_record(message_chan chan *Message) {
 	this.connect_mq()
 	go this.handle(message_chan)
 	for {
@@ -117,7 +121,7 @@ func (this *Consumer) Read_record(message_chan chan *types.Message) {
 		go this.handle(message_chan)
 	}
 }
-func (this *Consumer) handle(message_chan chan *types.Message) {
+func (this *Consumer) handle(message_chan chan *Message) {
 	for {
 		select {
 		case d, ok := <-this.deliveries:
@@ -126,7 +130,7 @@ func (this *Consumer) handle(message_chan chan *types.Message) {
 					break
 				}
 				rst := string(d.Body)
-				msg := &types.Message{
+				msg := &Message{
 					Done:    make(chan int),
 					Content: rst,
 				}
