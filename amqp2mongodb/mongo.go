@@ -11,8 +11,8 @@ import (
 
 func insert_record(message_chan chan *types.Message, session *mgo.Session, dbname string) {
 	defer session.Close()
+	var err error
 	for {
-		var err error
 		msg := <-message_chan
 		metrics := strings.Split(strings.TrimSpace(msg.Content), "\n")
 		for i := range metrics {
@@ -46,10 +46,9 @@ func insert_record(message_chan chan *types.Message, session *mgo.Session, dbnam
 			}
 		}
 		if err != nil {
-			go func() {
-				message_chan <- msg
-			}()
+			msg.Done <- -1
+		} else {
+			msg.Done <- 1
 		}
-		msg.Done <- 1
 	}
 }
