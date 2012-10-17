@@ -21,7 +21,6 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 	if !checktime(start, end) {
 		start = end - 360
 	}
-
 	session := db_session.Clone()
 	defer session.Close()
 	var query []types.Host

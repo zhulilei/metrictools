@@ -35,17 +35,17 @@ func main() {
 	password, _ := c.String("Generic", "password")
 	port, _ := c.String("web", "port")
 
-	http.HandleFunc("/monitorapi/metric", metric_controller)
-	http.HandleFunc("/monitorapi/host", host_controller)
-	http.HandleFunc("/monitorapi/types", type_controller)
-	http.HandleFunc("/monitorapi/relation", relation_controller)
-	http.HandleFunc("/monitorapi/alarm", alarm_controller)
-
 	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
 	if db_session == nil {
 		log.Println("connect mongodb error")
 		os.Exit(1)
 	}
+
+	http.HandleFunc("/monitorapi/metric", metric_controller)
+	http.HandleFunc("/monitorapi/host", host_controller)
+	http.HandleFunc("/monitorapi/types", type_controller)
+	http.HandleFunc("/monitorapi/relation", relation_controller)
+	http.HandleFunc("/monitorapi/alarm", alarm_controller)
 
 	err = http.ListenAndServe(":"+port, nil)
 	if err != nil {
