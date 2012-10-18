@@ -96,7 +96,7 @@ func scan_record(message_chan chan *metrictools.Metric, notify_chan chan []byte,
 		metric := <-message_chan
 		var err error
 		var alm []metrictools.Alarm
-		metric_full := metric.Retention + metric.App + metric.Nm + metric.Cl + metric.Hs
+		metric_full := metric.Retention + "." + metric.App + "." + metric.Nm + "." + metric.Cl + "." + metric.Hs
 		err = session.DB(dbname).C("Alarm").Find(bson.M{"exp": bson.M{"$regex": metric_full}}).All(&alm)
 		if err != nil {
 			log.Println("mongodb error", err)
