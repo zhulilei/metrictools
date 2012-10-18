@@ -35,7 +35,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 				m := metrictools.NewLiteMetric(query[l].Metric)
 				if m != nil {
 					var query []metrictools.Record
-					err := session.DB(dbname).C(m.Retention + "_" + m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
+					err := session.DB(dbname).C(m.Retention + m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
 					if err != nil {
 						log.Printf("query error:%s\n", err)
 						db_session.Refresh()

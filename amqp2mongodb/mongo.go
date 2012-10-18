@@ -30,7 +30,7 @@ func insert_record(message_chan chan *amqp.Message, scan_chan chan *metrictools.
 				if rst, _ := regexp.MatchString("(eth|br|bond)[0-9]{1,2}", record.Nm); !rst && record.App == "interface" {
 					continue
 				}
-				err = session.DB(dbname).C(record.Retention + "_" + record.App).Insert(record.Record)
+				err = session.DB(dbname).C(record.Retention + record.App).Insert(record.Record)
 				splitname := strings.Split(metrics[i], " ")
 				host := &metrictools.Host{
 					Host:   record.Hs,
@@ -144,7 +144,7 @@ func get_values(metric string, interval int, session *mgo.Session, dbname string
 	for i := range hosts {
 		m := metrictools.NewMetric(hosts[i].Metric)
 		var tmp []metrictools.Record
-		err := session.DB(dbname).C(m.Retention + "_" + m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).All(&tmp)
+		err := session.DB(dbname).C(m.Retention + m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).All(&tmp)
 		if err == nil {
 			result = append(result, tmp...)
 		}
