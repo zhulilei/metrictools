@@ -2,7 +2,7 @@ package notify
 
 import (
 	"encoding/json"
-	"github.com/datastream/metrictools/types"
+	"github.com/datastream/metrictools"
 	"log"
 )
 
@@ -12,7 +12,7 @@ type Message struct {
 	Level   int    //0 ok, 1 warning, 2 error
 }
 type Notify struct {
-	Alarmaction types.AlarmAction
+	Alarmaction metrictools.AlarmAction
 	Level       int
 	Value       float64
 }
@@ -22,7 +22,7 @@ func Send(notify_chan chan *Notify, msg_chan chan []byte) {
 		nt := <-notify_chan
 		almaction := nt.Alarmaction
 		for i := range almaction.Act {
-			var ac types.Action
+			var ac metrictools.Action
 			if err := json.Unmarshal(almaction.Act[i], &ac); err != nil {
 				log.Println("Action encode error", err)
 				continue
