@@ -51,9 +51,9 @@ func NewLiteMetric(s string) *Metric {
 		Name += splitname[i]
 	}
 	this := &Metric{
-		App: App,
+		App:       App,
+		Retention: Retention,
 		Record: Record{
-			Rt: Retention,
 			Nm: Name,
 			Cl: Colo,
 			Hs: Hostname,

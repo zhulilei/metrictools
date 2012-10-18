@@ -20,8 +20,8 @@ type Record struct {
 
 type Metric struct {
 	Record
-	Rate string
-	App  string
+	Retention string
+	App       string
 }
 
 type Host struct {
@@ -44,9 +44,9 @@ type Action struct {
 }
 
 type AlarmAction struct {
-	Exp  string //Metric expression name
-	Type string //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
-	Pd   string //blog, photo, reader
+	Exp  string   //Metric expression name
+	Type string   //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
+	Pd   string   //blog, photo, reader
 	Act  [][]byte //action json
 	Stat int
 	Ts   int64
