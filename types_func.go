@@ -62,25 +62,6 @@ func NewLiteMetric(s string) *Metric {
 	return this
 }
 
-// return m/n
-func Div_value(m, n []Record) []Record {
-	var values map[int64]float64
-	for i := range m {
-		values[m[i].Ts/60] = m[i].V
-	}
-	for i := range n {
-		values[n[i].Ts/60] /= n[i].V
-	}
-	var rst []Record
-	for k, v := range values {
-		var t Record
-		t.V = v
-		t.Ts = k * 60
-		rst = append(rst, t)
-	}
-	return rst
-}
-
 func Avg_value(r []Record) float64 {
 	return Sum_value(r) / float64(len(r))
 }
