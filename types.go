@@ -1,4 +1,4 @@
-package types
+package metrictools
 
 const (
 	AVG     = 1
