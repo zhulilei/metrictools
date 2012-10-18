@@ -13,6 +13,35 @@ import (
 	"strings"
 	"time"
 )
+func ensure_index(db_session *mgo.Session, dbname string) {
+	session := db_session.Copy()
+	defer session.Close()
+	index := mgo.Index{
+		Key: []string{"hs", "nm","ts"},
+		Unique: true,
+		DropDups: true,
+		Background: true,
+		Sparse: true,
+	}
+	ticker := time.NewTicker(time.Second * 3600)
+	for {
+		clist, err := session.DB(dbname).CollectionNames()
+		if err != nil {
+			time.Sleep(time.Second * 10)
+			session.Refresh()
+		} else {
+			for i := range clist {
+				if rst, _ := regexp.MatchString("(1sec|10sec|1min|5min|10min|15min)",clist[i]); rst {
+					if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
+						session.Refresh()
+						log.Println("make index error: ",err)
+					}
+				}
+			}
+			<- ticker.C
+		}
+	}
+}
 
 func insert_record(message_chan chan *amqp.Message, scan_chan chan *metrictools.Metric, db_session *mgo.Session, dbname string) {
 	session := db_session.Copy()

@@ -56,7 +56,8 @@ func main() {
 		go insert_record(msg_chan, scan_chan, db_session, dbname)
 		go scan_record(scan_chan, notify_chan, db_session, dbname)
 	}
-	dosend(deliver_chan, notify_chan)
+	go dosend(deliver_chan, notify_chan)
+	ensure_index(db_session, dbname)
 }
 
 func dosend(deliver_chan chan *amqp.Message, msg_chan chan []byte) {
