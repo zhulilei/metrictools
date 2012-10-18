@@ -11,7 +11,6 @@ const (
 )
 
 type Record struct {
-	Rt string
 	Nm string
 	Cl string
 	Hs string
@@ -21,7 +20,8 @@ type Record struct {
 
 type Metric struct {
 	Record
-	App string
+	Rate string
+	App  string
 }
 
 type Host struct {
