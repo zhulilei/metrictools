@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/datastream/metrictools/types"
+	"github.com/datastream/metrictools"
 	"io"
 	"labix.org/v2/mgo/bson"
 	"log"
@@ -24,40 +24,40 @@ func relation_controller(w http.ResponseWriter, req *http.Request) {
 	session := db_session.Clone()
 	defer session.Close()
 
-	var hosts []types.Host
+	var hosts []metrictools.Host
 	err := session.DB(dbname).C("host_metric").Find(bson.M{"metric": bson.M{"$regex": metrics_a}}).Sort("host_metric").All(&hosts)
 	if err != nil || len(hosts) == 0 {
 		return
 	}
 
 	var json string
-	var query []types.Record
+	var query []metrictools.Record
 
 	for i := range hosts {
-		m := types.NewLiteMetric(hosts[i].Metric)
+		m := metrictools.NewLiteMetric(hosts[i].Metric)
 		var json string
 		if m != nil {
-			var q []types.Record
-			err := session.DB(dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&q)
+			var q []metrictools.Record
+			err := session.DB(dbname).C(m.Retention+"_"+m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&q)
 			if err != nil {
 				log.Printf("query error:%s\n", err)
 				return
 			} else {
 				query = append(query, q...)
-				json += *json_metrics_value(q, m.App)
+				json += *json_metrics_value(q, m.App, m.Retention)
 			}
 		}
 	}
 
-	m2 := types.NewLiteMetric(metrics_b)
-	var query2 []types.Record
+	m2 := metrictools.NewLiteMetric(metrics_b)
+	var query2 []metrictools.Record
 	if m2 != nil {
-		err := session.DB(dbname).C(m2.App).Find(bson.M{"hs": m2.Hs, "rt": m2.Rt, "nm": m2.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query2)
+		err := session.DB(dbname).C(m2.Retention+"_"+m2.App).Find(bson.M{"hs": m2.Hs, "nm": m2.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query2)
 		if err != nil {
 			log.Printf("query error:%s\n", err)
 			db_session.Refresh()
 		} else {
-			json += *json_metrics_value(query2, m2.App)
+			json += *json_metrics_value(query2, m2.App, m2.Retention)
 		}
 	}
 	if len(statistic) > 0 {
@@ -73,7 +73,7 @@ func relation_controller(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func compute(q1 []types.Record, q2 []types.Record, name, act string, count int) string {
+func compute(q1 []metrictools.Record, q2 []metrictools.Record, name, act string, count int) string {
 	var rst map[int64]float64
 	for i := range q1 {
 		rst[q1[i].Ts/60] += q1[i].V

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/datastream/metrictools/types"
+	"github.com/datastream/metrictools"
 	"io"
 	"labix.org/v2/mgo/bson"
 	"log"
@@ -23,7 +23,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 	}
 	session := db_session.Clone()
 	defer session.Close()
-	var query []types.Host
+	var query []metrictools.Host
 	var json string
 	if len(metric_type) > 0 {
 		err := session.DB(dbname).C("host_metric").Find(bson.M{"host": host, "metric": bson.M{"$regex": metric_type}}).Sort("metric").All(&query)
@@ -32,15 +32,15 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 		} else {
 
 			for l := range query {
-				m := types.NewLiteMetric(query[l].Metric)
+				m := metrictools.NewLiteMetric(query[l].Metric)
 				if m != nil {
-					var query []types.Record
-					err := session.DB(dbname).C(m.App).Find(bson.M{"hs": m.Hs, "rt": m.Rt, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
+					var query []metrictools.Record
+					err := session.DB(dbname).C(m.Retention + "_" + m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
 					if err != nil {
 						log.Printf("query error:%s\n", err)
 						db_session.Refresh()
 					} else {
-						json += *json_metrics_value(query, m.App)
+						json += *json_metrics_value(query, m.App, m.Retention)
 					}
 				}
 			}
@@ -48,7 +48,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 	} else {
 		err := session.DB(dbname).C("host_metric").Find(bson.M{"host": host, "metric": bson.M{"$regex": metric_type}}).Sort("metric").All(&query)
 		if err != nil {
-			log.Printf("query types error:%s\n", err)
+			log.Printf("query metrictools error:%s\n", err)
 			db_session.Refresh()
 		} else {
 			json = *json_host_type(query, host)

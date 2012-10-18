@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/datastream/metrictools/types"
+	"github.com/datastream/metrictools"
 	"log"
 	"regexp"
 	"sort"
@@ -10,11 +10,11 @@ import (
 	"strings"
 )
 
-func json_metrics_value(m []types.Record, app string) *string {
+func json_metrics_value(m []metrictools.Record, app, retention string) *string {
 	var rst string
 	metrics := make(map[string]string)
 	for i := range m {
-		name := m[i].Rt + "." + app + "." + m[i].Nm + "." + m[i].Cl + "." + m[i].Hs
+		name := retention + "." + app + "." + m[i].Nm + "." + m[i].Cl + "." + m[i].Hs
 		if _, ok := metrics[name]; ok {
 			metrics[name] += ","
 			metrics[name] += "[" + strconv.FormatInt(m[i].Ts, 10) + "," + strconv.FormatFloat(m[i].V, 'f', -1, 64) + "]"
@@ -64,18 +64,18 @@ type in_host_json struct {
 	Url string
 }
 
-func json_host_list(h []types.Host) *string {
-	var m []types.Metric
+func json_host_list(h []metrictools.Host) *string {
+	var m []metrictools.Metric
 	for i := range h {
-		m = append(m, *types.NewLiteMetric(h[i].Metric))
+		m = append(m, *metrictools.NewLiteMetric(h[i].Metric))
 	}
 	hosts := make(map[string][]string)
 	times := make(map[string][]string)
 	colos := make(map[string][]string)
 	for i := range m {
-		name := m[i].Rt + "." + m[i].App + "." + m[i].Nm + "." + m[i].Cl + "." + m[i].Hs
+		name := m[i].Retention + "." + m[i].App + "." + m[i].Nm + "." + m[i].Cl + "." + m[i].Hs
 		hosts[m[i].Hs] = append(hosts[m[i].Hs], name)
-		times[m[i].Rt] = append(times[m[i].Rt], name)
+		times[m[i].Retention] = append(times[m[i].Retention], name)
 		colos[m[i].Cl] = append(colos[m[i].Cl], name)
 
 	}
@@ -196,7 +196,7 @@ func get_metricname_without_colo(m string) string {
 	return name
 }
 
-func json_host_type(h []types.Host, host string) *string {
+func json_host_type(h []metrictools.Host, host string) *string {
 	host_type := make(map[string][]string)
 	for i := range h {
 		host_type[get_type(h[i])] = append(host_type[get_type(h[i])], h[i].Metric)
@@ -342,7 +342,7 @@ func sort_json(arrary map[string][]string, host string, data_type string) string
 	}
 	return rst
 }
-func get_type(h types.Host) string {
+func get_type(h metrictools.Host) string {
 	splitname := strings.Split(h.Metric, ".")
 	return splitname[1]
 }

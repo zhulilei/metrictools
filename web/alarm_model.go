@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/datastream/metrictools/types"
+	"github.com/datastream/metrictools"
 )
 
 type AlarmRequest struct {
-	Alm    types.Alarm
-	Almact types.AlarmAction
-	Act    []types.Action
+	Alm    metrictools.Alarm
+	Almact metrictools.AlarmAction
+	Act    []metrictools.Action
 }

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/datastream/metrictools/types"
+	"github.com/datastream/metrictools"
 	"io"
 	"labix.org/v2/mgo/bson"
 	"log"
@@ -21,11 +21,11 @@ func host_controller(w http.ResponseWriter, req *http.Request) {
 	}
 
 	host_list := strings.Split(hosts, ",")
-	var rsp []types.Host
+	var rsp []metrictools.Host
 	session := db_session.Clone()
 	defer session.Close()
 	for l := range host_list {
-		var query []types.Host
+		var query []metrictools.Host
 		err := session.DB(dbname).C("host_metric").Find(bson.M{"host": host_list[l]}).Sort("metric").All(&query)
 		if err != nil {
 			log.Printf("query error:%s\n", err)
