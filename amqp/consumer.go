@@ -22,6 +22,7 @@ type Consumer struct {
 type Message struct {
 	Done    chan int
 	Content string
+	Key     string
 }
 
 func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) *Consumer {

@@ -13,6 +13,7 @@ type Producer struct {
 	channel      *amqp.Channel
 	Ack          chan uint64
 	Nack         chan uint64
+	done         chan error
 }
 
 func NewProducer(amqpURI, exchange, exchangeType string, reliable bool) *Producer {
@@ -21,15 +22,12 @@ func NewProducer(amqpURI, exchange, exchangeType string, reliable bool) *Produce
 		exchange:     exchange,
 		exchangeType: exchangeType,
 		Reliable:     reliable,
+		done:         make(chan error),
 	}
 	return this
 }
 
-func (this *Producer) Connect_mq() {
-	// This function dials, connects, declares, publishes, and tears down,
-	// all in one go. In a real service, you probably want to maintain a
-	// long-lived connection as state, and publish against that.
-
+func (this *Producer) connect_mq() {
 	for {
 		connection, err := amqp.Dial(this.amqpURI)
 		if err != nil {
@@ -66,24 +64,49 @@ func (this *Producer) Connect_mq() {
 		break
 	}
 }
-func (this *Producer) Deliver(body []byte, key string) error {
-	var err error
-	if err = this.channel.Publish(
-		this.exchange,
-		key,
-		true, // mandatory
-		true, // immediate
-		amqp.Publishing{
-			Headers:         amqp.Table{},
-			ContentType:     "text/plain",
-			ContentEncoding: "",
-			Body:            body,
-			DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
-			Priority:        0,              // 0-9
-			// a bunch of application/implementation-specific fields
-		},
-	); err != nil {
-		log.Println("Exchange Publish: ", err)
+func (this *Producer) Deliver(message_chan chan *Message) {
+	this.connect_mq()
+	go this.handle(message_chan)
+	for {
+		<-this.done
+		this.connect_mq()
+		go this.handle(message_chan)
 	}
-	return err
+}
+
+func (this *Producer) handle(message_chan chan *Message) {
+	var err error
+	for {
+		msg := <-message_chan
+		if err = this.channel.Publish(
+			this.exchange,
+			msg.Key,
+			true, // mandatory
+			true, // immediate
+			amqp.Publishing{
+				Headers:         amqp.Table{},
+				ContentType:     "text/plain",
+				ContentEncoding: "",
+				Body:            []byte(msg.Content),
+				DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
+				Priority:        0,              // 0-9
+				// a bunch of application/implementation-specific fields
+			},
+		); err != nil {
+			log.Println("Exchange Publish: ", err)
+			msg.Done <- -1
+		}
+		if this.Reliable {
+			select {
+			case <-this.Ack:
+				msg.Done <- 1
+			case <-this.Nack:
+				msg.Done <- -1
+			}
+		} else {
+			msg.Done <- 1
+		}
+	}
+	log.Printf("handle: publish channel closed")
+	this.done <- nil
 }
