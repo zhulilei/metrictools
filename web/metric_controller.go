@@ -23,7 +23,7 @@ func metric_controller(w http.ResponseWriter, req *http.Request) {
 	nm := strings.Split(metricsname, ",")
 	session := db_session.Clone()
 	defer session.Close()
-	var json string
+	var json_string string
 	for l := range nm {
 		m := metrictools.NewLiteMetric(nm[l])
 		if m != nil {
@@ -33,13 +33,16 @@ func metric_controller(w http.ResponseWriter, req *http.Request) {
 				log.Printf("query metric error:%s\n", err)
 				db_session.Refresh()
 			} else {
-				json += json_metrics_value(query, m.App, m.Retention)
+				json_string += json_metrics_value(query, m.App, m.Retention)
 			}
 		}
 	}
-	if len(json) > 1 {
+	if len(json_string) > 1 {
 		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, "["+json[:len(json)-1]+"]")
+		if json_string[len(json_string)-1] == ',' {
+			json_string = json_string[:len(json_string)-1]
+		}
+		io.WriteString(w, "["+json_string+"]")
 	} else {
 		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, "[]")

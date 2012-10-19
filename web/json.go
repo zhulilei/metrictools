@@ -12,15 +12,10 @@ import (
 
 func json_metrics_value(m []metrictools.Record, app, retention string) string {
 	var rst string
-	metrics := make(map[string]string)
+	metrics := make(map[string][]interface{})
 	for i := range m {
 		name := retention + "." + app + "." + m[i].Nm + "." + m[i].Cl + "." + m[i].Hs
-		if _, ok := metrics[name]; ok {
-			metrics[name] += ","
-			metrics[name] += "[" + strconv.FormatInt(m[i].Ts, 10) + "," + strconv.FormatFloat(m[i].V, 'f', -1, 64) + "]"
-		} else {
-			metrics[name] = "[" + strconv.FormatInt(m[i].Ts, 10) + "," + strconv.FormatFloat(m[i].V, 'f', -1, 64) + "]"
-		}
+		metrics[name] = append(metrics[name], []interface{}{m[i].Ts, m[i].V})
 	}
 	var keys []string
 	for k, _ := range metrics {
@@ -31,9 +26,12 @@ func json_metrics_value(m []metrictools.Record, app, retention string) string {
 		if len(rst) > 0 {
 			rst += ","
 		}
-		rst += "{\"key\": \"" + keys[l] + "\",\"values\": ["
-		rst += metrics[keys[l]]
-		rst += "]},"
+		msg := map[string]interface{} {"key":keys[l],"values": metrics[keys[l]]}
+		if body, err := json.Marshal(msg); err != nil {
+			rst += ""
+		} else {
+			rst += string(body)
+		}
 	}
 	return rst
 }
