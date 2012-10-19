@@ -76,10 +76,10 @@ func insert_record(message_chan chan *amqp.Message, scan_chan chan *metrictools.
 						time.Sleep(time.Second * 2)
 					}
 				}
+				scan_chan <- record
 			} else {
 				log.Println("metrics error:", msg.Content)
 			}
-			scan_chan <- record
 		}
 		if err != nil {
 			msg.Done <- -1
@@ -96,9 +96,6 @@ func scan_record(message_chan chan *metrictools.Metric, notify_chan chan []byte,
 		metric := <-message_chan
 		var err error
 		var alm []metrictools.Alarm
-		if metric == nil {
-			continue
-		}
 		metric_full := metric.Retention + "." + metric.App + "." + metric.Nm + "." + metric.Cl + "." + metric.Hs
 		err = session.DB(dbname).C("Alarm").Find(bson.M{"exp": bson.M{"$regex": metric_full}}).All(&alm)
 		if err != nil {
