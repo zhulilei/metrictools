@@ -46,7 +46,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 			}
 		}
 	} else {
-		err := session.DB(dbname).C("host_metric").Find(bson.M{"host": host, "metric": bson.M{"$regex": metric_type}}).Sort("metric").All(&query)
+		err := session.DB(dbname).C("host_metric").Find(bson.M{"host": host}).Sort("metric").All(&query)
 		if err != nil {
 			log.Printf("query metrictools error:%s\n", err)
 			db_session.Refresh()
