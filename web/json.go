@@ -21,14 +21,11 @@ func json_metrics_value(m []metrictools.Record, app, retention string) string {
 	}
 	sort.Strings(keys)
 	for l := range keys {
-		if len(rst) > 0 {
-			rst += ","
-		}
 		msg := map[string]interface{}{"key": keys[l], "values": metrics[keys[l]]}
 		if body, err := json.Marshal(msg); err != nil {
 			rst += ""
 		} else {
-			rst += string(body)
+			rst += string(body)+","
 		}
 	}
 	return rst
