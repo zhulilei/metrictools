@@ -38,13 +38,13 @@ func relation_controller(w http.ResponseWriter, req *http.Request) {
 		var json string
 		if m != nil {
 			var q []metrictools.Record
-			err := session.DB(dbname).C(m.Retention+m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&q)
+			err := session.DB(dbname).C(m.Retention + m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&q)
 			if err != nil {
 				log.Printf("query error:%s\n", err)
 				return
 			} else {
 				query = append(query, q...)
-				json += *json_metrics_value(q, m.App, m.Retention)
+				json += json_metrics_value(q, m.App, m.Retention)
 			}
 		}
 	}
@@ -52,12 +52,12 @@ func relation_controller(w http.ResponseWriter, req *http.Request) {
 	m2 := metrictools.NewLiteMetric(metrics_b)
 	var query2 []metrictools.Record
 	if m2 != nil {
-		err := session.DB(dbname).C(m2.Retention+m2.App).Find(bson.M{"hs": m2.Hs, "nm": m2.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query2)
+		err := session.DB(dbname).C(m2.Retention + m2.App).Find(bson.M{"hs": m2.Hs, "nm": m2.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query2)
 		if err != nil {
 			log.Printf("query error:%s\n", err)
 			db_session.Refresh()
 		} else {
-			json += *json_metrics_value(query2, m2.App, m2.Retention)
+			json += json_metrics_value(query2, m2.App, m2.Retention)
 		}
 	}
 	if len(statistic) > 0 {

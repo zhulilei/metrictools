@@ -37,7 +37,7 @@ func host_controller(w http.ResponseWriter, req *http.Request) {
 	if len(rsp) > 0 {
 		w.WriteHeader(http.StatusOK)
 		json := json_host_list(rsp)
-		io.WriteString(w, *json)
+		io.WriteString(w, json)
 	} else {
 		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, "internal error")

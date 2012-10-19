@@ -40,7 +40,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 						log.Printf("query error:%s\n", err)
 						db_session.Refresh()
 					} else {
-						json += *json_metrics_value(query, m.App, m.Retention)
+						json += json_metrics_value(query, m.App, m.Retention)
 					}
 				}
 			}
@@ -51,7 +51,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 			log.Printf("query metrictools error:%s\n", err)
 			db_session.Refresh()
 		} else {
-			json = *json_host_type(query, host)
+			json = json_host_type(query, host)
 		}
 	}
 	if len(json) > 0 {

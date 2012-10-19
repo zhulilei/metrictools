@@ -28,12 +28,12 @@ func metric_controller(w http.ResponseWriter, req *http.Request) {
 		m := metrictools.NewLiteMetric(nm[l])
 		if m != nil {
 			var query []metrictools.Record
-			err := session.DB(dbname).C(m.Retention+m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
+			err := session.DB(dbname).C(m.Retention + m.App).Find(bson.M{"hs": m.Hs, "nm": m.Nm, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
 			if err != nil {
 				log.Printf("query metric error:%s\n", err)
 				db_session.Refresh()
 			} else {
-				json += *json_metrics_value(query, m.App, m.Retention)
+				json += json_metrics_value(query, m.App, m.Retention)
 			}
 		}
 	}

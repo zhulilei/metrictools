@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func json_metrics_value(m []metrictools.Record, app, retention string) *string {
+func json_metrics_value(m []metrictools.Record, app, retention string) string {
 	var rst string
 	metrics := make(map[string]string)
 	for i := range m {
@@ -35,7 +35,7 @@ func json_metrics_value(m []metrictools.Record, app, retention string) *string {
 		rst += metrics[keys[l]]
 		rst += "]},"
 	}
-	return &rst
+	return rst
 }
 
 func gen_value(values map[int64]float64, name string) string {
@@ -64,7 +64,7 @@ type in_host_json struct {
 	Url string
 }
 
-func json_host_list(h []metrictools.Host) *string {
+func json_host_list(h []metrictools.Host) string {
 	var m []metrictools.Metric
 	for i := range h {
 		m = append(m, *metrictools.NewLiteMetric(h[i].Metric))
@@ -146,7 +146,7 @@ func json_host_list(h []metrictools.Host) *string {
 		log.Println("encode json error")
 	}
 	rst := strings.Replace(strings.ToLower(string(j_s)), "mvalues", "_values", -1)
-	return &rst
+	return rst
 }
 
 func get_hostname(m string) string {
@@ -196,7 +196,7 @@ func get_metricname_without_colo(m string) string {
 	return name
 }
 
-func json_host_type(h []metrictools.Host, host string) *string {
+func json_host_type(h []metrictools.Host, host string) string {
 	host_type := make(map[string][]string)
 	for i := range h {
 		host_type[get_type(h[i])] = append(host_type[get_type(h[i])], h[i].Metric)
@@ -259,7 +259,7 @@ func json_host_type(h []metrictools.Host, host string) *string {
 		rst += "},"
 	}
 	rst = rst[:len(rst)-1] + "]}]"
-	return &rst
+	return rst
 }
 func gen_cpu(v []string, host string) string {
 	cpus := make(map[string][]string)
