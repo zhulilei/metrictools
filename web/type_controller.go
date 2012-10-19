@@ -55,7 +55,7 @@ func type_controller(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	if len(json) > 0 {
-		io.WriteString(w, json)
+		io.WriteString(w, "["+json+"]")
 	} else {
 		io.WriteString(w, "internal error")
 	}

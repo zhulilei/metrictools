@@ -42,7 +42,6 @@ func main() {
 	}
 
 	http.HandleFunc("/monitorapi/metric", metric_controller)
-	http.HandleFunc("/monitorapi/host", host_controller)
 	http.HandleFunc("/monitorapi/types", type_controller)
 	http.HandleFunc("/monitorapi/relation", relation_controller)
 	http.HandleFunc("/monitorapi/alarm", alarm_controller)

@@ -3,10 +3,8 @@ package main
 import (
 	"encoding/json"
 	"github.com/datastream/metrictools"
-	"log"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -26,7 +24,7 @@ func json_metrics_value(m []metrictools.Record, app, retention string) string {
 		if len(rst) > 0 {
 			rst += ","
 		}
-		msg := map[string]interface{} {"key":keys[l],"values": metrics[keys[l]]}
+		msg := map[string]interface{}{"key": keys[l], "values": metrics[keys[l]]}
 		if body, err := json.Marshal(msg); err != nil {
 			rst += ""
 		} else {
@@ -38,112 +36,16 @@ func json_metrics_value(m []metrictools.Record, app, retention string) string {
 
 func gen_value(values map[int64]float64, name string) string {
 	var rst string
-	rst += "{\"key\": \"" + name + "\",\"values\": ["
+	var _values [][]interface{}
 	for k, v := range values {
-		rst += "[" + strconv.FormatInt(k*60, 10) + "," + strconv.FormatFloat(v, 'f', -1, 64) + "],"
+		_values = append(_values, []interface{}{k, v})
 	}
-
-	rst = rst[:len(rst)-1] + "]},"
-	return rst
-}
-
-type out_host_json struct {
-	Key    string
-	Url    string
-	Values []*mid_host_json
-}
-type mid_host_json struct {
-	Key     string
-	MValues []*in_host_json
-}
-
-type in_host_json struct {
-	Key string
-	Url string
-}
-
-func json_host_list(h []metrictools.Host) string {
-	var m []metrictools.Metric
-	for i := range h {
-		m = append(m, *metrictools.NewLiteMetric(h[i].Metric))
+	msg := map[string]interface{}{"key": name, "values": _values}
+	if body, err := json.Marshal(msg); err != nil {
+		rst = ""
+	} else {
+		rst = string(body)
 	}
-	hosts := make(map[string][]string)
-	times := make(map[string][]string)
-	colos := make(map[string][]string)
-	for i := range m {
-		name := m[i].Retention + "." + m[i].App + "." + m[i].Nm + "." + m[i].Cl + "." + m[i].Hs
-		hosts[m[i].Hs] = append(hosts[m[i].Hs], name)
-		times[m[i].Retention] = append(times[m[i].Retention], name)
-		colos[m[i].Cl] = append(colos[m[i].Cl], name)
-
-	}
-	out := &out_host_json{
-		Key: "Metrics List",
-	}
-	for k, v := range hosts {
-		sort.Strings(v)
-		mid := &mid_host_json{
-			Key: k,
-		}
-		for i := range v {
-			if i != 0 {
-				if v[i] == v[i-1] {
-					continue
-				}
-			}
-			inter := &in_host_json{
-				Key: get_metricname_without_hostname(v[i]),
-				Url: "/monitor?metricsname=" + v[i] + "&host=" + get_hostname(v[i]),
-			}
-			mid.MValues = append(mid.MValues, inter)
-		}
-		out.Values = append(out.Values, mid)
-	}
-	for k, v := range times {
-		sort.Strings(v)
-		mid := &mid_host_json{
-			Key: k,
-		}
-		for i := range v {
-			if i != 0 {
-				if v[i] == v[i-1] {
-					continue
-				}
-			}
-			inter := &in_host_json{
-				Key: get_metricname_without_retention(v[i]),
-				Url: "/monitor?metricsname=" + v[i] + "&host=" + get_hostname(v[i]),
-			}
-			mid.MValues = append(mid.MValues, inter)
-		}
-		out.Values = append(out.Values, mid)
-	}
-	for k, v := range colos {
-		sort.Strings(v)
-		mid := &mid_host_json{
-			Key: k,
-		}
-		for i := range v {
-			if i != 0 {
-				if v[i] == v[i-1] {
-					continue
-				}
-			}
-			inter := &in_host_json{
-				Key: get_metricname_without_colo(v[i]),
-				Url: "/monitor?metricsname=" + v[i] + "&host=" + get_hostname(v[i]),
-			}
-			mid.MValues = append(mid.MValues, inter)
-		}
-		out.Values = append(out.Values, mid)
-	}
-	var outlist []*out_host_json
-	outlist = append(outlist, out)
-	j_s, err := json.Marshal(outlist)
-	if err != nil {
-		log.Println("encode json error")
-	}
-	rst := strings.Replace(strings.ToLower(string(j_s)), "mvalues", "_values", -1)
 	return rst
 }
 
@@ -196,6 +98,7 @@ func get_metricname_without_colo(m string) string {
 
 func json_host_type(h []metrictools.Host, host string) string {
 	host_type := make(map[string][]string)
+	var rst string
 	for i := range h {
 		host_type[get_type(h[i])] = append(host_type[get_type(h[i])], h[i].Metric)
 	}
@@ -204,62 +107,58 @@ func json_host_type(h []metrictools.Host, host string) string {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-
-	rst := "[{\"key\":\"" + host + "\",\"values\":["
+	host_msg := make(map[string]interface{})
+	host_msg["key"] = host
+	var val []interface{}
 	for l := range keys {
 		sort.Strings(host_type[keys[l]])
-		rst += "{\"key\":\"" + keys[l] + "\","
-		var metrics string
+		var c []interface{}
 		switch keys[l] {
 		case "cpu":
 			{
-				rst += "\"_values\":["
-				c := gen_cpu(host_type[keys[l]], host)
-				rst += c[:len(c)-1]
-				rst += "]"
+				c = gen_cpu(host_type[keys[l]], host)
 			}
 		case "partion":
 			{
-				rst += "\"_values\":["
-				c := gen_partion(host_type[keys[l]], host)
-				rst += c[:len(c)-1]
-				rst += "]"
+				c = gen_partion(host_type[keys[l]], host)
 			}
 		case "apache":
 			{
-				rst += "\"_values\":["
-				c := gen_apache(host_type[keys[l]], host)
-				rst += c[:len(c)-1]
-				rst += "]"
+				c = gen_apache(host_type[keys[l]], host)
 			}
 		case "disk":
 			{
-				rst += "\"_values\":["
-				c := gen_disk(host_type[keys[l]], host)
-				rst += c[:len(c)-1]
-				rst += "]"
+				c = gen_disk(host_type[keys[l]], host)
 			}
 		case "interface":
 			{
-				rst += "\"_values\":["
-				c := gen_interface(host_type[keys[l]], host)
-				rst += c[:len(c)-1]
-				rst += "]"
+				c = gen_interface(host_type[keys[l]], host)
 			}
 		default:
 			{
+				var metrics string
 				for i := range host_type[keys[l]] {
 					metrics += host_type[keys[l]][i] + ","
 				}
-				rst += "\"url\":\"/monitor?metricsname=" + metrics[:len(metrics)-1] + "&host=" + host + "&type=" + keys[l] + "\""
+				msg := map[string]interface{}{"key": keys[l], "url": "/monitor?metricsname=" + metrics[:len(metrics)-1] + "&host=" + host + "&type=" + keys[l]}
+				val = append(val, msg)
 			}
 		}
-		rst += "},"
+		if len(c) > 0 {
+			msg := map[string]interface{}{"key": keys[l], "_values": c}
+			val = append(val, msg)
+		}
 	}
-	rst = rst[:len(rst)-1] + "]}]"
+	host_msg["values"] = val
+	if body, err := json.Marshal(host_msg); err != nil {
+		rst += ""
+	} else {
+		rst += string(body)
+	}
 	return rst
 }
-func gen_cpu(v []string, host string) string {
+
+func gen_cpu(v []string, host string) []interface{} {
 	cpus := make(map[string][]string)
 	for i := range v {
 		reg, _ := regexp.Compile("[0-9]{1,2}.cpu")
@@ -270,7 +169,7 @@ func gen_cpu(v []string, host string) string {
 	}
 	return sort_json(cpus, host, "cpu")
 }
-func gen_partion(v []string, host string) string {
+func gen_partion(v []string, host string) []interface{} {
 	partion := make(map[string][]string)
 	for i := range v {
 		reg, _ := regexp.Compile("partion.*(free|used|used_percent|total)")
@@ -292,7 +191,7 @@ func gen_partion(v []string, host string) string {
 	}
 	return sort_json(partion, host, "partion")
 }
-func gen_apache(v []string, host string) string {
+func gen_apache(v []string, host string) []interface{} {
 	apache := make(map[string][]string)
 	for i := range v {
 		reg, _ := regexp.Compile("apache_(scoreboard|connection|byte|request|idle)")
@@ -301,7 +200,7 @@ func gen_apache(v []string, host string) string {
 	}
 	return sort_json(apache, host, "apache")
 }
-func gen_disk(v []string, host string) string {
+func gen_disk(v []string, host string) []interface{} {
 	disk := make(map[string][]string)
 	for i := range v {
 		reg, _ := regexp.Compile("sd[a-z]{1,2}")
@@ -310,7 +209,7 @@ func gen_disk(v []string, host string) string {
 	}
 	return sort_json(disk, host, "diskio")
 }
-func gen_interface(v []string, host string) string {
+func gen_interface(v []string, host string) []interface{} {
 	eths := make(map[string][]string)
 	for i := range v {
 		reg, _ := regexp.Compile("((eth|bond|br)[0-9]{1,2}|lo).(tx|rx|if)")
@@ -321,22 +220,21 @@ func gen_interface(v []string, host string) string {
 	}
 	return sort_json(eths, host, "network")
 }
-func sort_json(arrary map[string][]string, host string, data_type string) string {
-	var rst string
+func sort_json(arrary map[string][]string, host string, data_type string) []interface{} {
+	var rst []interface{}
 	var keys []string
 	for k, _ := range arrary {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-
 	for l := range keys {
-		rst += "{\"key\":\"" + keys[l] + "\","
 		var metrics string
 		sort.Strings(arrary[keys[l]])
 		for i := range arrary[keys[l]] {
 			metrics += arrary[keys[l]][i] + ","
 		}
-		rst += "\"url\":\"/monitor?metricsname=" + metrics[:len(metrics)-1] + "&host=" + host + "&type=" + data_type + "\"},"
+		msg := map[string]interface{}{"key": keys[l], "url": "/monitor?metricsname=" + metrics[:len(metrics)-1] + "&host=" + host + "&type=" + data_type}
+		rst = append(rst, msg)
 	}
 	return rst
 }
