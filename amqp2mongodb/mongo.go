@@ -16,13 +16,6 @@ import (
 func ensure_index(db_session *mgo.Session, dbname string) {
 	session := db_session.Copy()
 	defer session.Close()
-	index := mgo.Index{
-		Key: []string{"hs", "nm","ts"},
-		Unique: true,
-		DropDups: true,
-		Background: true,
-		Sparse: true,
-	}
 	ticker := time.NewTicker(time.Second * 3600)
 	for {
 		clist, err := session.DB(dbname).CollectionNames()
@@ -31,11 +24,28 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 			session.Refresh()
 		} else {
 			for i := range clist {
+				var index mgo.Index
 				if rst, _ := regexp.MatchString("(1sec|10sec|1min|5min|10min|15min)",clist[i]); rst {
-					if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
-						session.Refresh()
-						log.Println("make index error: ",err)
+					index = mgo.Index{
+						Key: []string{"hs", "nm","ts"},
+						Unique: true,
+						DropDups: true,
+						Background: true,
+						Sparse: true,
 					}
+				}
+				if rst, _ := regexp.MatchString("(alarm)",clist[i]); rst {
+					index = mgo.Index{
+						Key: []string{"exp"},
+						Unique: true,
+						DropDups: true,
+						Background: true,
+						Sparse: true,
+					}
+				}
+				if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
+					session.Refresh()
+					log.Println("make index error: ",err)
 				}
 			}
 			<- ticker.C
