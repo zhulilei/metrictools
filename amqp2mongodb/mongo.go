@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"github.com/datastream/cal"
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
@@ -13,6 +12,7 @@ import (
 	"strings"
 	"time"
 )
+
 func ensure_index(db_session *mgo.Session, dbname string) {
 	session := db_session.Copy()
 	defer session.Close()
@@ -25,30 +25,30 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 		} else {
 			for i := range clist {
 				var index mgo.Index
-				if rst, _ := regexp.MatchString("(1sec|10sec|1min|5min|10min|15min)",clist[i]); rst {
+				if rst, _ := regexp.MatchString("(1sec|10sec|1min|5min|10min|15min)", clist[i]); rst {
 					index = mgo.Index{
-						Key: []string{"hs", "nm","ts"},
-						Unique: true,
-						DropDups: true,
+						Key:        []string{"hs", "nm", "ts"},
+						Unique:     true,
+						DropDups:   true,
 						Background: true,
-						Sparse: true,
+						Sparse:     true,
 					}
 				}
-				if rst, _ := regexp.MatchString("(alarm)",clist[i]); rst {
+				if rst, _ := regexp.MatchString("(alarm)", clist[i]); rst {
 					index = mgo.Index{
-						Key: []string{"exp"},
-						Unique: true,
-						DropDups: true,
+						Key:        []string{"exp"},
+						Unique:     true,
+						DropDups:   true,
 						Background: true,
-						Sparse: true,
+						Sparse:     true,
 					}
 				}
 				if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
 					session.Refresh()
-					log.Println("make index error: ",err)
+					log.Println("make index error: ", err)
 				}
 			}
-			<- ticker.C
+			<-ticker.C
 		}
 	}
 }
@@ -163,9 +163,11 @@ func trigger(metric string, stat int, value float64, notify_chan chan []byte, db
 			Value:       value,
 		}
 		if almaction.Stat > 0 || almaction.Stat != stat {
-			if body, err := json.Marshal(nt); err == nil {
-				notify_chan <- body
+			repeated := true
+			if almaction.Stat == stat {
+				repeated = false
 			}
+			go nt.Send(notify_chan, repeated)
 		}
 		if almaction.Stat != stat {
 			_ = session.DB(dbname).C("AlarmAction").Update(bson.M{"exp": metric}, bson.M{"stat": stat})

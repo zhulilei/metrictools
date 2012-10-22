@@ -17,41 +17,38 @@ type Notify struct {
 	Value       float64
 }
 
-func Send(notify_chan chan *Notify, msg_chan chan []byte) {
-	for {
-		nt := <-notify_chan
-		almaction := nt.Alarmaction
-		for i := range almaction.Act {
-			var ac metrictools.Action
-			if err := json.Unmarshal(almaction.Act[i], &ac); err != nil {
-				log.Println("Action encode error", err)
-				continue
+func (this *Notify)Send(msg_chan chan []byte, repeated bool) {
+	almaction := this.Alarmaction
+	for i := range almaction.Act {
+		var ac metrictools.Action
+		if err := json.Unmarshal(almaction.Act[i], &ac); err != nil {
+			log.Println("Action encode error", err)
+			return
+		}
+		switch ac.T {
+		case "phone":
+			{
+				log.Println(almaction.Exp)
 			}
-			switch ac.T {
-			case "phone":
-				{
-					log.Println(almaction.Exp)
+		case "email":
+			{
+				log.Println(almaction.Exp)
+			}
+		case "im":
+			{
+				log.Println(almaction.Exp)
+			}
+		case "mq":
+			{
+				msg := &Message{
+					Product: almaction.Pd,
+					Type:    almaction.Type,
+					Level:   this.Level,
 				}
-			case "email":
-				{
-					log.Println(almaction.Exp)
-				}
-			case "im":
-				{
-					log.Println(almaction.Exp)
-				}
-			case "mq":
-				{
-					msg := &Message{
-						Product: almaction.Pd,
-						Type:    almaction.Type,
-						Level:   almaction.Stat,
-					}
-					if body, err := json.Marshal(msg); err == nil {
-						msg_chan <- body
-					} else {
-						log.Println("encode error: ", err)
-					}
+				if body, err := json.Marshal(msg); err == nil {
+					msg_chan <- body
+				} else {
+					log.Println("encode error: ", err)
 				}
 			}
 		}
