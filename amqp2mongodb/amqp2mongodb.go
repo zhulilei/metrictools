@@ -30,7 +30,7 @@ func main() {
 	password, _ := c.String("Generic", "password")
 	uri, _ := c.String("Generic", "amqpuri")
 	exchange, _ := c.String("Generic", "exchange")
-	exchange_type, _ := c.String("Generic", "exchange-type")
+	exchange_type, _ := c.String("Generic", "exchange_type")
 	queue, _ := c.String("amqp2mongo", "queue")
 	binding_key, _ := c.String("amqp2mongo", "bindingkey")
 	consumer_tag, _ := c.String("amqp2mongo", "consumertag")
