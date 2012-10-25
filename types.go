@@ -36,8 +36,8 @@ type Alarm struct {
 	P   int       //1min, 5min, 15min
 	J   int       //LESS, GREATER
 	V   []float64 //value
-	Nm  string //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
-	Pd  string //blog, photo, reader
+	Nm  string    //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
+	Pd  string    //blog, photo, reader
 }
 
 type AlarmAction struct {

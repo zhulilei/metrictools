@@ -12,37 +12,33 @@ type Message struct {
 	Level   int    //0 ok, 1 warning, 2 error
 }
 type Notify struct {
-	Alarmaction metrictools.AlarmAction
-	Level       int
-	Value       float64
+	Info   metrictools.Alarm
+	Action metrictools.AlarmAction
+	Level  int
+	Value  float64
 }
 
-func (this *Notify)Send(msg_chan chan []byte, repeated bool) {
-	almaction := this.Alarmaction
-	for i := range almaction.Act {
-		var ac metrictools.Action
-		if err := json.Unmarshal(almaction.Act[i], &ac); err != nil {
-			log.Println("Action encode error", err)
-			return
-		}
-		switch ac.T {
+func (this *Notify) Send(msg_chan chan []byte, repeated bool) {
+	alarm_info := this.Info
+	for i := range this.Action {
+		switch this.Action[i].T {
 		case "phone":
 			{
-				log.Println(almaction.Exp)
+				log.Println(alarm_info.Exp)
 			}
 		case "email":
 			{
-				log.Println(almaction.Exp)
+				log.Println(alarm_info.Exp)
 			}
 		case "im":
 			{
-				log.Println(almaction.Exp)
+				log.Println(alarm_info.Exp)
 			}
 		case "mq":
 			{
 				msg := &Message{
-					Product: almaction.Pd,
-					Type:    almaction.Type,
+					Product: alarm_info.Pd,
+					Type:    alarm_info.Nm,
 					Level:   this.Level,
 				}
 				if body, err := json.Marshal(msg); err == nil {
