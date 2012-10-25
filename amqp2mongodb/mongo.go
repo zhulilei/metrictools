@@ -107,7 +107,7 @@ func scan_record(message_chan chan *metrictools.Metric, notify_chan chan []byte,
 		var err error
 		var alm []metrictools.Alarm
 		metric_full := metric.Retention + "." + metric.App + "." + metric.Nm + "." + metric.Cl + "." + metric.Hs
-		err = session.DB(dbname).C("Alarm").Find(bson.M{"exp": bson.M{"$regex": metric_full}}).All(&alm)
+		err = session.DB(dbname).C("alarm").Find(bson.M{"exp": bson.M{"$regex": metric_full}}).All(&alm)
 		if err != nil {
 			log.Println("mongodb error", err)
 			time.Sleep(time.Second * 2)
@@ -147,33 +147,31 @@ func check_metric(alm []metrictools.Alarm, notify_chan chan []byte, db_session *
 			}
 			stat, value = check_value(alm[i], result)
 		}
-		go trigger(alm[i].Exp, stat, value, notify_chan, session, dbname)
+		go trigger(alm[i], stat, value, notify_chan, session, dbname)
 	}
 }
 
-func trigger(metric string, stat int, value float64, notify_chan chan []byte, db_session *mgo.Session, dbname string) {
+func trigger(alarm metrictools.Alarm, stat int, value float64, notify_chan chan []byte, db_session *mgo.Session, dbname string) {
 	session := db_session.Clone()
 	defer session.Close()
-	var alarm_info metrictools.Alarm
-	err := session.DB(dbname).C("AlarmInfo").Find(bson.M{"exp": metric}).One(&alarm_info)
 	var alarm_actions []metrictools.AlarmAction
-	err2 := session.DB(dbname).C("AlarmAction").Find(bson.M{"exp": metric}).One(&alarm_actions)
-	if err == nil && err2 == nil {
+	err := session.DB(dbname).C("alarm_action").Find(bson.M{"exp": alarm.Exp}).One(&alarm_actions)
+	if err == nil {
 		nt := &notify.Notify{
-			Info:   alarm_info,
+			Info:   alarm,
 			Action: alarm_actions,
 			Level:  stat,
 			Value:  value,
 		}
-		if alarm_info.Stat > 0 || alarm_info.Stat != stat {
+		if alarm.Stat > 0 || alarm.Stat != stat {
 			repeated := true
-			if alarm_info.Stat == stat {
+			if alarm.Stat == stat {
 				repeated = false
 			}
 			go nt.Send(notify_chan, repeated)
 		}
-		if alarm_info.Stat != stat {
-			_ = session.DB(dbname).C("AlarmInfo").Update(bson.M{"exp": metric}, bson.M{"stat": stat})
+		if alarm.Stat != stat {
+			_ = session.DB(dbname).C("alarm").Update(bson.M{"exp": alarm.Exp}, bson.M{"stat": stat})
 		}
 	}
 }
