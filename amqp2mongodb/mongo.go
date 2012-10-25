@@ -43,9 +43,11 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 						Sparse:     true,
 					}
 				}
-				if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
-					session.Refresh()
-					log.Println("make index error: ", err)
+				if len(index.Key) > 0 {
+					if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
+						session.Refresh()
+						log.Println("make index error: ", err)
+					}
 				}
 			}
 			<-ticker.C
