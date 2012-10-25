@@ -13,7 +13,7 @@ type Message struct {
 }
 type Notify struct {
 	Info   metrictools.Alarm
-	Action metrictools.AlarmAction
+	Action []metrictools.AlarmAction
 	Level  int
 	Value  float64
 }
