@@ -25,7 +25,7 @@ func json_metrics_value(m []metrictools.Record, app, retention string) string {
 		if body, err := json.Marshal(msg); err != nil {
 			rst += ""
 		} else {
-			rst += string(body)+","
+			rst += string(body) + ","
 		}
 	}
 	return rst
