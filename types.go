@@ -36,18 +36,13 @@ type Alarm struct {
 	P   int       //1min, 5min, 15min
 	J   int       //LESS, GREATER
 	V   []float64 //value
-}
-
-type Action struct {
-	T  string //email, phone, im, mq
-	Nm string // email address, phone number, im id, mq name
+	Nm  string //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
+	Pd  string //blog, photo, reader
 }
 
 type AlarmAction struct {
-	Exp  string   //Metric expression name
-	Type string   //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
-	Pd   string   //blog, photo, reader
-	Act  [][]byte //action json
-	Stat int
-	Ts   int64
+	Exp string
+	T   string //email, phone, im, mq
+	Nm  string // email address, phone number, im id, mq name
+	Ts  int64  //last send
 }
