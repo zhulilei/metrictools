@@ -36,6 +36,7 @@ func main() {
 	consumer_tag, _ := c.String("amqp2mongo", "consumertag")
 	alarm_exchange, _ := c.String("alarm", "alarm_exchange")
 	alarm_exchange_type, _ := c.String("alarm", "alarm_exchange_type")
+	routing_key, _ := c.String("alarm", "routing_key")
 
 	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
 	if db_session == nil {
@@ -56,17 +57,17 @@ func main() {
 		go insert_record(msg_chan, scan_chan, db_session, dbname)
 		go scan_record(scan_chan, notify_chan, db_session, dbname)
 	}
-	go dosend(deliver_chan, notify_chan)
+	go dosend(deliver_chan, notify_chan, routing_key)
 	ensure_index(db_session, dbname)
 }
 
-func dosend(deliver_chan chan *amqp.Message, msg_chan chan []byte) {
+func dosend(deliver_chan chan *amqp.Message, msg_chan chan []byte, routing_key string) {
 	for {
 		msg_body := <-msg_chan
 		msg := &amqp.Message{
 			Content: string(msg_body),
 			Done:    make(chan int),
-			Key:     "",
+			Key:     routing_key,
 		}
 		deliver_chan <- msg
 		go message_retry(deliver_chan, msg)
