@@ -31,18 +31,19 @@ type Host struct {
 }
 
 type Alarm struct {
-	Exp string    //Metric expression name
-	T   int       //AVG, SUM, MAX, MIN
-	P   int       //1min, 5min, 15min
-	J   int       //LESS, GREATER
-	V   []float64 //value
-	Nm  string    //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
-	Pd  string    //blog, photo, reader
+	Exp  string    //Metric expression name
+	T    int       //AVG, SUM, MAX, MIN
+	P    int       //1min, 5min, 15min
+	J    int       //LESS, GREATER
+	V    []float64 //value
+	Nm   string    //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
+	Pd   string    //blog, photo, reader
+	Stat int       //alarm last stat
 }
 
 type AlarmAction struct {
 	Exp string
 	T   string //email, phone, im, mq
-	Nm  string // email address, phone number, im id, mq name
+	Nm  string //email address, phone number, im id, mq name
 	Ts  int64  //last send
 }

@@ -154,7 +154,7 @@ func check_metric(alm []metrictools.Alarm, notify_chan chan []byte, db_session *
 func trigger(metric string, stat int, value float64, notify_chan chan []byte, db_session *mgo.Session, dbname string) {
 	session := db_session.Clone()
 	defer session.Close()
-	var alarm_info metrictools.AlarmInfo
+	var alarm_info metrictools.Alarm
 	err := session.DB(dbname).C("AlarmInfo").Find(bson.M{"exp": metric}).One(&alarm_info)
 	var alarm_actions []metrictools.AlarmAction
 	err2 := session.DB(dbname).C("AlarmAction").Find(bson.M{"exp": metric}).One(&alarm_actions)
@@ -165,14 +165,14 @@ func trigger(metric string, stat int, value float64, notify_chan chan []byte, db
 			Level:  stat,
 			Value:  value,
 		}
-		if almaction.Stat > 0 || almaction.Stat != stat {
+		if alarm_info.Stat > 0 || alarm_info.Stat != stat {
 			repeated := true
-			if almaction.Stat == stat {
+			if alarm_info.Stat == stat {
 				repeated = false
 			}
 			go nt.Send(notify_chan, repeated)
 		}
-		if almaction.Stat != stat {
+		if alarm_info.Stat != stat {
 			_ = session.DB(dbname).C("AlarmInfo").Update(bson.M{"exp": metric}, bson.M{"stat": stat})
 		}
 	}
