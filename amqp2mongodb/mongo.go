@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
+	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"log"
 	"regexp"
@@ -52,9 +53,10 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 	}
 }
 
-func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbname string) {
+func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbname string, pool *redis.Pool) {
 	session := db_session.Copy()
 	defer session.Close()
+	redis_con := pool.Get()
 	var err error
 	for {
 		msg := <-message_chan
@@ -70,21 +72,13 @@ func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbn
 				}
 				err = session.DB(dbname).C(record.Retention + record.App).Insert(record.Record)
 				splitname := strings.Split(metrics[i], " ")
-				host := &metrictools.Host{
-					Host:   record.Hs,
-					Metric: splitname[0],
-					Ttl:    -1,
-				}
-				err = session.DB(dbname).C("host_metric").Insert(host)
-				if err != nil {
-					if rst, _ := regexp.MatchString("dup", err.Error()); rst {
-						err = nil
-					} else {
-						log.Println("mongodb insert failed", err)
-						session.Refresh()
-						time.Sleep(time.Second * 2)
-					}
-				}
+				metric := splitname[0]
+				value := splitname[1]
+				redis_con.Send("SET", metric, value)
+				redis_con.Send("PUBLISH", metric, value)
+				redis_con.Send("EXPIRE", metric, 120)
+				redis_con.Flush()
+				// redis
 			} else {
 				log.Println("metrics error:", msg.Content)
 			}
