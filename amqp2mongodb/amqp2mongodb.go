@@ -8,7 +8,6 @@ import (
 	"github.com/kless/goconfig/config"
 	"log"
 	"os"
-	"time"
 )
 
 var (
@@ -36,7 +35,6 @@ func main() {
 	consumer_tag, _ := c.String("amqp2mongo", "consumertag")
 	alarm_exchange, _ := c.String("alarm", "alarm_exchange")
 	alarm_exchange_type, _ := c.String("alarm", "alarm_exchange_type")
-	routing_key, _ := c.String("alarm", "routing_key")
 
 	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
 	if db_session == nil {
@@ -46,42 +44,13 @@ func main() {
 
 	msg_chan := make(chan *amqp.Message)
 	deliver_chan := make(chan *amqp.Message)
-	scan_chan := make(chan *metrictools.Metric)
-	notify_chan := make(chan []byte)
 
 	for i := 0; i < nWorker; i++ {
 		consumer := amqp.NewConsumer(uri, exchange, exchange_type, queue, binding_key, consumer_tag)
 		producer := amqp.NewProducer(uri, alarm_exchange, alarm_exchange_type, true)
 		go consumer.Read_record(msg_chan)
 		go producer.Deliver(deliver_chan)
-		go insert_record(msg_chan, scan_chan, db_session, dbname)
-		go scan_record(scan_chan, notify_chan, db_session, dbname)
+		go insert_record(msg_chan, db_session, dbname)
 	}
-	go dosend(deliver_chan, notify_chan, routing_key)
 	ensure_index(db_session, dbname)
-}
-
-func dosend(deliver_chan chan *amqp.Message, msg_chan chan []byte, routing_key string) {
-	for {
-		msg_body := <-msg_chan
-		msg := &amqp.Message{
-			Content: string(msg_body),
-			Done:    make(chan int),
-			Key:     routing_key,
-		}
-		deliver_chan <- msg
-		go message_retry(deliver_chan, msg)
-	}
-}
-
-func message_retry(deliver_chan chan *amqp.Message, msg *amqp.Message) {
-	for {
-		time.Sleep(time.Second * 1)
-		stat := <-msg.Done
-		if stat < 1 {
-			deliver_chan <- msg
-		} else {
-			break
-		}
-	}
 }
