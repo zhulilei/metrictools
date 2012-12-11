@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"github.com/datastream/metrictools"
 	"log"
+	"time"
 )
 
 type Message struct {
-	Product string //blog, photo
+	Product string //domain: www.163.com, blog.163.com
 	Type    string //nginx_cpu, nginx_req, app_cpu
 	Level   int    //0 ok, 1 warning, 2 error
+	Ts     int64
 }
 type Notify struct {
 	Info   metrictools.Alarm
@@ -40,6 +42,7 @@ func (this *Notify) Send(msg_chan chan []byte, repeated bool) {
 					Product: alarm_info.Pd,
 					Type:    alarm_info.Nm,
 					Level:   this.Level,
+					Ts:      time.Now().Unix(),
 				}
 				if body, err := json.Marshal(msg); err == nil {
 					msg_chan <- body
