@@ -66,10 +66,9 @@ func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbn
 				metric := splitname[0]
 				value := splitname[1]
 				redis_con.Send("SET", metric, value)
-				redis_con.Send("PUBLISH", metric, value)
 				redis_con.Send("EXPIRE", metric, 120)
+				redis_con.Send("PUBLISH", metric, value)
 				redis_con.Flush()
-				// redis
 			} else {
 				log.Println("metrics error:", msg.Content)
 			}

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
-	"github.com/kless/goconfig/config"
 	"github.com/garyburd/redigo/redis"
+	"github.com/kless/goconfig/config"
 	"log"
 	"os"
 )
@@ -34,8 +34,6 @@ func main() {
 	queue, _ := c.String("amqp2mongo", "queue")
 	binding_key, _ := c.String("amqp2mongo", "bindingkey")
 	consumer_tag, _ := c.String("amqp2mongo", "consumertag")
-	alarm_exchange, _ := c.String("alarm", "alarm_exchange")
-	alarm_exchange_type, _ := c.String("alarm", "alarm_exchange_type")
 	redis_server, _ := c.String("redis", "server")
 	redis_auth, _ := c.String("redis", "password")
 
@@ -47,7 +45,7 @@ func main() {
 		os.Exit(1)
 	}
 	// redis
-	redis_con := func()(redis.Conn, error) {
+	redis_con := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", redis_server)
 		if err != nil {
 			return nil, err
@@ -66,13 +64,10 @@ func main() {
 	}
 
 	msg_chan := make(chan *amqp.Message)
-	deliver_chan := make(chan *amqp.Message)
 
 	for i := 0; i < nWorker; i++ {
 		consumer := amqp.NewConsumer(uri, exchange, exchange_type, queue, binding_key, consumer_tag)
-		producer := amqp.NewProducer(uri, alarm_exchange, alarm_exchange_type, true)
 		go consumer.Read_record(msg_chan)
-		go producer.Deliver(deliver_chan)
 		go insert_record(msg_chan, db_session, dbname, redis_pool)
 	}
 	ensure_index(db_session, dbname)
