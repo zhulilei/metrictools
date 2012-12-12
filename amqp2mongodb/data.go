@@ -32,15 +32,6 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 						Sparse:     true,
 					}
 				}
-				if rst, _ := regexp.MatchString("(alarm)", clist[i]); rst {
-					index = mgo.Index{
-						Key:        []string{"exp"},
-						Unique:     true,
-						DropDups:   true,
-						Background: true,
-						Sparse:     true,
-					}
-				}
 				if len(index.Key) > 0 {
 					if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
 						session.Refresh()
