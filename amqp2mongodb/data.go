@@ -62,21 +62,21 @@ func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbn
 					continue
 				}
 				err = session.DB(dbname).C(record.Retention + record.App).Insert(record.Record)
-				splitname := strings.Split(metrics[i], " ")
-				metric := splitname[0]
-				value := splitname[1]
-				redis_con.Send("SET", metric, value)
-				redis_con.Send("EXPIRE", metric, 120)
-				redis_con.Send("PUBLISH", metric, value)
-				redis_con.Flush()
+				if err != nil {
+					msg.Done <- -1
+					splitname := strings.Split(metrics[i], " ")
+					metric := splitname[0]
+					value := splitname[1]
+					redis_con.Send("SET", metric, value)
+					redis_con.Send("EXPIRE", metric, 120)
+					redis_con.Send("PUBLISH", metric, value)
+					redis_con.Flush()
+				} else {
+					msg.Done <- 1
+				}
 			} else {
 				log.Println("metrics error:", msg.Content)
 			}
-		}
-		if err != nil {
-			msg.Done <- -1
-		} else {
-			msg.Done <- 1
 		}
 	}
 }
