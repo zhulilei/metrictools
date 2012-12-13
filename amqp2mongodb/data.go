@@ -100,8 +100,10 @@ func scan_record(db_session *mgo.Session, dbname string, msg_chan chan []byte) {
 		now := time.Now().Unix()
 		var triggers []metrictools.Trigger
 		err = session.DB(dbname).C("Triggers").Find(bson.M{"last": bson.M{"$lt": now - 120}}).All(&triggers)
-		for i := range triggers {
-			msg_chan <- []byte(triggers[i].Exp)
+		if err == nil {
+			for i := range triggers {
+				msg_chan <- []byte(triggers[i].Exp)
+			}
 		}
 		<-ticker.C
 	}

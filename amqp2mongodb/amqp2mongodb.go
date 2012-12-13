@@ -90,6 +90,7 @@ func main() {
 	go trigger_dispatch(deliver_chan, trigger_routing_key, trigger_msg_chan)
 	// heartbeat
 	consumer := amqp.NewConsumer(uri, exchange, exchange_type, heartbeat_queue, heartbeat_routing_key, heartbeat_consumer_tag)
+	go consumer.Read_record(heartbeat_chan)
 	// update heartbeat
 	go update_trigger(heartbeat_chan, db_session, dbname)
 	// make sure index
