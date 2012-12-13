@@ -5,6 +5,7 @@ import (
 	"github.com/datastream/metrictools/amqp"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
+	"labix.org/v2/mgo/bson"
 	"log"
 	"regexp"
 	"strings"
@@ -44,10 +45,9 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 	}
 }
 
-func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbname string, pool *redis.Pool) {
+func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbname string, metric_chan chan string) {
 	session := db_session.Copy()
 	defer session.Close()
-	redis_con := pool.Get()
 	var err error
 	for {
 		msg := <-message_chan
@@ -64,19 +64,76 @@ func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbn
 				err = session.DB(dbname).C(record.Retention + record.App).Insert(record.Record)
 				if err != nil {
 					msg.Done <- -1
-					splitname := strings.Split(metrics[i], " ")
-					metric := splitname[0]
-					value := splitname[1]
-					redis_con.Send("SET", metric, value)
-					redis_con.Send("EXPIRE", metric, 120)
-					redis_con.Send("PUBLISH", metric, value)
-					redis_con.Flush()
+					go func() { metric_chan <- metrics[i] }()
 				} else {
 					msg.Done <- 1
 				}
 			} else {
 				log.Println("metrics error:", msg.Content)
 			}
+		}
+	}
+}
+func redis_notify(pool *redis.Pool, metric_chan chan string) {
+	redis_con := pool.Get()
+	ticker := time.NewTicker(time.Second)
+	go func() {
+		redis_con.Flush()
+		<-ticker.C
+	}()
+	for {
+		msg := <-metric_chan
+		splitname := strings.Split(msg, " ")
+		metric := splitname[0]
+		value := splitname[1]
+		redis_con.Send("SET", metric, value)
+		redis_con.Send("EXPIRE", metric, 120)
+		redis_con.Send("PUBLISH", metric, value)
+	}
+}
+func scan_record(db_session *mgo.Session, dbname string, msg_chan chan []byte) {
+	session := db_session.Copy()
+	defer session.Close()
+	var err error
+	ticker := time.NewTicker(time.Minute)
+	for {
+		now := time.Now().Unix()
+		var triggers []metrictools.Trigger
+		err = session.DB(dbname).C("Triggers").Find(bson.M{"last": bson.M{"$lt": now - 120}}).All(&triggers)
+		for i := range triggers {
+			msg_chan <- []byte(triggers[i].Exp)
+		}
+		<-ticker.C
+	}
+}
+
+func trigger_dispatch(deliver_chan chan *amqp.Message, routing_key string, msg_chan chan []byte) {
+	for {
+		msg_body := <-msg_chan
+		msg := &amqp.Message{
+			Content: string(msg_body),
+			Done:    make(chan int),
+			Key:     routing_key,
+		}
+		deliver_chan <- msg
+		go func() {
+			<-msg.Done
+		}()
+	}
+}
+
+func update_trigger(heartbeat_chan chan *amqp.Message, db_session *mgo.Session, dbname string) {
+	session := db_session.Copy()
+	defer session.Close()
+	var err error
+	for {
+		msg := <-heartbeat_chan
+		now := time.Now().Unix()
+		err = session.DB(dbname).C("Trigger").Update(bson.M{"exp": msg}, bson.M{"last": now})
+		if err != nil {
+			msg.Done <- -1
+		} else {
+			msg.Done <- 1
 		}
 	}
 }

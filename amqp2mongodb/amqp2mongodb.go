@@ -31,9 +31,13 @@ func main() {
 	uri, _ := c.String("Generic", "amqpuri")
 	exchange, _ := c.String("Generic", "exchange")
 	exchange_type, _ := c.String("Generic", "exchange_type")
-	queue, _ := c.String("amqp2mongo", "queue")
-	binding_key, _ := c.String("amqp2mongo", "bindingkey")
-	consumer_tag, _ := c.String("amqp2mongo", "consumertag")
+	metric_queue, _ := c.String("metric", "queue")
+	metric_routing_key, _ := c.String("metric", "routing_key")
+	metric_consumer_tag, _ := c.String("metric", "consumer_tag")
+	trigger_routing_key, _ := c.String("trigger", "routing_key")
+	heartbeat_routing_key, _ := c.String("heartbeat", "routing_key")
+	heartbeat_queue, _ := c.String("heartbeat", "queue")
+	heartbeat_consumer_tag, _ := c.String("heartbeat", "consumer_tag")
 	redis_server, _ := c.String("redis", "server")
 	redis_auth, _ := c.String("redis", "password")
 
@@ -64,11 +68,30 @@ func main() {
 	}
 
 	msg_chan := make(chan *amqp.Message)
-
+	heartbeat_chan := make(chan *amqp.Message)
+	redis_notify_chan := make(chan string)
 	for i := 0; i < nWorker; i++ {
-		consumer := amqp.NewConsumer(uri, exchange, exchange_type, queue, binding_key, consumer_tag)
+		consumer := amqp.NewConsumer(uri, exchange, exchange_type, metric_queue, metric_routing_key, metric_consumer_tag)
+		// read metric from mq
 		go consumer.Read_record(msg_chan)
-		go insert_record(msg_chan, db_session, dbname, redis_pool)
+		// insert metric into mongodb
+		go insert_record(msg_chan, db_session, dbname, redis_notify_chan)
 	}
+	// pusblish data to redis
+	go redis_notify(redis_pool, redis_notify_chan)
+	// deliver trigger to mq
+	producer := amqp.NewProducer(uri, exchange, exchange_type, true)
+	deliver_chan := make(chan *amqp.Message)
+	go producer.Deliver(deliver_chan)
+	// scan trigger, send to mq if trigger (now - last) < 120
+	trigger_msg_chan := make(chan []byte)
+	go scan_record(db_session, dbname, trigger_msg_chan)
+	// pack mq message
+	go trigger_dispatch(deliver_chan, trigger_routing_key, trigger_msg_chan)
+	// heartbeat
+	consumer := amqp.NewConsumer(uri, exchange, exchange_type, heartbeat_queue, heartbeat_routing_key, heartbeat_consumer_tag)
+	// update heartbeat
+	go update_trigger(heartbeat_chan, db_session, dbname)
+	// make sure index
 	ensure_index(db_session, dbname)
 }
