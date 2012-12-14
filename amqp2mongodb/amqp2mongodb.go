@@ -35,9 +35,6 @@ func main() {
 	metric_routing_key, _ := c.String("metric", "routing_key")
 	metric_consumer_tag, _ := c.String("metric", "consumer_tag")
 	trigger_routing_key, _ := c.String("trigger", "routing_key")
-	heartbeat_routing_key, _ := c.String("heartbeat", "routing_key")
-	heartbeat_queue, _ := c.String("heartbeat", "queue")
-	heartbeat_consumer_tag, _ := c.String("heartbeat", "consumer_tag")
 	redis_server, _ := c.String("redis", "server")
 	redis_auth, _ := c.String("redis", "password")
 
@@ -68,7 +65,6 @@ func main() {
 	}
 
 	msg_chan := make(chan *amqp.Message)
-	heartbeat_chan := make(chan *amqp.Message)
 	redis_notify_chan := make(chan string)
 	for i := 0; i < nWorker; i++ {
 		consumer := amqp.NewConsumer(uri, exchange, exchange_type, metric_queue, metric_routing_key, metric_consumer_tag)
@@ -88,11 +84,6 @@ func main() {
 	go scan_record(db_session, dbname, trigger_msg_chan)
 	// pack mq message
 	go trigger_dispatch(deliver_chan, trigger_routing_key, trigger_msg_chan)
-	// heartbeat
-	consumer := amqp.NewConsumer(uri, exchange, exchange_type, heartbeat_queue, heartbeat_routing_key, heartbeat_consumer_tag)
-	go consumer.Read_record(heartbeat_chan)
-	// update heartbeat
-	go update_trigger(heartbeat_chan, db_session, dbname)
 	// make sure index
 	ensure_index(db_session, dbname)
 }

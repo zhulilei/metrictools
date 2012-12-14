@@ -123,19 +123,3 @@ func trigger_dispatch(deliver_chan chan *amqp.Message, routing_key string, msg_c
 		}()
 	}
 }
-
-func update_trigger(heartbeat_chan chan *amqp.Message, db_session *mgo.Session, dbname string) {
-	session := db_session.Copy()
-	defer session.Close()
-	var err error
-	for {
-		msg := <-heartbeat_chan
-		now := time.Now().Unix()
-		err = session.DB(dbname).C("Trigger").Update(bson.M{"exp": msg}, bson.M{"last": now})
-		if err != nil {
-			msg.Done <- -1
-		} else {
-			msg.Done <- 1
-		}
-	}
-}
