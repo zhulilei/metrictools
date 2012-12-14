@@ -86,8 +86,19 @@ func redis_notify(pool *redis.Pool, metric_chan chan string) {
 		splitname := strings.Split(msg, " ")
 		metric := splitname[0]
 		value := splitname[1]
+		record := metrictools.NewMetric(metric)
+		ttl := 90
+		if record.Retention == "5min" {
+			ttl = 450
+		}
+		if record.Retention == "10min" {
+			ttl = 900
+		}
+		if record.Retention == "15min" {
+			ttl = 1350
+		}
 		redis_con.Send("SET", metric, value)
-		redis_con.Send("EXPIRE", metric, 120)
+		redis_con.Send("EXPIRE", metric, ttl)
 		redis_con.Send("PUBLISH", metric, value)
 	}
 }
