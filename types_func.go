@@ -97,7 +97,7 @@ func Min_value(r []Record) float64 {
 	return rst
 }
 
-func Judge_value(S Alarm, value float64) int {
+func Judge_value(S Trigger, value float64) int {
 	if len(S.V) != 2 {
 		return 0
 	}
