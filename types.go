@@ -30,22 +30,12 @@ type Host struct {
 	Ttl    int
 }
 
-type Alarm struct {
-	Exp  string    //Metric expression name
-	T    int       //AVG, SUM, MAX, MIN
-	P    int       //1min, 5min, 15min
-	J    int       //LESS, GREATER
-	V    []float64 //value
-	Nm   string    //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
-	Pd   string    //blog, photo, reader
-	Stat int       //alarm last stat
-}
-
 type Trigger struct {
 	Exp  string    //Metric expression name
 	T    int       //AVG, SUM, MAX, MIN
 	P    int       //1min, 5min, 15min
 	J    int       //LESS, GREATER
+	I    int       //check interval time:1min,5min
 	V    []float64 //value
 	Nm   string    //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
 	Pd   string    //blog, photo, reader
