@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/datastream/cal"
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
+	"github.com/datastream/metrictools/notify"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -60,17 +62,15 @@ func trigger_chan_dispatch(trigger_chan chan *amqp.Message, update_chan, calcula
 }
 
 // calculate trigger
-func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, deliver_chan chan *amqp.Message) {
+func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, notify_chan chan *notify.Notify) {
 	session := db_session.Clone()
-	defer session.Close()
-
 	for {
 		exp := <-cal_chan
 		var trigger metrictools.Trigger
 		err := session.DB(dbname).C("Trigger").Find(bson.M{"exp": exp}).One(&trigger)
 		if err == nil {
 			go period_calculate_task(trigger, pool)
-			go period_statistic_task(trigger, pool, deliver_chan)
+			go period_statistic_task(trigger, pool, db_session, dbname, notify_chan)
 		}
 	}
 }
@@ -112,7 +112,8 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 }
 
 //get statistic result
-func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, deliver_chan chan *amqp.Message) {
+func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, notify_chan chan *notify.Notify) {
+	session := db_session.Clone()
 	redis_con := pool.Get()
 	ticker2 := time.NewTicker(time.Minute * time.Duration(trigger.P))
 	for {
@@ -134,7 +135,19 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, delive
 					}
 				}
 			}
-			_, _ = check_value(trigger, values)
+			stat, value := check_value(trigger, values)
+			var tg metrictools.Trigger
+			err := session.DB(dbname).C("Trigger").Find(bson.M{"exp": trigger.Exp}).One(&tg)
+			if err == nil {
+				if stat > 0 || tg.Stat != stat {
+					notify := &notify.Notify{
+						Exp:   trigger.Exp,
+						Level: stat,
+						Value: value,
+					}
+					notify_chan <- notify
+				}
+			}
 		}
 	}
 }
@@ -159,12 +172,21 @@ func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
 	}
 }
 
-func do_nofiy(trigger metrictools.Trigger, stat int, value float64, notify_chan chan *amqp.Message, db_session *mgo.Session, dbname string) {
-	session := db_session.Clone()
-	defer session.Close()
-	var alarm_actions []metrictools.AlarmAction
-	err := session.DB(dbname).C("alarm_action").Find(bson.M{"exp": trigger.Exp}).One(&alarm_actions)
-	if err == nil {
+// pack notify message
+func deliver_notify(notify_chan chan *notify.Notify, deliver_chan chan *amqp.Message, routing_key string) {
+	for {
+		notify := <-notify_chan
+		if body, err := json.Marshal(notify); err == nil {
+			msg := &amqp.Message{
+				Content: string(body),
+				Key:     routing_key,
+				Done:    make(chan int),
+			}
+			// i don't care whether msg send success or not
+			deliver_chan <- msg
+		} else {
+			log.Println("encode error: ", err)
+		}
 	}
 }
 

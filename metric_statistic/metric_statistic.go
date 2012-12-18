@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
+	"github.com/datastream/metrictools/notify"
 	"github.com/garyburd/redigo/redis"
 	"github.com/kless/goconfig/config"
 	"log"
@@ -32,6 +33,7 @@ func main() {
 	trigger_routing_key, _ := c.String("trigger", "routing_key")
 	trigger_queue, _ := c.String("trigger", "queue")
 	trigger_consumer_tag, _ := c.String("trigger", "consumer_tag")
+	notify_routing_key, _ := c.String("notify", "routing_key")
 	redis_server, _ := c.String("redis", "server")
 	redis_auth, _ := c.String("redis", "password")
 
@@ -69,9 +71,12 @@ func main() {
 	// update trigger's last modify time in mongodb
 	go update_all_trigger(db_session, dbname, update_chan)
 	// redis data calculate
+	notify_chan := make(chan *notify.Notify)
+	go calculate_trigger(redis_pool, db_session, dbname, cal_chan, notify_chan)
 	deliver_chan := make(chan *amqp.Message)
-	go calculate_trigger(redis_pool, db_session, dbname, cal_chan, deliver_chan)
-	// deliver notify
+	// pack up notify message to amqp message
+	go deliver_notify(notify_chan, deliver_chan, notify_routing_key)
+	// deliver amqp.message
 	producer := amqp.NewProducer(uri, exchange, exchange_type, true)
 	go producer.Deliver(deliver_chan)
 	ensure_index(db_session, dbname)
