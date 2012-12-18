@@ -103,8 +103,8 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 		if err != nil {
 			log.Println(trigger.Exp, " calculate failed.", err)
 		} else {
-			redis_con.Send("SET", trigger.Exp+":"+strconv.Itoa(id), rst)
-			redis_con.Send("EXPIRE", trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
+			redis_con.Send("SET", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), rst)
+			redis_con.Send("EXPIRE", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
 			redis_con.Flush()
 			id++
 		}
@@ -118,7 +118,7 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 	ticker2 := time.NewTicker(time.Minute * time.Duration(trigger.P))
 	for {
 		<-ticker2.C
-		v, _ := redis_con.Do("KEYS", trigger.Exp+"*")
+		v, _ := redis_con.Do("KEYS", "period_calculate_task:"+trigger.Exp+"*")
 		if keys, ok := v.([]interface{}); ok {
 			var values []float64
 			for i := range keys {
