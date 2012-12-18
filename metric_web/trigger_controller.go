@@ -32,7 +32,7 @@ func trigger_show(w http.ResponseWriter, req *http.Request) {
 		var query metrictools.Trigger
 		err = session.DB(dbname).C("Trigger").Find(bson.M{"exp": exp}).One(&query)
 		var query2 []metrictools.AlarmAction
-		err = session.DB(dbname).C("alarm_action").Find(bson.M{"exp": exp}).One(&query2)
+		err = session.DB(dbname).C("trigger_action").Find(bson.M{"exp": exp}).All(&query2)
 		tg_info := &TriggerRequest{
 			trigger: query,
 			actions: query2,
@@ -68,10 +68,10 @@ func trigger_save(w http.ResponseWriter, req *http.Request) {
 	}
 	session := db_session.Clone()
 	defer session.Close()
-	err = session.DB(dbname).C("alarm").Insert(tg_req.trigger)
+	err = session.DB(dbname).C("trigger").Insert(tg_req.trigger)
 	for i := range tg_req.actions {
 		tg_req.actions[i].Exp = tg_req.trigger.Exp
-		err = session.DB(dbname).C("alarm_action").Insert(tg_req.actions[i])
+		err = session.DB(dbname).C("trigger_action").Insert(tg_req.actions[i])
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -86,21 +86,20 @@ func trigger_update(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Println(err)
 	}
-	exp := req.FormValue("alarm_exp")
+	exp := req.FormValue("trigger")
 	alarm_type := req.FormValue("type")
 	if len(exp) > 0 {
 		session := db_session.Clone()
 		defer session.Close()
 		if len(alarm_type) > 0 {
 			name := req.FormValue("name")
-			tg_type := req.FormValue("alarm_type")
 			var tg_action metrictools.AlarmAction
 			if err = json.Unmarshal(body, &tg_action); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				w.Write([]byte("Deny"))
 				return
 			}
-			err = session.DB(dbname).C("alarm_action").Update(bson.M{"exp": exp, "nm": name, "t": tg_type}, tg_action)
+			err = session.DB(dbname).C("trigger_action").Update(bson.M{"exp": exp, "nm": name}, tg_action)
 		} else {
 			var tg_info metrictools.Trigger
 			if err = json.Unmarshal(body, &tg_info); err != nil {
@@ -108,7 +107,7 @@ func trigger_update(w http.ResponseWriter, req *http.Request) {
 				w.Write([]byte("Deny"))
 				return
 			}
-			err = session.DB(dbname).C("alarm").Update(bson.M{"exp": exp}, tg_info)
+			err = session.DB(dbname).C("trigger").Update(bson.M{"exp": exp}, tg_info)
 		}
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -124,7 +123,7 @@ func trigger_update(w http.ResponseWriter, req *http.Request) {
 	}
 }
 func trigger_delete(w http.ResponseWriter, req *http.Request) {
-	exp := req.FormValue("alarm_exp")
+	exp := req.FormValue("trigger")
 	alarm_type := req.FormValue("type")
 	var err error
 	if len(exp) > 0 {
@@ -132,11 +131,10 @@ func trigger_delete(w http.ResponseWriter, req *http.Request) {
 		defer session.Close()
 		if len(alarm_type) > 0 {
 			name := req.FormValue("name")
-			tg_type := req.FormValue("alarm_type")
-			err = session.DB(dbname).C("alarm_action").Remove(bson.M{"exp": exp, "nm": name, "t": tg_type})
+			err = session.DB(dbname).C("trigger_action").Remove(bson.M{"exp": exp, "nm": name})
 		} else {
-			err = session.DB(dbname).C("alarm_action").Remove(bson.M{"exp": exp})
-			err = session.DB(dbname).C("alarm").Remove(bson.M{"exp": exp})
+			err = session.DB(dbname).C("trigger_action").Remove(bson.M{"exp": exp})
+			err = session.DB(dbname).C("trigger").Remove(bson.M{"exp": exp})
 		}
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
