@@ -76,11 +76,6 @@ func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbn
 }
 func redis_notify(pool *redis.Pool, metric_chan chan string) {
 	redis_con := pool.Get()
-	ticker := time.NewTicker(time.Second)
-	go func() {
-		redis_con.Flush()
-		<-ticker.C
-	}()
 	for {
 		msg := <-metric_chan
 		splitname := strings.Split(msg, " ")
@@ -99,7 +94,7 @@ func redis_notify(pool *redis.Pool, metric_chan chan string) {
 		}
 		redis_con.Send("SET", metric, value)
 		redis_con.Send("EXPIRE", metric, ttl)
-		redis_con.Send("PUBLISH", metric, value)
+		redis_con.Flush()
 	}
 }
 func scan_record(db_session *mgo.Session, dbname string, msg_chan chan []byte) {
