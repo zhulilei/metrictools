@@ -15,15 +15,15 @@ func host_metric_controller(w http.ResponseWriter, req *http.Request) {
 	var query []string
 	var json string
 	metric_list, err := redis_con.Do("SMEMBERS", host)
-        if err == nil {
-		m_list, _ := metric_list.([]interface {})
+	if err == nil {
+		m_list, _ := metric_list.([]interface{})
 		for i := range m_list {
 			v1, _ := m_list[i].([]byte)
-			query = append(query,string(v1))
+			query = append(query, string(v1))
 		}
-        } else {
+	} else {
 		log.Println("failed to get set", err)
-        }
+	}
 
 	json = json_host_type(query, host)
 	if len(json) > 0 {

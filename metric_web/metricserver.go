@@ -23,6 +23,7 @@ const (
 var db_session *mgo.Session
 var dbname string
 var redis_pool *redis.Pool
+
 func main() {
 	flag.Parse()
 	c, err := config.ReadDefault(*conf_file)
@@ -62,7 +63,7 @@ func main() {
 
 	http.HandleFunc("/monitorapi/metric", metric_controller)
 	http.HandleFunc("/monitorapi/host_metric", host_metric_controller)
-	http.HandleFunc("/monitorapi/relation", relation_controller)
+	http.HandleFunc("/monitorapi/exp", exp_controller)
 	http.HandleFunc("/monitorapi/trigger", trigger_controller)
 
 	err = http.ListenAndServe(":"+port, nil)
