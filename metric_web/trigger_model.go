@@ -5,6 +5,6 @@ import (
 )
 
 type AlarmRequest struct {
-	Alarm_info    metrictools.Alarm
+	Alarm_info    metrictools.Trigger
 	Alarm_actions []metrictools.AlarmAction
 }

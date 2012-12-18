@@ -9,7 +9,7 @@ import (
 	"net/http"
 )
 
-func alarm_controller(w http.ResponseWriter, req *http.Request) {
+func trigger_controller(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case "GET":
 		alarm_show(w, req)
@@ -29,7 +29,7 @@ func alarm_show(w http.ResponseWriter, req *http.Request) {
 	if len(exp) > 0 {
 		session := db_session.Clone()
 		defer session.Close()
-		var query metrictools.Alarm
+		var query metrictools.Trigger
 		err = session.DB(dbname).C("alarm").Find(bson.M{"exp": exp}).One(&query)
 		var query2 []metrictools.AlarmAction
 		err = session.DB(dbname).C("alarm_action").Find(bson.M{"exp": exp}).One(&query2)
@@ -102,7 +102,7 @@ func alarm_update(w http.ResponseWriter, req *http.Request) {
 			}
 			err = session.DB(dbname).C("alarm_action").Update(bson.M{"exp": exp, "nm": name, "t": alm_type}, alm_action)
 		} else {
-			var alm_info metrictools.Alarm
+			var alm_info metrictools.Trigger
 			if err = json.Unmarshal(body, &alm_info); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				w.Write([]byte("Deny"))

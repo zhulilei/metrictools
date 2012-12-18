@@ -93,11 +93,11 @@ func get_metricname_without_colo(m string) string {
 	return name
 }
 
-func json_host_type(h []metrictools.Host, host string) string {
+func json_host_type(h []string, host string) string {
 	host_type := make(map[string][]string)
 	var rst string
 	for i := range h {
-		host_type[get_type(h[i])] = append(host_type[get_type(h[i])], h[i].Metric)
+		host_type[get_type(h[i])] = append(host_type[get_type(h[i])], h[i])
 	}
 	var keys []string
 	for k, _ := range host_type {
@@ -235,7 +235,7 @@ func sort_json(arrary map[string][]string, host string, data_type string) []inte
 	}
 	return rst
 }
-func get_type(h metrictools.Host) string {
-	splitname := strings.Split(h.Metric, ".")
+func get_type(metric string) string {
+	splitname := strings.Split(metric, ".")
 	return splitname[1]
 }
