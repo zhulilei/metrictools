@@ -24,12 +24,6 @@ type Metric struct {
 	App       string
 }
 
-type Host struct {
-	Host   string
-	Metric string
-	Ttl    int
-}
-
 type Trigger struct {
 	Exp  string    //metric expressions
 	T    int       //AVG, SUM, MAX, MIN
