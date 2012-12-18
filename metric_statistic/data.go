@@ -78,12 +78,11 @@ func period_cal(trigger metrictools.Trigger, pool *redis.Pool) {
 		k_v := make(map[string]float32)
 		for i := range metrics {
 			if len(metrics[i]) > 1 {
-				redis_con.Send("GET", metrics[i])
-				redis_con.Flush()
-				v, err := redis_con.Receive()
+				v, err := redis_con.Do("GET", metrics[i])
 				if err == nil {
-					if value, ok := v.(float64); ok {
-						k_v[metrics[i]] = float32(value)
+					if value, ok := v.([]byte); ok {
+						d, _ := strconv.ParseFloat(string(value), 64)
+						k_v[metrics[i]] = float32(d)
 					}
 				}
 			}
@@ -110,12 +109,11 @@ func exp_trigger(trigger metrictools.Trigger, pool *redis.Pool, deliver_chan cha
 		if keys, ok := v.([]string); ok {
 			var values []float64
 			for i := range keys {
-				redis_con.Send("GET", keys[i])
-				redis_con.Flush()
-				v, err := redis_con.Receive()
+				v, err := redis_con.Do("GET", keys[i])
 				if err == nil {
-					if value, ok := v.(float64); ok {
-						values = append(values, value)
+					if value, ok := v.([]byte); ok {
+						d, _ := strconv.ParseFloat(string(value), 64)
+						values = append(values, d)
 					}
 				}
 			}
