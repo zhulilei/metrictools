@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// create index for trigger
 func ensure_index(db_session *mgo.Session, dbname string) {
 	session := db_session.Copy()
 	defer session.Close()
@@ -45,6 +46,8 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 		}
 	}
 }
+
+// dispath trigger message to 2 channels
 func trigger_chan_dispatch(trigger_chan chan *amqp.Message, update_chan, calculate_chan chan string) {
 	for {
 		msg := <-trigger_chan
@@ -55,9 +58,12 @@ func trigger_chan_dispatch(trigger_chan chan *amqp.Message, update_chan, calcula
 		}()
 	}
 }
+
+// calculate trigger
 func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, deliver_chan chan *amqp.Message) {
 	session := db_session.Clone()
 	defer session.Close()
+
 	for {
 		exp := <-cal_chan
 		var trigger metrictools.Trigger
@@ -68,6 +74,8 @@ func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string,
 		}
 	}
 }
+
+// calculate trigger.exp
 func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 	metrics := cal.Parser(trigger.Exp)
 	ticker := time.NewTicker(time.Minute * time.Duration(trigger.I))
@@ -102,6 +110,8 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 		}
 	}
 }
+
+//get statistic result
 func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, deliver_chan chan *amqp.Message) {
 	redis_con := pool.Get()
 	ticker2 := time.NewTicker(time.Minute * time.Duration(trigger.P))
@@ -128,12 +138,16 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, delive
 		}
 	}
 }
+
+//update all trigger last modify time
 func update_all_trigger(db_session *mgo.Session, dbname string, update_chan chan string) {
 	for {
 		trigger := <-update_chan
 		go update_trigger(db_session, dbname, trigger)
 	}
 }
+
+// update last modify time
 func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
 	session := db_session.Copy()
 	defer session.Close()
@@ -144,6 +158,7 @@ func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
 		<-ticker.C
 	}
 }
+
 func do_nofiy(trigger metrictools.Trigger, stat int, value float64, notify_chan chan *amqp.Message, db_session *mgo.Session, dbname string) {
 	session := db_session.Clone()
 	defer session.Close()
@@ -153,6 +168,7 @@ func do_nofiy(trigger metrictools.Trigger, stat int, value float64, notify_chan 
 	}
 }
 
+// check trigger's statistic value
 func check_value(trigger metrictools.Trigger, data []float64) (int, float64) {
 	var rst float64
 	switch trigger.T {
@@ -180,10 +196,12 @@ func check_value(trigger metrictools.Trigger, data []float64) (int, float64) {
 	return 0, rst
 }
 
+// get average value for []float64
 func Avg_value(r []float64) float64 {
 	return Sum_value(r) / float64(len(r))
 }
 
+// get sum of []float64
 func Sum_value(r []float64) float64 {
 	var rst float64
 	rst = r[0]
@@ -193,6 +211,7 @@ func Sum_value(r []float64) float64 {
 	return rst
 }
 
+// get max value in []float64
 func Max_value(r []float64) float64 {
 	var rst float64
 	rst = r[0]
@@ -204,6 +223,7 @@ func Max_value(r []float64) float64 {
 	return rst
 }
 
+// get min value in []float64
 func Min_value(r []float64) float64 {
 	var rst float64
 	rst = r[0]
@@ -214,6 +234,8 @@ func Min_value(r []float64) float64 {
 	}
 	return rst
 }
+
+// return trigger's stat, 0 is ok, 1 is warning, 2 is error
 func Judge_value(S metrictools.Trigger, value float64) int {
 	if len(S.V) != 2 {
 		return 0

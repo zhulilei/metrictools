@@ -31,15 +31,16 @@ type Host struct {
 }
 
 type Trigger struct {
-	Exp  string    //Metric expression name
+	Exp  string    //metric expressions
 	T    int       //AVG, SUM, MAX, MIN
 	P    int       //1min, 5min, 15min
 	J    int       //LESS, GREATER
-	I    int       //check interval time:1min,5min
+	I    int       //check interval time: 1min, 5min, 15min
 	V    []float64 //value
 	Nm   string    //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
-	Pd   string    //blog, photo, reader
-	Last int64     //last modify
+	Pd   string    //blog, photo, reader, etc.
+	Last int64     //last modify time
+	Stat int       //last trigger stat
 }
 type AlarmAction struct {
 	Exp string
