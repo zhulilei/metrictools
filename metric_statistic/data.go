@@ -75,7 +75,7 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 	id := 0
 	for {
 		<-ticker.C
-		k_v := make(map[string]float32)
+		k_v := make(map[string]interface{})
 		for i := range metrics {
 			if len(metrics[i]) > 1 {
 				v, err := redis_con.Do("GET", metrics[i])
@@ -83,7 +83,7 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 					if value, ok := v.([]byte); ok {
 						d, e := strconv.ParseFloat(string(value), 64)
 						if e == nil {
-							k_v[metrics[i]] = float32(d)
+							k_v[metrics[i]] = d
 						} else {
 							log.Println(string(value), " convert to float64 failed")
 						}
