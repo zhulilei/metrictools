@@ -68,9 +68,9 @@ func main() {
 	go trigger_chan_dispatch(trigger_chan, update_chan, cal_chan)
 	// update trigger's last modify time in mongodb
 	go update_all_trigger(db_session, dbname, update_chan)
-	// redis subscribe
+	// redis data calculate
 	deliver_chan := make(chan *amqp.Message)
-	go cal_trigger(redis_pool, db_session, dbname, cal_chan, deliver_chan)
+	go calculate_trigger(redis_pool, db_session, dbname, cal_chan, deliver_chan)
 	// deliver notify
 	producer := amqp.NewProducer(uri, exchange, exchange_type, true)
 	go producer.Deliver(deliver_chan)

@@ -45,17 +45,17 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 		}
 	}
 }
-func trigger_chan_dispatch(trigger_chan chan *amqp.Message, update_chan, subscribe_chan chan string) {
+func trigger_chan_dispatch(trigger_chan chan *amqp.Message, update_chan, calculate_chan chan string) {
 	for {
 		msg := <-trigger_chan
 		go func() {
 			update_chan <- msg.Content
-			subscribe_chan <- msg.Content
+			calculate_chan <- msg.Content
 			msg.Done <- 1
 		}()
 	}
 }
-func cal_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, deliver_chan chan *amqp.Message) {
+func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, deliver_chan chan *amqp.Message) {
 	session := db_session.Clone()
 	defer session.Close()
 	for {
@@ -63,12 +63,12 @@ func cal_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_c
 		var trigger metrictools.Trigger
 		err := session.DB(dbname).C("Trigger").Find(bson.M{"exp": exp}).One(&trigger)
 		if err == nil {
-			go period_cal(trigger, pool)
-			go exp_trigger(trigger, pool, deliver_chan)
+			go period_calculate_task(trigger, pool)
+			go period_statistic_task(trigger, pool, deliver_chan)
 		}
 	}
 }
-func period_cal(trigger metrictools.Trigger, pool *redis.Pool) {
+func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 	metrics := cal.Parser(trigger.Exp)
 	ticker := time.NewTicker(time.Minute * time.Duration(trigger.I))
 	redis_con := pool.Get()
@@ -81,8 +81,12 @@ func period_cal(trigger metrictools.Trigger, pool *redis.Pool) {
 				v, err := redis_con.Do("GET", metrics[i])
 				if err == nil {
 					if value, ok := v.([]byte); ok {
-						d, _ := strconv.ParseFloat(string(value), 64)
-						k_v[metrics[i]] = float32(d)
+						d, e := strconv.ParseFloat(string(value), 64)
+						if e == nil {
+							k_v[metrics[i]] = float32(d)
+						} else {
+							log.Println(string(value), " convert to float64 failed")
+						}
 					}
 				}
 			}
@@ -98,22 +102,25 @@ func period_cal(trigger metrictools.Trigger, pool *redis.Pool) {
 		}
 	}
 }
-func exp_trigger(trigger metrictools.Trigger, pool *redis.Pool, deliver_chan chan *amqp.Message) {
+func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, deliver_chan chan *amqp.Message) {
 	redis_con := pool.Get()
 	ticker2 := time.NewTicker(time.Minute * time.Duration(trigger.P))
 	for {
 		<-ticker2.C
-		redis_con.Send("KEYS", trigger.Exp+":*")
-		redis_con.Flush()
-		v, _ := redis_con.Receive()
-		if keys, ok := v.([]string); ok {
+		v, _ := redis_con.Do("KEYS", trigger.Exp+"*")
+		if keys, ok := v.([]interface{}); ok {
 			var values []float64
 			for i := range keys {
-				v, err := redis_con.Do("GET", keys[i])
+				key, _ := keys[i].([]byte)
+				v, err := redis_con.Do("GET", string(key))
 				if err == nil {
 					if value, ok := v.([]byte); ok {
-						d, _ := strconv.ParseFloat(string(value), 64)
-						values = append(values, d)
+						d, e := strconv.ParseFloat(string(value), 64)
+						if e == nil {
+							values = append(values, d)
+						} else {
+							log.Println(string(value), " convert to float64 failed")
+						}
 					}
 				}
 			}
