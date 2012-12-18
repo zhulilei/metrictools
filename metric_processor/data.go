@@ -94,6 +94,8 @@ func redis_notify(pool *redis.Pool, metric_chan chan string) {
 		}
 		redis_con.Send("SET", metric, value)
 		redis_con.Send("EXPIRE", metric, ttl)
+		redis_con.Send("SADD", record.Hs, metric)
+		redis_con.Send("EXPIRE", record.Hs, ttl)
 		redis_con.Flush()
 	}
 }
