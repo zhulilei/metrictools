@@ -115,10 +115,14 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, notify_chan chan *notify.Notify) {
 	session := db_session.Clone()
 	ticker2 := time.NewTicker(time.Minute * time.Duration(trigger.P))
+	redis_con := pool.Get()
 	for {
 		<-ticker2.C
-		redis_con := pool.Get()
-		v, _ := redis_con.Do("KEYS", "period_calculate_task:"+trigger.Exp+"*")
+		v, err := redis_con.Do("KEYS", "period_calculate_task:"+trigger.Exp+"*")
+		if err != nil {
+			redis_con = pool.Get()
+			v, _ = redis_con.Do("KEYS", "period_calculate_task:"+trigger.Exp+"*")
+		}
 		if keys, ok := v.([]interface{}); ok {
 			var values []float64
 			for i := range keys {

@@ -9,6 +9,7 @@ import (
 	"github.com/kless/goconfig/config"
 	"log"
 	"os"
+	"time"
 )
 
 var (
@@ -58,6 +59,7 @@ func main() {
 		return c, err
 	}
 	redis_pool := redis.NewPool(redis_con, 3)
+	redis_pool.IdleTimeout = time.Second * 240
 	defer redis_pool.Close()
 	if redis_pool.Get() == nil {
 		log.Println("connect redis error")
