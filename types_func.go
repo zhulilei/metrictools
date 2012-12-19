@@ -23,8 +23,10 @@ func NewMetric(s string) *Metric {
 
 func NewLiteMetric(s string) *Metric {
 	splitname := strings.Split(s, ".")
-	if len(splitname) < 3 && len(s) > 2{
-		log.Println("metrics not match", s)
+	if len(splitname) < 3 {
+		if len(s) > 2 {
+			log.Println("metrics not match", s)
+		}
 		return nil
 	}
 	var App string
