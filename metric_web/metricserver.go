@@ -40,7 +40,7 @@ func main() {
 	redis_auth, _ := c.String("redis", "password")
 
 	// mongodb
-	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
+	db_session = metrictools.NewMongo(mongouri, dbname, user, password)
 	defer db_session.Close()
 	if db_session == nil {
 		log.Println("connect database error")
