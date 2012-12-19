@@ -64,7 +64,9 @@ func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbn
 				err = session.DB(dbname).C(record.Retention + record.App).Insert(record.Record)
 				go func() { metric_chan <- metrics[i] }()
 			} else {
-				log.Println("metrics error:", msg.Content)
+				if len(msg.Content) > 1 {
+					log.Println("metrics error:", msg.Content)
+				}
 			}
 		}
 		if err != nil {
@@ -81,7 +83,7 @@ func redis_notify(pool *redis.Pool, metric_chan chan string) {
 		splitname := strings.Split(msg, " ")
 		metric := splitname[0]
 		value := splitname[1]
-		record := metrictools.NewMetric(metric)
+		record := metrictools.NewMetric(msg)
 		ttl := 90
 		if record.Retention == "5min" {
 			ttl = 450
