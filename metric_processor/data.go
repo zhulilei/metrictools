@@ -77,8 +77,8 @@ func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbn
 	}
 }
 func redis_notify(pool *redis.Pool, metric_chan chan string) {
-	redis_con := pool.Get()
 	for {
+		redis_con := pool.Get()
 		msg := <-metric_chan
 		splitname := strings.Split(msg, " ")
 		metric := splitname[0]
