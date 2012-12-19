@@ -62,15 +62,15 @@ func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbn
 					continue
 				}
 				err = session.DB(dbname).C(record.Retention + record.App).Insert(record.Record)
-				if err != nil {
-					msg.Done <- -1
-					go func() { metric_chan <- metrics[i] }()
-				} else {
-					msg.Done <- 1
-				}
+				go func() { metric_chan <- metrics[i] }()
 			} else {
 				log.Println("metrics error:", msg.Content)
 			}
+		}
+		if err != nil {
+			msg.Done <- -1
+		} else {
+			msg.Done <- 1
 		}
 	}
 }
