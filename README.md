@@ -13,7 +13,7 @@ metric_statistic read trigger from rabbitmq, then calculate trigger and write th
 ### metric_web
 It's a web api to access metric data in mongodb. The json data can be processed by [nvd3.js](http://nvd3.org).
 
-## Requried
+## Require
  * collectd
  * rabbitmq
  * mongodb
