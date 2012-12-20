@@ -33,6 +33,15 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 						Sparse:     true,
 					}
 				}
+				if rst, _ := regexp.MatchString("(Trigger|Statistic)", clist[i]); rst {
+					index = mgo.Index{
+						Key:        []string{"exp"},
+						Unique:     true,
+						DropDups:   true,
+						Background: true,
+						Sparse:     true,
+					}
+				}
 				if len(index.Key) > 0 {
 					if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
 						session.Refresh()
@@ -104,7 +113,7 @@ func redis_notify(pool *redis.Pool, metric_chan chan string) {
 		redis_con.Do("EXPIRE", record.Hs, ttl)
 	}
 }
-func scan_record(db_session *mgo.Session, dbname string, msg_chan chan []byte) {
+func scan_trigger(db_session *mgo.Session, dbname string, msg_chan chan string) {
 	session := db_session.Copy()
 	defer session.Close()
 	var err error
@@ -115,18 +124,36 @@ func scan_record(db_session *mgo.Session, dbname string, msg_chan chan []byte) {
 		err = session.DB(dbname).C("Triggers").Find(bson.M{"last": bson.M{"$lt": now - 120}}).All(&triggers)
 		if err == nil {
 			for i := range triggers {
-				msg_chan <- []byte(triggers[i].Exp)
+				msg_chan <- triggers[i].Exp
 			}
 		}
 		<-ticker.C
 	}
 }
 
-func trigger_dispatch(deliver_chan chan *amqp.Message, routing_key string, msg_chan chan []byte) {
+func scan_statistic(db_session *mgo.Session, dbname string, msg_chan chan string) {
+	session := db_session.Copy()
+	defer session.Close()
+	var err error
+	ticker := time.NewTicker(time.Minute)
+	for {
+		now := time.Now().Unix()
+		var statistic_exps []metrictools.StatisticExp
+		err = session.DB(dbname).C("Statistic").Find(bson.M{"last": bson.M{"$lt": now - 120}}).All(&statistic_exps)
+		if err == nil {
+			for i := range statistic_exps {
+				msg_chan <- statistic_exps[i].Exp
+			}
+		}
+		<-ticker.C
+	}
+}
+
+func msg_dispatch(deliver_chan chan *amqp.Message, routing_key string, msg_chan chan string) {
 	for {
 		msg_body := <-msg_chan
 		msg := &amqp.Message{
-			Content: string(msg_body),
+			Content: msg_body,
 			Done:    make(chan int),
 			Key:     routing_key,
 		}
