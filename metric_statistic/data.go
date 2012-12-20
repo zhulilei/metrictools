@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"github.com/datastream/cal"
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
@@ -11,44 +10,9 @@ import (
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
-	"regexp"
 	"strconv"
 	"time"
 )
-
-// create index for trigger
-func ensure_index(db_session *mgo.Session, dbname string) {
-	session := db_session.Copy()
-	defer session.Close()
-	ticker := time.NewTicker(time.Second * 3600)
-	for {
-		clist, err := session.DB(dbname).CollectionNames()
-		if err != nil {
-			time.Sleep(time.Second * 10)
-			session.Refresh()
-		} else {
-			for i := range clist {
-				var index mgo.Index
-				if rst, _ := regexp.MatchString("(Trigger)", clist[i]); rst {
-					index = mgo.Index{
-						Key:        []string{"exp"},
-						Unique:     true,
-						DropDups:   true,
-						Background: true,
-						Sparse:     true,
-					}
-				}
-				if len(index.Key) > 0 {
-					if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
-						session.Refresh()
-						log.Println("make index error: ", err)
-					}
-				}
-			}
-			<-ticker.C
-		}
-	}
-}
 
 // dispath trigger message to 2 channels
 func trigger_chan_dispatch(trigger_chan chan *amqp.Message, update_chan, calculate_chan chan string) {
@@ -80,33 +44,12 @@ func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string,
 func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 	metrics := cal.Parser(trigger.Exp)
 	ticker := time.NewTicker(time.Minute * time.Duration(trigger.I))
-	redis_con := pool.Get()
 	id := 0
+	redis_con := pool.Get()
 	for {
-		<-ticker.C
-		k_v := make(map[string]interface{})
-		for i := range metrics {
-			if len(metrics[i]) > 0 {
-				v, err := redis_con.Do("GET", metrics[i])
-				if err == nil {
-					var d float64
-					var value []byte
-					if v == nil {
-						d, err = strconv.ParseFloat(metrics[i], 64)
-					} else {
-						value, _ = v.([]byte)
-						d, err = strconv.ParseFloat(string(value), 64)
-					}
-					if err == nil {
-						k_v[metrics[i]] = d
-					} else {
-						log.Println("failed to load value of", metrics[i])
-					}
-				}
-			}
-		}
-		rst, err := cal.Cal(trigger.Exp, k_v)
+		rst, err := calculate_exp(redis_con, metrics, trigger.Exp)
 		if err != nil {
+			redis_con = pool.Get()
 			log.Println(trigger.Exp, " calculate failed.", err)
 		} else {
 			_, err := redis_con.Do("SET", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), rst)
@@ -117,7 +60,36 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 			redis_con.Do("EXPIRE", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
 			id++
 		}
+		<-ticker.C
 	}
+}
+
+func calculate_exp(redis_con redis.Conn, metrics []string, exp string) (float64, error) {
+	k_v := make(map[string]interface{})
+	for i := range metrics {
+		if len(metrics[i]) > 0 {
+			v, err := redis_con.Do("GET", metrics[i])
+			if err == nil {
+				var d float64
+				var value []byte
+				if v == nil {
+					d, err = strconv.ParseFloat(metrics[i], 64)
+				} else {
+					value, _ = v.([]byte)
+					d, err = strconv.ParseFloat(string(value), 64)
+				}
+				if err == nil {
+					k_v[metrics[i]] = d
+				} else {
+					log.Println("failed to load value of", metrics[i])
+				}
+			} else {
+				return 0, err
+			}
+		}
+	}
+	rst, err := cal.Cal(exp, k_v)
+	return rst, err
 }
 
 //get statistic result
@@ -126,7 +98,6 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 	ticker2 := time.NewTicker(time.Minute * time.Duration(trigger.P))
 	redis_con := pool.Get()
 	for {
-		<-ticker2.C
 		key := "period_calculate_task:" + trigger.Exp + "*"
 		values, err := get_redis_keys_values(redis_con, key)
 		if err != nil {
@@ -146,6 +117,7 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 				notify_chan <- notify
 			}
 		}
+		<-ticker2.C
 	}
 }
 
@@ -153,7 +125,7 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 func get_redis_keys_values(redis_con redis.Conn, key string) ([]float64, error) {
 	v, err := redis_con.Do("KEYS", key)
 	if err != nil {
-		return nil, errors.New("redis connection down")
+		return nil, err
 	}
 	keys, _ := v.([]interface{})
 	var values []float64
@@ -170,7 +142,7 @@ func get_redis_keys_values(redis_con redis.Conn, key string) ([]float64, error) 
 				}
 			}
 		} else {
-			return nil, errors.New("redis connection down")
+			return nil, err
 		}
 	}
 	return values, nil
@@ -192,6 +164,18 @@ func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
 	for {
 		now := time.Now().Unix()
 		session.DB(dbname).C("Trigger").Update(bson.M{"exp": trigger}, bson.M{"last": now})
+		<-ticker.C
+	}
+}
+
+// update last modify time
+func update_statistic(db_session *mgo.Session, dbname string, statistic string) {
+	session := db_session.Copy()
+	defer session.Close()
+	ticker := time.NewTicker(time.Second * 55)
+	for {
+		now := time.Now().Unix()
+		session.DB(dbname).C("Statistic").Update(bson.M{"exp": statistic}, bson.M{"last": now})
 		<-ticker.C
 	}
 }
@@ -240,6 +224,44 @@ func check_value(trigger metrictools.Trigger, data []float64) (int, float64) {
 		}
 	}
 	return 0, rst
+}
+
+// calculate statistic expression
+func calculate_statistic_exp(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan *amqp.Message) {
+	for {
+		msg := <-cal_chan
+		go period_calculate_statistic_task(pool, db_session, dbname, msg.Content)
+		go update_statistic(db_session, dbname, msg.Content)
+		msg.Done <- 1
+	}
+}
+
+// do calculate statistic
+func period_calculate_statistic_task(pool *redis.Pool, db_session *mgo.Session, dbname string, exp string) {
+	session := db_session.Clone()
+	var statistic_exp metrictools.StatisticExp
+	err := session.DB(dbname).C("Statistic").Find(bson.M{"exp": exp}).One(&statistic_exp)
+	if err != nil {
+		return
+	}
+	metrics := cal.Parser(statistic_exp.Exp)
+	ticker := time.NewTicker(time.Minute * time.Duration(statistic_exp.I))
+	redis_con := pool.Get()
+	for {
+		rst, err := calculate_exp(redis_con, metrics, statistic_exp.Exp)
+		if err != nil {
+			redis_con = pool.Get()
+			log.Println(statistic_exp.Exp, " calculate failed.", err)
+		} else {
+			record := metrictools.StatisticRecord{
+				Nm: statistic_exp.Nm,
+				V:  rst,
+				Ts: time.Now().Unix(),
+			}
+			session.DB(dbname).C("StatisticRecord").Insert(record)
+		}
+		<-ticker.C
+	}
 }
 
 // get average value for []float64
