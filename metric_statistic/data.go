@@ -128,10 +128,10 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 	for {
 		<-ticker2.C
 		key := "period_calculate_task:" + trigger.Exp + "*"
-		values, err := get_redis_values(redis_con, key)
+		values, err := get_redis_keys_values(redis_con, key)
 		if err != nil {
 			redis_con = pool.Get()
-			values, _ = get_redis_values(redis_con, key)
+			values, _ = get_redis_keys_values(redis_con, key)
 		}
 		stat, value := check_value(trigger, values)
 		var tg metrictools.Trigger
@@ -148,7 +148,9 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 		}
 	}
 }
-func get_redis_values(redis_con redis.Conn, key string) ([]float64, error) {
+
+// read keys and return keys' values
+func get_redis_keys_values(redis_con redis.Conn, key string) ([]float64, error) {
 	v, err := redis_con.Do("KEYS", key)
 	if err != nil {
 		return nil, errors.New("redis connection down")
