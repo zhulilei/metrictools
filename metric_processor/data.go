@@ -94,16 +94,14 @@ func redis_notify(pool *redis.Pool, metric_chan chan string) {
 		if record.Retention == "15min" {
 			ttl = 1350
 		}
-		err := redis_con.Send("SET", metric, value)
+		_, err := redis_con.Do("SET", metric, value)
 		if err != nil {
 			redis_con = pool.Get()
-			redis_con.Send("SET", metric, value)
+			redis_con.Do("SET", metric, value)
 		}
-		redis_con.Send("EXPIRE", metric, ttl)
-		redis_con.Send("SADD", record.Hs, metric)
-		redis_con.Send("EXPIRE", record.Hs, ttl)
-		redis_con.Flush()
-		redis_con.Receive()
+		redis_con.Do("EXPIRE", metric, ttl)
+		redis_con.Do("SADD", record.Hs, metric)
+		redis_con.Do("EXPIRE", record.Hs, ttl)
 	}
 }
 func scan_record(db_session *mgo.Session, dbname string, msg_chan chan []byte) {

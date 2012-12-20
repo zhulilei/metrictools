@@ -103,9 +103,12 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 		if err != nil {
 			log.Println(trigger.Exp, " calculate failed.", err)
 		} else {
-			redis_con.Send("SET", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), rst)
-			redis_con.Send("EXPIRE", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
-			redis_con.Flush()
+			_, err := redis_con.Do("SET", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), rst)
+			if err != nil {
+				redis_con = pool.Get()
+				redis_con.Do("SET", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), rst)
+			}
+			redis_con.Do("EXPIRE", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
 			id++
 		}
 	}
