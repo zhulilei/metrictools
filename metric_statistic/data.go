@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/datastream/cal"
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
@@ -126,42 +127,51 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 	redis_con := pool.Get()
 	for {
 		<-ticker2.C
-		v, err := redis_con.Do("KEYS", "period_calculate_task:"+trigger.Exp+"*")
+		key := "period_calculate_task:" + trigger.Exp + "*"
+		values, err := get_redis_values(redis_con, key)
 		if err != nil {
 			redis_con = pool.Get()
-			v, _ = redis_con.Do("KEYS", "period_calculate_task:"+trigger.Exp+"*")
+			values, _ = get_redis_values(redis_con, key)
 		}
-		if keys, ok := v.([]interface{}); ok {
-			var values []float64
-			for i := range keys {
-				key, _ := keys[i].([]byte)
-				v, err := redis_con.Do("GET", string(key))
-				if err == nil {
-					if value, ok := v.([]byte); ok {
-						d, e := strconv.ParseFloat(string(value), 64)
-						if e == nil {
-							values = append(values, d)
-						} else {
-							log.Println(string(value), " convert to float64 failed")
-						}
-					}
+		stat, value := check_value(trigger, values)
+		var tg metrictools.Trigger
+		err = session.DB(dbname).C("Trigger").Find(bson.M{"exp": trigger.Exp}).One(&tg)
+		if err == nil {
+			if stat > 0 || tg.Stat != stat {
+				notify := &notify.Notify{
+					Exp:   trigger.Exp,
+					Level: stat,
+					Value: value,
 				}
-			}
-			stat, value := check_value(trigger, values)
-			var tg metrictools.Trigger
-			err := session.DB(dbname).C("Trigger").Find(bson.M{"exp": trigger.Exp}).One(&tg)
-			if err == nil {
-				if stat > 0 || tg.Stat != stat {
-					notify := &notify.Notify{
-						Exp:   trigger.Exp,
-						Level: stat,
-						Value: value,
-					}
-					notify_chan <- notify
-				}
+				notify_chan <- notify
 			}
 		}
 	}
+}
+func get_redis_values(redis_con redis.Conn, key string) ([]float64, error) {
+	v, err := redis_con.Do("KEYS", key)
+	if err != nil {
+		return nil, errors.New("redis connection down")
+	}
+	keys, _ := v.([]interface{})
+	var values []float64
+	for i := range keys {
+		key, _ := keys[i].([]byte)
+		v, err := redis_con.Do("GET", string(key))
+		if err == nil {
+			if value, ok := v.([]byte); ok {
+				d, e := strconv.ParseFloat(string(value), 64)
+				if e == nil {
+					values = append(values, d)
+				} else {
+					log.Println(string(value), " convert to float64 failed")
+				}
+			}
+		} else {
+			return nil, errors.New("redis connection down")
+		}
+	}
+	return values, nil
 }
 
 //update all trigger last modify time
