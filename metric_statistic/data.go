@@ -85,16 +85,21 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 		<-ticker.C
 		k_v := make(map[string]interface{})
 		for i := range metrics {
-			if len(metrics[i]) > 1 {
+			if len(metrics[i]) > 0 {
 				v, err := redis_con.Do("GET", metrics[i])
 				if err == nil {
-					if value, ok := v.([]byte); ok {
-						d, e := strconv.ParseFloat(string(value), 64)
-						if e == nil {
-							k_v[metrics[i]] = d
-						} else {
-							log.Println(string(value), " convert to float64 failed")
-						}
+					var d float64
+					var value []byte
+					if v == nil {
+						d, err = strconv.ParseFloat(metrics[i], 64)
+					} else {
+						value, _ = v.([]byte)
+						d, err = strconv.ParseFloat(string(value), 64)
+					}
+					if err == nil {
+						k_v[metrics[i]] = d
+					} else {
+						log.Println("failed to load value of", metrics[i])
 					}
 				}
 			}

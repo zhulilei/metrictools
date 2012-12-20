@@ -10,7 +10,6 @@ import (
 	"github.com/kless/goconfig/config"
 	"log"
 	"os"
-	"time"
 )
 
 var (
@@ -58,7 +57,6 @@ func main() {
 		return c, err
 	}
 	redis_pool := redis.NewPool(redis_con, 3)
-	redis_pool.IdleTimeout = time.Second * 240
 	defer redis_pool.Close()
 	// get trigger
 	trigger_chan := make(chan *amqp.Message)
