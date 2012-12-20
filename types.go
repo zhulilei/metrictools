@@ -24,6 +24,17 @@ type Metric struct {
 	App       string
 }
 
+type StatisticRecord struct {
+	Nm string  // statistic name
+	V  float64 // value
+	Ts int64   // timestamp
+}
+type StatisticExp struct {
+	Nm   string // statistic name
+	Exp  string // statistic expression
+	I    int    // interval time: 1min, 5min
+	last int64  // last calculate time
+}
 type Trigger struct {
 	Exp  string    //metric expressions
 	T    int       //AVG, SUM, MAX, MIN
