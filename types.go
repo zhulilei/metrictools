@@ -29,19 +29,15 @@ type StatisticRecord struct {
 	V  float64 // value
 	Ts int64   // timestamp
 }
-type StatisticExp struct {
-	Nm   string // statistic name
-	Exp  string // statistic expression
-	I    int    // interval time: 1min, 5min
-	last int64  // last calculate time
-}
 type Trigger struct {
+	Nm   string    //trigger name
 	Exp  string    //metric expressions
 	T    int       //AVG, SUM, MAX, MIN
 	P    int       //1min, 5min, 15min
 	J    int       //LESS, GREATER
 	I    int       //check interval time: 1min, 5min, 15min
 	V    []float64 //value
+	R    bool      //insert rst to mongodb?
 	Nm   string    //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
 	Pd   string    //blog, photo, reader, etc.
 	Last int64     //last modify time

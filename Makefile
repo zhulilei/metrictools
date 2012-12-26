@@ -3,6 +3,10 @@
 # be found in the LICENSE file.
 
 MAKEFLAGS = -s
+fmt:
+	cd metric_processor; go fmt *.go
+	cd metric_statistic; go fmt *.go
+	cd metric_web; go fmt *.go
 
 all:
 	cd metric_processor; go build
