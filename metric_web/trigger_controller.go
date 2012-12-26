@@ -31,7 +31,7 @@ func trigger_show(w http.ResponseWriter, req *http.Request) {
 		defer session.Close()
 		var query metrictools.Trigger
 		err = session.DB(dbname).C("Trigger").Find(bson.M{"exp": exp}).One(&query)
-		var query2 []metrictools.AlarmAction
+		var query2 []metrictools.NotifyAction
 		err = session.DB(dbname).C("trigger_action").Find(bson.M{"exp": exp}).All(&query2)
 		tg_info := &TriggerRequest{
 			trigger: query,
@@ -93,7 +93,7 @@ func trigger_update(w http.ResponseWriter, req *http.Request) {
 		defer session.Close()
 		if len(alarm_type) > 0 {
 			name := req.FormValue("name")
-			var tg_action metrictools.AlarmAction
+			var tg_action metrictools.NotifyAction
 			if err = json.Unmarshal(body, &tg_action); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				w.Write([]byte("Deny"))

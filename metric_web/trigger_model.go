@@ -6,5 +6,5 @@ import (
 
 type TriggerRequest struct {
 	trigger metrictools.Trigger
-	actions []metrictools.AlarmAction
+	actions []metrictools.NotifyAction
 }
