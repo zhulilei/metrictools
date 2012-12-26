@@ -43,7 +43,15 @@ type Trigger struct {
 	Stat int       //last trigger stat
 }
 type Notify struct {
-	Exp    string //metric expressions
-	Level  int
-	Value  float64
+	Exp   string //metric expressions
+	Level int    // 0 ok, 1 error, 2 critical
+	Value float64
+}
+
+type NotifyAction struct {
+	Exp   string //metric expressions
+	T     string //email, phone, mq, im &etc.
+	Uri   string //email address, phone number, im id, mq info
+	Last  int64  //last notify time
+	Count int    //count in period time
 }
