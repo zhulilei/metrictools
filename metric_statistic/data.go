@@ -34,14 +34,16 @@ func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string,
 		var trigger metrictools.Trigger
 		err := session.DB(dbname).C("Trigger").Find(bson.M{"exp": exp}).One(&trigger)
 		if err == nil {
-			go period_calculate_task(trigger, pool)
+			go period_calculate_task(trigger, pool, db_session, dbname)
 			go period_statistic_task(trigger, pool, db_session, dbname, notify_chan)
 		}
 	}
 }
 
 // calculate trigger.exp
-func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
+func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string) {
+	session := db_session.Clone()
+	defer session.Close()
 	metrics := cal.Parser(trigger.Exp)
 	ticker := time.NewTicker(time.Minute * time.Duration(trigger.I))
 	id := 0
@@ -59,6 +61,14 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool) {
 			}
 			redis_con.Do("EXPIRE", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
 			id++
+			if trigger.R {
+				record := metrictools.StatisticRecord{
+					Nm: trigger.Nm,
+					V:  rst,
+					Ts: time.Now().Unix(),
+				}
+				session.DB(dbname).C("StatisticRecord").Insert(record)
+			}
 		}
 		<-ticker.C
 	}
@@ -168,18 +178,6 @@ func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
 	}
 }
 
-// update last modify time
-func update_statistic(db_session *mgo.Session, dbname string, statistic string) {
-	session := db_session.Copy()
-	defer session.Close()
-	ticker := time.NewTicker(time.Second * 55)
-	for {
-		now := time.Now().Unix()
-		session.DB(dbname).C("Statistic").Update(bson.M{"exp": statistic}, bson.M{"last": now})
-		<-ticker.C
-	}
-}
-
 // pack notify message
 func deliver_notify(notify_chan chan *notify.Notify, deliver_chan chan *amqp.Message, routing_key string) {
 	for {
@@ -224,44 +222,6 @@ func check_value(trigger metrictools.Trigger, data []float64) (int, float64) {
 		}
 	}
 	return 0, rst
-}
-
-// calculate statistic expression
-func calculate_statistic_exp(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan *amqp.Message) {
-	for {
-		msg := <-cal_chan
-		go period_calculate_statistic_task(pool, db_session, dbname, msg.Content)
-		go update_statistic(db_session, dbname, msg.Content)
-		msg.Done <- 1
-	}
-}
-
-// do calculate statistic
-func period_calculate_statistic_task(pool *redis.Pool, db_session *mgo.Session, dbname string, exp string) {
-	session := db_session.Clone()
-	var statistic_exp metrictools.StatisticExp
-	err := session.DB(dbname).C("Statistic").Find(bson.M{"exp": exp}).One(&statistic_exp)
-	if err != nil {
-		return
-	}
-	metrics := cal.Parser(statistic_exp.Exp)
-	ticker := time.NewTicker(time.Minute * time.Duration(statistic_exp.I))
-	redis_con := pool.Get()
-	for {
-		rst, err := calculate_exp(redis_con, metrics, statistic_exp.Exp)
-		if err != nil {
-			redis_con = pool.Get()
-			log.Println(statistic_exp.Exp, " calculate failed.", err)
-		} else {
-			record := metrictools.StatisticRecord{
-				Nm: statistic_exp.Nm,
-				V:  rst,
-				Ts: time.Now().Unix(),
-			}
-			session.DB(dbname).C("StatisticRecord").Insert(record)
-		}
-		<-ticker.C
-	}
 }
 
 // get average value for []float64

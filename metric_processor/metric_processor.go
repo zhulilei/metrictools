@@ -35,7 +35,6 @@ func main() {
 	metric_routing_key, _ := c.String("metric", "routing_key")
 	metric_consumer_tag, _ := c.String("metric", "consumer_tag")
 	trigger_routing_key, _ := c.String("trigger", "routing_key")
-	statistic_routing_key, _ := c.String("statistic", "routing_key")
 	redis_server, _ := c.String("redis", "server")
 	redis_auth, _ := c.String("redis", "password")
 
@@ -86,11 +85,6 @@ func main() {
 	go scan_trigger(db_session, dbname, message_chan)
 	// pack mq message
 	go msg_dispatch(deliver_chan, trigger_routing_key, message_chan)
-	statistic_chan := make(chan string)
-	// scan statistic exps, send to mq if exp's (now - last) < 120
-	go scan_statistic(db_session, dbname, statistic_chan)
-	// pack mq message
-	go msg_dispatch(deliver_chan, statistic_routing_key, statistic_chan)
 	// make sure index
 	ensure_index(db_session, dbname)
 }

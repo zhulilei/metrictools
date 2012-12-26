@@ -131,24 +131,6 @@ func scan_trigger(db_session *mgo.Session, dbname string, msg_chan chan string) 
 	}
 }
 
-func scan_statistic(db_session *mgo.Session, dbname string, msg_chan chan string) {
-	session := db_session.Copy()
-	defer session.Close()
-	var err error
-	ticker := time.NewTicker(time.Minute)
-	for {
-		now := time.Now().Unix()
-		var statistic_exps []metrictools.StatisticExp
-		err = session.DB(dbname).C("Statistic").Find(bson.M{"last": bson.M{"$lt": now - 120}}).All(&statistic_exps)
-		if err == nil {
-			for i := range statistic_exps {
-				msg_chan <- statistic_exps[i].Exp
-			}
-		}
-		<-ticker.C
-	}
-}
-
 func msg_dispatch(deliver_chan chan *amqp.Message, routing_key string, msg_chan chan string) {
 	for {
 		msg_body := <-msg_chan

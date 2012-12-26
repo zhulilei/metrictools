@@ -3,15 +3,15 @@
 # be found in the LICENSE file.
 
 MAKEFLAGS = -s
-fmt:
-	cd metric_processor; go fmt *.go
-	cd metric_statistic; go fmt *.go
-	cd metric_web; go fmt *.go
-
 all:
 	cd metric_processor; go build
 	cd metric_statistic; go build
 	cd metric_web; go build
+
+fmt:
+	cd metric_processor; go fmt *.go
+	cd metric_statistic; go fmt *.go
+	cd metric_web; go fmt *.go
 
 clean:
 	cd metric_processor; go clean

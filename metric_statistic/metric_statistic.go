@@ -33,9 +33,6 @@ func main() {
 	trigger_routing_key, _ := c.String("trigger", "routing_key")
 	trigger_queue, _ := c.String("trigger", "queue")
 	trigger_consumer_tag, _ := c.String("trigger", "consumer_tag")
-	statistic_routing_key, _ := c.String("statistic", "routing_key")
-	statistic_queue, _ := c.String("statistic", "queue")
-	statistic_consumer_tag, _ := c.String("statistic", "consumer_tag")
 	notify_routing_key, _ := c.String("notify", "routing_key")
 	redis_server, _ := c.String("redis", "server")
 	redis_auth, _ := c.String("redis", "password")
@@ -76,13 +73,6 @@ func main() {
 	// redis data calculate
 	notify_chan := make(chan *notify.Notify)
 	go calculate_trigger(redis_pool, db_session, dbname, cal_chan, notify_chan)
-	// get statistic
-	statistic_chan := make(chan *amqp.Message)
-	statistic_consumer := amqp.NewConsumer(uri, exchange, exchange_type, statistic_queue, statistic_routing_key, statistic_consumer_tag)
-	// read statistic from mq
-	go statistic_consumer.Read_record(statistic_chan)
-	// redis data calculate
-	go calculate_statistic_exp(redis_pool, db_session, dbname, statistic_chan)
 
 	deliver_chan := make(chan *amqp.Message)
 	// pack up notify message to amqp message
