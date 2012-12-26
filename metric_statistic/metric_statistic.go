@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
-	"github.com/datastream/metrictools/notify"
 	"github.com/garyburd/redigo/redis"
 	"github.com/kless/goconfig/config"
 	"log"
@@ -71,7 +70,7 @@ func main() {
 	// update trigger's last modify time in mongodb
 	go update_all_trigger(db_session, dbname, update_chan)
 	// redis data calculate
-	notify_chan := make(chan *notify.Notify)
+	notify_chan := make(chan *metrictools.Notify)
 	go calculate_trigger(redis_pool, db_session, dbname, cal_chan, notify_chan)
 
 	deliver_chan := make(chan *amqp.Message)
