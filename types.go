@@ -30,7 +30,6 @@ type StatisticRecord struct {
 	Ts int64   // timestamp
 }
 type Trigger struct {
-	Nm   string    //trigger name
 	Exp  string    //metric expressions
 	T    int       //AVG, SUM, MAX, MIN
 	P    int       //1min, 5min, 15min
