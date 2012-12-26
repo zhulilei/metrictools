@@ -5,7 +5,6 @@ import (
 	"github.com/datastream/cal"
 	"github.com/datastream/metrictools"
 	"github.com/datastream/metrictools/amqp"
-	"github.com/datastream/metrictools/notify"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -27,7 +26,7 @@ func trigger_chan_dispatch(trigger_chan chan *amqp.Message, update_chan, calcula
 }
 
 // calculate trigger
-func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, notify_chan chan *notify.Notify) {
+func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, notify_chan chan *metrictools.Notify) {
 	session := db_session.Clone()
 	for {
 		exp := <-cal_chan
@@ -103,7 +102,7 @@ func calculate_exp(redis_con redis.Conn, metrics []string, exp string) (float64,
 }
 
 //get statistic result
-func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, notify_chan chan *notify.Notify) {
+func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, notify_chan chan *metrictools.Notify) {
 	session := db_session.Clone()
 	ticker2 := time.NewTicker(time.Minute * time.Duration(trigger.P))
 	redis_con := pool.Get()
@@ -119,7 +118,7 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 		err = session.DB(dbname).C("Trigger").Find(bson.M{"exp": trigger.Exp}).One(&tg)
 		if err == nil {
 			if stat > 0 || tg.Stat != stat {
-				notify := &notify.Notify{
+				notify := &metrictools.Notify{
 					Exp:   trigger.Exp,
 					Level: stat,
 					Value: value,
@@ -179,7 +178,7 @@ func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
 }
 
 // pack notify message
-func deliver_notify(notify_chan chan *notify.Notify, deliver_chan chan *amqp.Message, routing_key string) {
+func deliver_notify(notify_chan chan *metrictools.Notify, deliver_chan chan *amqp.Message, routing_key string) {
 	for {
 		notify := <-notify_chan
 		if body, err := json.Marshal(notify); err == nil {

@@ -42,9 +42,8 @@ type Trigger struct {
 	Last int64     //last modify time
 	Stat int       //last trigger stat
 }
-type AlarmAction struct {
-	Exp string
-	T   string //email, phone, im, mq
-	Nm  string //email address, phone number, im id, mq name
-	Ts  int64  //last send
+type Notify struct {
+	Exp    string //metric expressions
+	Level  int
+	Value  float64
 }
