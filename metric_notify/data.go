@@ -30,7 +30,6 @@ func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *amqp.Me
 					}
 					go send_notify(all_notifyaction[i], notify_msg)
 					session.DB(dbname).C("NotifyAction").Update(bson.M{"exp": all_notifyaction[i].Exp, "uri": all_notifyaction[i].Uri}, bson.M{"last": now, "count": count})
-					log.Println("send notify:", all_notifyaction[i].Exp, all_notifyaction[i].Uri)
 				}
 			}
 		}
@@ -38,25 +37,31 @@ func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *amqp.Me
 	}
 }
 func send_notify(notifyaction metrictools.NotifyAction, notify metrictools.Notify) {
-	scheme, _ := split_uri(notifyaction.Uri)
+	scheme, data := split_uri(notifyaction.Uri)
 	switch  scheme {
 	case "mailto":
 		{
+			log.Println("send mail:", data, notify.Exp, notify.Level)
 		}
 	case "http":
 		{
+			log.Println("send http:", data, notify.Exp, notify.Level)
 		}
 	case "https":
 		{
+			log.Println("send https:", data, notify.Exp, notify.Level)
 		}
-	case "amqp":
+	case "mq":
 		{
+			log.Println("send mq:", data, notify.Exp, notify.Level)
 		}
 	case "xmpp":
 		{
+			log.Println("send xmpp:", data, notify.Exp, notify.Level)
 		}
 	case "sms":
 		{
+			log.Println("send sms:", data, notify.Exp, notify.Level)
 		}
 	}
 }
