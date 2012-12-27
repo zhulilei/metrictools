@@ -36,7 +36,7 @@ type Trigger struct {
 	J    int       //LESS, GREATER
 	I    int       //check interval time: 1min, 5min, 15min
 	V    []float64 //value
-	R    bool      //insert rst to mongodb?
+	R    bool      //insert into mongodb?
 	Nm   string    //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
 	Pd   string    //blog, photo, reader, etc.
 	Last int64     //last modify time
@@ -50,7 +50,7 @@ type Notify struct {
 
 type NotifyAction struct {
 	Exp   string //metric expressions
-	T     string //email, phone, mq, im &etc.
+	Ir    bool   //repeated ? default: false ,send 3 times in 5mins
 	Uri   string //email address, phone number, im id, mq info
 	Last  int64  //last notify time
 	Count int    //count in period time
