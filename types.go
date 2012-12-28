@@ -25,33 +25,33 @@ type Metric struct {
 }
 
 type StatisticRecord struct {
-	Nm string  // statistic name
+	Nm string  // trigger's name
 	V  float64 // value
 	Ts int64   // timestamp
 }
 type Trigger struct {
-	Exp  string    //metric expressions
-	T    int       //AVG, SUM, MAX, MIN
-	P    int       //1min, 5min, 15min
-	J    int       //LESS, GREATER
-	I    int       //check interval time: 1min, 5min, 15min
-	V    []float64 //value
-	R    bool      //insert into mongodb?
-	Nm   string    //nginx_cpu, nginx_req, apache_cpu, apache_req, lvs_netio, app_cpu, etc.
-	Pd   string    //blog, photo, reader, etc.
-	Last int64     //last modify time
-	Stat int       //last trigger stat
+	Exp  string    // metric expressions
+	T    int       // AVG, SUM, MAX, MIN
+	P    int       // 1min, 5min, 15min
+	J    int       // LESS, GREATER
+	I    int       // check interval time: 1min, 5min, 15min
+	V    []float64 // value
+	R    bool      // insert into mongodb?
+	Nm   string    // auto generate
+	Pd   string    // blog, photo, reader, etc.
+	Last int64     // last modify time
+	Stat int       // last trigger stat
 }
 type Notify struct {
-	Exp   string //metric expressions
+	Exp   string // metric expressions
 	Level int    // 0 ok, 1 error, 2 critical
 	Value float64
 }
 
 type NotifyAction struct {
-	Exp   string //metric expressions
-	Ir    bool   //repeated ? default: false ,send 3 times in 5mins
-	Uri   string //email address, phone number, im id, mq info
-	Last  int64  //last notify time
-	Count int    //count in period time
+	Exp   string // metric expressions
+	Ir    bool   // repeated ? default: false ,send 3 times in 5mins
+	Uri   string // email address, phone number, im id, mq info
+	Last  int64  // last notify time
+	Count int    // count in period time
 }
