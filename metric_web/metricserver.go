@@ -61,9 +61,13 @@ func main() {
 	redis_pool = redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
 
+	// get metric data
 	http.HandleFunc("/monitorapi/metric", metric_controller)
+	// return one host's metric list
 	http.HandleFunc("/monitorapi/host_metric", host_metric_controller)
-	http.HandleFunc("/monitorapi/exp", exp_controller)
+	// clean up one host's metric
+	http.HandleFunc("/monitorapi/host_update", host_update_controller)
+	// update trigger setting
 	http.HandleFunc("/monitorapi/trigger", trigger_controller)
 
 	err = http.ListenAndServe(":"+port, nil)
