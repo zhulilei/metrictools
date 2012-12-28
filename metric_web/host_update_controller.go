@@ -12,8 +12,6 @@ func host_update_controller(w http.ResponseWriter, req *http.Request) {
 
 	host := req.FormValue("host")
 	redis_con := redis_pool.Get()
-	var query []string
-	var json string
 	_, err := redis_con.Do("DEL", host)
 	if err == nil {
 		io.WriteString(w, "cleanup host")
