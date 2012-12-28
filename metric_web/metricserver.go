@@ -63,6 +63,8 @@ func main() {
 
 	// get metric data
 	http.HandleFunc("/monitorapi/metric", metric_controller)
+	// get statistic data
+	http.HandleFunc("/monitorapi/statistic", statistic_controller)
 	// return one host's metric list
 	http.HandleFunc("/monitorapi/host_metric", host_metric_controller)
 	// clean up one host's metric

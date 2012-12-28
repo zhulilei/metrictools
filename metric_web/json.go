@@ -31,6 +31,28 @@ func json_metrics_value(m []metrictools.Record, app, retention string) string {
 	return rst
 }
 
+func json_statistic_value(m []metrictools.StatisticRecord, name string) string {
+	var rst string
+	metrics := make(map[string][]interface{})
+	for i := range m {
+		metrics[name] = append(metrics[name], []interface{}{m[i].Ts, m[i].V})
+	}
+	var keys []string
+	for k, _ := range metrics {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for l := range keys {
+		msg := map[string]interface{}{"key": keys[l], "values": metrics[keys[l]]}
+		if body, err := json.Marshal(msg); err != nil {
+			rst += ""
+		} else {
+			rst += string(body) + ","
+		}
+	}
+	return rst
+}
+
 func gen_value(values map[int64]float64, name string) string {
 	var rst string
 	var _values [][]interface{}
