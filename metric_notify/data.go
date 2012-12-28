@@ -36,6 +36,7 @@ func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *amqp.Me
 		raw_msg.Done <- 1
 	}
 }
+//send notify
 func send_notify(notifyaction metrictools.NotifyAction, notify metrictools.Notify) {
 	scheme, data := split_uri(notifyaction.Uri)
 	switch  scheme {
@@ -65,6 +66,7 @@ func send_notify(notifyaction metrictools.NotifyAction, notify metrictools.Notif
 		}
 	}
 }
+// please check uri format before save
 func split_uri(uri string) (string, string) {
 	var index int
 	for index = range uri {
@@ -72,5 +74,5 @@ func split_uri(uri string) (string, string) {
 			break
 		}
 	}
-	return uri[:index], uri[index:]
+	return uri[:index], uri[index+1:]
 }
