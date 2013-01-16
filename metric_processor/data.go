@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/datastream/metrictools"
-	"github.com/datastream/metrictools/amqp"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -54,7 +53,7 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 	}
 }
 
-func insert_record(message_chan chan *amqp.Message, db_session *mgo.Session, dbname string, metric_chan chan string) {
+func insert_record(message_chan chan *metrictools.Message, db_session *mgo.Session, dbname string, metric_chan chan string) {
 	session := db_session.Copy()
 	defer session.Close()
 	var err error
@@ -131,10 +130,10 @@ func scan_trigger(db_session *mgo.Session, dbname string, msg_chan chan string) 
 	}
 }
 
-func msg_dispatch(deliver_chan chan *amqp.Message, routing_key string, msg_chan chan string) {
+func msg_dispatch(deliver_chan chan *metrictools.Message, routing_key string, msg_chan chan string) {
 	for {
 		msg_body := <-msg_chan
-		msg := &amqp.Message{
+		msg := &metrictools.Message{
 			Content: msg_body,
 			Done:    make(chan int),
 			Key:     routing_key,

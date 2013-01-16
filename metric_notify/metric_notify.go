@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/datastream/metrictools"
-	"github.com/datastream/metrictools/amqp"
 	"github.com/garyburd/redigo/redis"
 	"github.com/kless/goconfig/config"
 	"log"
@@ -57,8 +56,8 @@ func main() {
 	redis_pool := redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
 	// get notify
-	notify_chan := make(chan *amqp.Message)
-	notify_consumer := amqp.NewConsumer(uri, exchange, exchange_type, notify_queue, notify_routing_key, notify_consumer_tag)
+	notify_chan := make(chan *metrictools.Message)
+	notify_consumer := metrictools.NewConsumer(uri, exchange, exchange_type, notify_queue, notify_routing_key, notify_consumer_tag)
 	// read notify from mq
 	go notify_consumer.Read_record(notify_chan)
 	// do notify

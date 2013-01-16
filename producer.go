@@ -1,4 +1,4 @@
-package amqp
+package metrictools
 
 import (
 	"github.com/streadway/amqp"

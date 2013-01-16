@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/datastream/metrictools"
-	"github.com/datastream/metrictools/amqp"
 	"github.com/garyburd/redigo/redis"
 	"github.com/kless/goconfig/config"
 	"log"
@@ -58,8 +57,8 @@ func main() {
 	redis_pool := redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
 	// get trigger
-	trigger_chan := make(chan *amqp.Message)
-	trigger_consumer := amqp.NewConsumer(uri, exchange, exchange_type, trigger_queue, trigger_routing_key, trigger_consumer_tag)
+	trigger_chan := make(chan *metrictools.Message)
+	trigger_consumer := metrictools.NewConsumer(uri, exchange, exchange_type, trigger_queue, trigger_routing_key, trigger_consumer_tag)
 	// read trigger from mq
 	go trigger_consumer.Read_record(trigger_chan)
 	// setup channel
@@ -73,10 +72,10 @@ func main() {
 	notify_chan := make(chan *metrictools.Notify)
 	go calculate_trigger(redis_pool, db_session, dbname, cal_chan, notify_chan)
 
-	deliver_chan := make(chan *amqp.Message)
+	deliver_chan := make(chan *metrictools.Message)
 	// pack up notify message to amqp message
 	go deliver_notify(notify_chan, deliver_chan, notify_routing_key)
-	// deliver amqp.message
-	producer := amqp.NewProducer(uri, exchange, exchange_type, true)
+	// deliver metrictools.message
+	producer := metrictools.NewProducer(uri, exchange, exchange_type, true)
 	producer.Deliver(deliver_chan)
 }

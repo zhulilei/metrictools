@@ -1,4 +1,4 @@
-package amqp
+package metrictools
 
 import (
 	"github.com/streadway/amqp"
@@ -16,7 +16,7 @@ type Consumer struct {
 	exchangeType string
 	queue        string
 	key          string
-	done         chan error
+	done         chan *amqp.Error
 }
 
 type Message struct {
@@ -35,7 +35,7 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) *Cons
 		exchangeType: exchangeType,
 		queue:        queue,
 		key:          key,
-		done:         make(chan error),
+		done:         make(chan *amqp.Error),
 	}
 	return this
 }
@@ -116,8 +116,11 @@ func (this *Consumer) connect_mq() {
 func (this *Consumer) Read_record(message_chan chan *Message) {
 	this.connect_mq()
 	go this.handle(message_chan)
+	this.conn.NotifyClose(this.done)
 	for {
-		<-this.done
+		err := <-this.done
+		this.conn.Close()
+		log.Println(err)
 		this.connect_mq()
 		go this.handle(message_chan)
 	}
@@ -148,5 +151,4 @@ func (this *Consumer) handle(message_chan chan *Message) {
 		}
 	}
 	log.Printf("handle: deliveries channel closed")
-	this.done <- nil
 }

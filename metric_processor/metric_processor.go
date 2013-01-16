@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/datastream/metrictools"
-	"github.com/datastream/metrictools/amqp"
 	"github.com/garyburd/redigo/redis"
 	"github.com/kless/goconfig/config"
 	"log"
@@ -64,10 +63,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	msg_chan := make(chan *amqp.Message)
+	msg_chan := make(chan *metrictools.Message)
 	redis_notify_chan := make(chan string)
 	for i := 0; i < nWorker; i++ {
-		consumer := amqp.NewConsumer(uri, exchange, exchange_type, metric_queue, metric_routing_key, metric_consumer_tag)
+		consumer := metrictools.NewConsumer(uri, exchange, exchange_type, metric_queue, metric_routing_key, metric_consumer_tag)
 		// read metric from mq
 		go consumer.Read_record(msg_chan)
 		// insert metric into mongodb
@@ -76,8 +75,8 @@ func main() {
 	// pusblish data to redis
 	go redis_notify(redis_pool, redis_notify_chan)
 	// deliver trigger to mq
-	producer := amqp.NewProducer(uri, exchange, exchange_type, true)
-	deliver_chan := make(chan *amqp.Message)
+	producer := metrictools.NewProducer(uri, exchange, exchange_type, true)
+	deliver_chan := make(chan *metrictools.Message)
 	go producer.Deliver(deliver_chan)
 
 	message_chan := make(chan string)

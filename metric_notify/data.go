@@ -3,14 +3,13 @@ package main
 import (
 	"encoding/json"
 	"github.com/datastream/metrictools"
-	"github.com/datastream/metrictools/amqp"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"time"
 )
 
-func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *amqp.Message) {
+func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *metrictools.Message) {
 	session := db_session.Clone()
 	defer session.Close()
 	for {

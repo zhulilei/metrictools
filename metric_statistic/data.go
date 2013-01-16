@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"github.com/datastream/cal"
 	"github.com/datastream/metrictools"
-	"github.com/datastream/metrictools/amqp"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -14,7 +13,7 @@ import (
 )
 
 // dispath trigger message to 2 channels
-func trigger_chan_dispatch(trigger_chan chan *amqp.Message, update_chan, calculate_chan chan string) {
+func trigger_chan_dispatch(trigger_chan chan *metrictools.Message, update_chan, calculate_chan chan string) {
 	for {
 		msg := <-trigger_chan
 		go func() {
@@ -178,11 +177,11 @@ func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
 }
 
 // pack notify message
-func deliver_notify(notify_chan chan *metrictools.Notify, deliver_chan chan *amqp.Message, routing_key string) {
+func deliver_notify(notify_chan chan *metrictools.Notify, deliver_chan chan *metrictools.Message, routing_key string) {
 	for {
 		notify := <-notify_chan
 		if body, err := json.Marshal(notify); err == nil {
-			msg := &amqp.Message{
+			msg := &metrictools.Message{
 				Content: string(body),
 				Key:     routing_key,
 				Done:    make(chan int),
