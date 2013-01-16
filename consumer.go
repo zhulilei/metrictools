@@ -114,24 +114,24 @@ func (this *Consumer) connect_mq() {
 }
 
 func (this *Consumer) Read_record(message_chan chan *Message) {
-	this.connect_mq()
-	go this.handle(message_chan)
-	this.conn.NotifyClose(this.done)
 	for {
-		err := <-this.done
-		this.conn.Close()
-		log.Println(err)
 		this.connect_mq()
-		go this.handle(message_chan)
+		this.conn.NotifyClose(this.done)
+		this.handle(message_chan)
+		this.conn.Close()
 	}
 }
 func (this *Consumer) handle(message_chan chan *Message) {
 	for {
 		select {
+		case err := <-this.done:
+			log.Println(err)
+			return
 		case d, ok := <-this.deliveries:
 			{
 				if !ok {
-					break
+					log.Println("deliver channel closed")
+					return
 				}
 				rst := string(d.Body)
 				msg := &Message{
@@ -150,5 +150,4 @@ func (this *Consumer) handle(message_chan chan *Message) {
 			}
 		}
 	}
-	log.Printf("handle: deliveries channel closed")
 }

@@ -6,6 +6,7 @@ import (
 )
 
 type Producer struct {
+	conn         *amqp.Connection
 	amqpURI      string
 	exchange     string
 	exchangeType string
@@ -13,7 +14,7 @@ type Producer struct {
 	channel      *amqp.Channel
 	Ack          chan uint64
 	Nack         chan uint64
-	done         chan error
+	done         chan *amqp.Error
 }
 
 func NewProducer(amqpURI, exchange, exchangeType string, reliable bool) *Producer {
@@ -22,20 +23,20 @@ func NewProducer(amqpURI, exchange, exchangeType string, reliable bool) *Produce
 		exchange:     exchange,
 		exchangeType: exchangeType,
 		Reliable:     reliable,
-		done:         make(chan error),
+		done:         make(chan *amqp.Error),
 	}
 	return this
 }
 
 func (this *Producer) connect_mq() {
 	for {
-		connection, err := amqp.Dial(this.amqpURI)
+		var err error
+		this.conn, err = amqp.Dial(this.amqpURI)
 		if err != nil {
 			log.Println("Dial: ", err)
 			continue
 		}
-		defer connection.Close()
-		if this.channel, err = connection.Channel(); err != nil {
+		if this.channel, err = this.conn.Channel(); err != nil {
 			log.Println("Channel: ", err)
 			continue
 		}
@@ -65,48 +66,50 @@ func (this *Producer) connect_mq() {
 	}
 }
 func (this *Producer) Deliver(message_chan chan *Message) {
-	this.connect_mq()
-	go this.handle(message_chan)
 	for {
-		<-this.done
 		this.connect_mq()
-		go this.handle(message_chan)
+		this.conn.NotifyClose(this.done)
+		this.handle(message_chan)
+		this.conn.Close()
 	}
 }
 
 func (this *Producer) handle(message_chan chan *Message) {
 	var err error
 	for {
-		msg := <-message_chan
-		if err = this.channel.Publish(
-			this.exchange,
-			msg.Key,
-			true, // mandatory
-			true, // immediate
-			amqp.Publishing{
-				Headers:         amqp.Table{},
-				ContentType:     "text/plain",
-				ContentEncoding: "",
-				Body:            []byte(msg.Content),
-				DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
-				Priority:        0,              // 0-9
-				// a bunch of application/implementation-specific fields
-			},
-		); err != nil {
-			log.Println("Exchange Publish: ", err)
-			msg.Done <- -1
-		}
-		if this.Reliable {
-			select {
-			case <-this.Ack:
-				msg.Done <- 1
-			case <-this.Nack:
+		select {
+		case err = <-this.done:
+			log.Println(err)
+			return
+		case msg := <-message_chan:
+			if err = this.channel.Publish(
+				this.exchange,
+				msg.Key,
+				true, // mandatory
+				true, // immediate
+				amqp.Publishing{
+					Headers:         amqp.Table{},
+					ContentType:     "text/plain",
+					ContentEncoding: "",
+					Body:            []byte(msg.Content),
+					DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
+					Priority:        0,              // 0-9
+					// a bunch of application/implementation-specific fields
+				},
+			); err != nil {
+				log.Println("Exchange Publish: ", err)
 				msg.Done <- -1
 			}
-		} else {
-			msg.Done <- 1
+			if this.Reliable {
+				select {
+				case <-this.Ack:
+					msg.Done <- 1
+				case <-this.Nack:
+					msg.Done <- -1
+				}
+			} else {
+				msg.Done <- 1
+			}
 		}
 	}
-	log.Printf("handle: publish channel closed")
-	this.done <- nil
 }
