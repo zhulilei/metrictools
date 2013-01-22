@@ -61,5 +61,8 @@ func expire_data(db_session *mgo.Session, dbname string, collection string) {
 	last := time.Now().Unix() - 3600*24*45
 	session := db_session.Copy()
 	defer session.Close()
-	_ = session.DB(dbname).C(collection).Remove(bson.M{"ts": bson.M{"$lt": last}})
+	_, err := session.DB(dbname).C(collection).RemoveAll(bson.M{"ts": bson.M{"$lt": last}})
+	if err != nil {
+		log.Println(collection, err)
+	}
 }
