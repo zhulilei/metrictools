@@ -35,10 +35,11 @@ func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *metrict
 		raw_msg.Done <- 1
 	}
 }
+
 //send notify
 func send_notify(notifyaction metrictools.NotifyAction, notify metrictools.Notify) {
 	scheme, data := split_uri(notifyaction.Uri)
-	switch  scheme {
+	switch scheme {
 	case "mailto":
 		{
 			log.Println("send mail:", data, notify.Exp, notify.Level)
@@ -65,6 +66,7 @@ func send_notify(notifyaction metrictools.NotifyAction, notify metrictools.Notif
 		}
 	}
 }
+
 // please check uri format before save
 func split_uri(uri string) (string, string) {
 	var index int
