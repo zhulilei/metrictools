@@ -30,10 +30,13 @@ func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string,
 	for {
 		exp := <-cal_chan
 		var trigger metrictools.Trigger
-		err := session.DB(dbname).C("Trigger").Find(bson.M{"exp": exp}).One(&trigger)
+		err := session.DB(dbname).C("Trigger").
+			Find(bson.M{"exp": exp}).One(&trigger)
 		if err == nil {
-			go period_calculate_task(trigger, pool, db_session, dbname)
-			go period_statistic_task(trigger, pool, db_session, dbname, notify_chan)
+			go period_calculate_task(trigger, pool,
+				db_session, dbname)
+			go period_statistic_task(trigger, pool,
+				db_session, dbname, notify_chan)
 		}
 	}
 }
@@ -52,12 +55,15 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 			redis_con = pool.Get()
 			log.Println(trigger.Exp, " calculate failed.", err)
 		} else {
-			_, err := redis_con.Do("SET", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), rst)
+			_, err := redis_con.Do("SET", "period_calculate_task:"+
+				trigger.Exp+":"+strconv.Itoa(id), rst)
 			if err != nil {
 				redis_con = pool.Get()
-				redis_con.Do("SET", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), rst)
+				redis_con.Do("SET", "period_calculate_task:"+
+					trigger.Exp+":"+strconv.Itoa(id), rst)
 			}
-			redis_con.Do("EXPIRE", "period_calculate_task:"+trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
+			redis_con.Do("EXPIRE", "period_calculate_task:"+
+				trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
 			id++
 			if trigger.R {
 				record := metrictools.StatisticRecord{
@@ -65,7 +71,8 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 					V:  rst,
 					Ts: time.Now().Unix(),
 				}
-				session.DB(dbname).C("StatisticRecord").Insert(record)
+				session.DB(dbname).C("StatisticRecord").
+					Insert(record)
 			}
 		}
 		<-ticker.C
@@ -81,15 +88,18 @@ func calculate_exp(redis_con redis.Conn, metrics []string, exp string) (float64,
 				var d float64
 				var value []byte
 				if v == nil {
-					d, err = strconv.ParseFloat(metrics[i], 64)
+					d, err = strconv.ParseFloat(
+						metrics[i], 64)
 				} else {
 					value, _ = v.([]byte)
-					d, err = strconv.ParseFloat(string(value), 64)
+					d, err = strconv.ParseFloat(
+						string(value), 64)
 				}
 				if err == nil {
 					k_v[metrics[i]] = d
 				} else {
-					log.Println("failed to load value of", metrics[i])
+					log.Println("failed to load value of",
+						metrics[i])
 				}
 			} else {
 				return 0, err
@@ -114,7 +124,8 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 		}
 		stat, value := check_value(trigger, values)
 		var tg metrictools.Trigger
-		err = session.DB(dbname).C("Trigger").Find(bson.M{"exp": trigger.Exp}).One(&tg)
+		err = session.DB(dbname).C("Trigger").
+			Find(bson.M{"exp": trigger.Exp}).One(&tg)
 		if err == nil {
 			if stat > 0 || tg.Stat != stat {
 				notify := &metrictools.Notify{
@@ -146,7 +157,8 @@ func get_redis_keys_values(redis_con redis.Conn, key string) ([]float64, error) 
 				if e == nil {
 					values = append(values, d)
 				} else {
-					log.Println(string(value), " convert to float64 failed")
+					log.Println(string(value),
+						" convert to float64 failed")
 				}
 			}
 		} else {
@@ -171,7 +183,8 @@ func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
 	ticker := time.NewTicker(time.Second * 55)
 	for {
 		now := time.Now().Unix()
-		session.DB(dbname).C("Trigger").Update(bson.M{"exp": trigger}, bson.M{"last": now})
+		session.DB(dbname).C("Trigger").
+			Update(bson.M{"exp": trigger}, bson.M{"last": now})
 		<-ticker.C
 	}
 }

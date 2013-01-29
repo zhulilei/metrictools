@@ -16,19 +16,29 @@ func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *metrict
 		raw_msg := <-notify_chan
 		var notify_msg metrictools.Notify
 		var all_notifyaction []metrictools.NotifyAction
-		if err := json.Unmarshal([]byte(raw_msg.Content), &notify_msg); err != nil {
-			session.DB(dbname).C("NotifyAction").Find(bson.M{"exp": notify_msg.Exp}).All(&all_notifyaction)
+		if err := json.Unmarshal([]byte(raw_msg.Content),
+			&notify_msg); err != nil {
+			session.DB(dbname).C("NotifyAction").
+				Find(bson.M{"exp": notify_msg.Exp}).
+				All(&all_notifyaction)
 			for i := range all_notifyaction {
 				now := time.Now().Unix()
-				if all_notifyaction[i].Ir || ((now-all_notifyaction[i].Last) > 300 && all_notifyaction[i].Count < 3) {
+				if all_notifyaction[i].Ir ||
+					((now-all_notifyaction[i].Last) > 300 &&
+						all_notifyaction[i].Count < 3) {
 					var count int
 					if (now - all_notifyaction[i].Last) > 300 {
 						count = 1
 					} else {
 						count = all_notifyaction[i].Count + 1
 					}
-					go send_notify(all_notifyaction[i], notify_msg)
-					session.DB(dbname).C("NotifyAction").Update(bson.M{"exp": all_notifyaction[i].Exp, "uri": all_notifyaction[i].Uri}, bson.M{"last": now, "count": count})
+					go send_notify(all_notifyaction[i],
+						notify_msg)
+					session.DB(dbname).C("NotifyAction").
+						Update(bson.M{"exp": all_notifyaction[i].Exp,
+						"uri": all_notifyaction[i].Uri},
+						bson.M{"last": now,
+							"count": count})
 				}
 			}
 		}
@@ -42,27 +52,33 @@ func send_notify(notifyaction metrictools.NotifyAction, notify metrictools.Notif
 	switch scheme {
 	case "mailto":
 		{
-			log.Println("send mail:", data, notify.Exp, notify.Level)
+			log.Println("send mail:",
+				data, notify.Exp, notify.Level)
 		}
 	case "http":
 		{
-			log.Println("send http:", data, notify.Exp, notify.Level)
+			log.Println("send http:",
+				data, notify.Exp, notify.Level)
 		}
 	case "https":
 		{
-			log.Println("send https:", data, notify.Exp, notify.Level)
+			log.Println("send https:",
+				data, notify.Exp, notify.Level)
 		}
 	case "mq":
 		{
-			log.Println("send mq:", data, notify.Exp, notify.Level)
+			log.Println("send mq:",
+				data, notify.Exp, notify.Level)
 		}
 	case "xmpp":
 		{
-			log.Println("send xmpp:", data, notify.Exp, notify.Level)
+			log.Println("send xmpp:",
+				data, notify.Exp, notify.Level)
 		}
 	case "sms":
 		{
-			log.Println("send sms:", data, notify.Exp, notify.Level)
+			log.Println("send sms:",
+				data, notify.Exp, notify.Level)
 		}
 	}
 }

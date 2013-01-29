@@ -58,7 +58,9 @@ func main() {
 	defer redis_pool.Close()
 	// get trigger
 	trigger_chan := make(chan *metrictools.Message)
-	trigger_consumer := metrictools.NewConsumer(uri, exchange, exchange_type, trigger_queue, trigger_routing_key, trigger_consumer_tag)
+	trigger_consumer := metrictools.NewConsumer(uri, exchange,
+		exchange_type, trigger_queue,
+		trigger_routing_key, trigger_consumer_tag)
 	// read trigger from mq
 	go trigger_consumer.Read_record(trigger_chan)
 	// setup channel
@@ -70,7 +72,8 @@ func main() {
 	go update_all_trigger(db_session, dbname, update_chan)
 	// redis data calculate
 	notify_chan := make(chan *metrictools.Notify)
-	go calculate_trigger(redis_pool, db_session, dbname, cal_chan, notify_chan)
+	go calculate_trigger(redis_pool, db_session, dbname,
+		cal_chan, notify_chan)
 
 	deliver_chan := make(chan *metrictools.Message)
 	// pack up notify message to amqp message

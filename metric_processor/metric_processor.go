@@ -66,11 +66,14 @@ func main() {
 	msg_chan := make(chan *metrictools.Message)
 	redis_notify_chan := make(chan string)
 	for i := 0; i < nWorker; i++ {
-		consumer := metrictools.NewConsumer(uri, exchange, exchange_type, metric_queue, metric_routing_key, metric_consumer_tag)
+		consumer := metrictools.NewConsumer(uri, exchange,
+			exchange_type, metric_queue, metric_routing_key,
+			metric_consumer_tag)
 		// read metric from mq
 		go consumer.Read_record(msg_chan)
 		// insert metric into mongodb
-		go insert_record(msg_chan, db_session, dbname, redis_notify_chan)
+		go insert_record(msg_chan, db_session,
+			dbname, redis_notify_chan)
 	}
 	// pusblish data to redis
 	go redis_notify(redis_pool, redis_notify_chan)

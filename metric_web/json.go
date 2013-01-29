@@ -12,8 +12,10 @@ func json_metrics_value(m []metrictools.Record, app, retention string) string {
 	var rst string
 	metrics := make(map[string][]interface{})
 	for i := range m {
-		name := retention + "." + app + "." + m[i].Nm + "." + m[i].Cl + "." + m[i].Hs
-		metrics[name] = append(metrics[name], []interface{}{m[i].Ts, m[i].V})
+		name := retention + "." + app + "." +
+			m[i].Nm + "." + m[i].Cl + "." + m[i].Hs
+		metrics[name] = append(metrics[name],
+			[]interface{}{m[i].Ts, m[i].V})
 	}
 	var keys []string
 	for k, _ := range metrics {
@@ -21,7 +23,9 @@ func json_metrics_value(m []metrictools.Record, app, retention string) string {
 	}
 	sort.Strings(keys)
 	for l := range keys {
-		msg := map[string]interface{}{"key": keys[l], "values": metrics[keys[l]]}
+		msg := map[string]interface{}{
+			"key":    keys[l],
+			"values": metrics[keys[l]]}
 		if body, err := json.Marshal(msg); err != nil {
 			rst += ""
 		} else {
@@ -35,7 +39,8 @@ func json_statistic_value(m []metrictools.StatisticRecord, name string) string {
 	var rst string
 	metrics := make(map[string][]interface{})
 	for i := range m {
-		metrics[name] = append(metrics[name], []interface{}{m[i].Ts, m[i].V})
+		metrics[name] = append(metrics[name],
+			[]interface{}{m[i].Ts, m[i].V})
 	}
 	var keys []string
 	for k, _ := range metrics {
@@ -43,7 +48,8 @@ func json_statistic_value(m []metrictools.StatisticRecord, name string) string {
 	}
 	sort.Strings(keys)
 	for l := range keys {
-		msg := map[string]interface{}{"key": keys[l], "values": metrics[keys[l]]}
+		msg := map[string]interface{}{"key": keys[l],
+			"values": metrics[keys[l]]}
 		if body, err := json.Marshal(msg); err != nil {
 			rst += ""
 		} else {
@@ -119,7 +125,8 @@ func json_host_type(h []string, host string) string {
 	host_type := make(map[string][]string)
 	var rst string
 	for i := range h {
-		host_type[get_type(h[i])] = append(host_type[get_type(h[i])], h[i])
+		host_type[get_type(h[i])] = append(
+			host_type[get_type(h[i])], h[i])
 	}
 	var keys []string
 	for k, _ := range host_type {
@@ -159,12 +166,18 @@ func json_host_type(h []string, host string) string {
 				for i := range host_type[keys[l]] {
 					metrics += host_type[keys[l]][i] + ","
 				}
-				msg := map[string]interface{}{"key": keys[l], "url": "/monitor?metricsname=" + metrics[:len(metrics)-1] + "&host=" + host + "&type=" + keys[l]}
+				msg := map[string]interface{}{
+					"key": keys[l],
+					"url": "/monitor?metricsname=" +
+						metrics[:len(metrics)-1] +
+						"&host=" + host +
+						"&type=" + keys[l]}
 				val = append(val, msg)
 			}
 		}
 		if len(c) > 0 {
-			msg := map[string]interface{}{"key": keys[l], "_values": c}
+			msg := map[string]interface{}{
+				"key": keys[l], "_values": c}
 			val = append(val, msg)
 		}
 	}
@@ -191,7 +204,8 @@ func gen_cpu(v []string, host string) []interface{} {
 func gen_partion(v []string, host string) []interface{} {
 	partion := make(map[string][]string)
 	for i := range v {
-		reg, _ := regexp.Compile("partion.*(free|used|used_percent|total)")
+		reg, _ := regexp.Compile(
+			"partion.*(free|used|used_percent|total)")
 		st := reg.FindString(v[i])
 		st_list := strings.Split(st, ".")
 		st = "/"
@@ -213,7 +227,8 @@ func gen_partion(v []string, host string) []interface{} {
 func gen_apache(v []string, host string) []interface{} {
 	apache := make(map[string][]string)
 	for i := range v {
-		reg, _ := regexp.Compile("apache_(scoreboard|connection|byte|request|idle)")
+		reg, _ := regexp.Compile(
+			"apache_(scoreboard|connection|byte|request|idle)")
 		st := reg.FindString(v[i])
 		apache[st] = append(apache[st], v[i])
 	}
@@ -231,7 +246,8 @@ func gen_disk(v []string, host string) []interface{} {
 func gen_interface(v []string, host string) []interface{} {
 	eths := make(map[string][]string)
 	for i := range v {
-		reg, _ := regexp.Compile("((eth|bond|br)[0-9]{1,2}|lo).(tx|rx|if)")
+		reg, _ := regexp.Compile(
+			"((eth|bond|br)[0-9]{1,2}|lo).(tx|rx|if)")
 		st := reg.FindString(v[i])
 		st_list := strings.Split(st, ".")
 		st = st_list[0]
@@ -252,7 +268,11 @@ func sort_json(arrary map[string][]string, host string, data_type string) []inte
 		for i := range arrary[keys[l]] {
 			metrics += arrary[keys[l]][i] + ","
 		}
-		msg := map[string]interface{}{"key": keys[l], "url": "/monitor?metricsname=" + metrics[:len(metrics)-1] + "&host=" + host + "&type=" + data_type}
+		msg := map[string]interface{}{
+			"key": keys[l],
+			"url": "/monitor?metricsname=" +
+				metrics[:len(metrics)-1] +
+				"&host=" + host + "&type=" + data_type}
 		rst = append(rst, msg)
 	}
 	return rst

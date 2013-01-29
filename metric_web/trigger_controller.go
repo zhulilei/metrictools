@@ -30,9 +30,11 @@ func trigger_show(w http.ResponseWriter, req *http.Request) {
 		session := db_session.Clone()
 		defer session.Close()
 		var query metrictools.Trigger
-		err = session.DB(dbname).C("Trigger").Find(bson.M{"exp": exp}).One(&query)
+		err = session.DB(dbname).C("Trigger").
+			Find(bson.M{"exp": exp}).One(&query)
 		var query2 []metrictools.NotifyAction
-		err = session.DB(dbname).C("NotifyAction").Find(bson.M{"exp": exp}).All(&query2)
+		err = session.DB(dbname).C("NotifyAction").
+			Find(bson.M{"exp": exp}).All(&query2)
 		tg_info := &TriggerRequest{
 			trigger: query,
 			actions: query2,
@@ -71,7 +73,8 @@ func trigger_save(w http.ResponseWriter, req *http.Request) {
 	err = session.DB(dbname).C("Trigger").Insert(tg_req.trigger)
 	for i := range tg_req.actions {
 		tg_req.actions[i].Exp = tg_req.trigger.Exp
-		err = session.DB(dbname).C("NotifyAction").Insert(tg_req.actions[i])
+		err = session.DB(dbname).C("NotifyAction").
+			Insert(tg_req.actions[i])
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -99,7 +102,8 @@ func trigger_update(w http.ResponseWriter, req *http.Request) {
 				w.Write([]byte("Deny"))
 				return
 			}
-			err = session.DB(dbname).C("NotifyAction").Update(bson.M{"exp": exp, "nm": name}, tg_action)
+			err = session.DB(dbname).C("NotifyAction").
+				Update(bson.M{"exp": exp, "nm": name}, tg_action)
 		} else {
 			var tg_info metrictools.Trigger
 			if err = json.Unmarshal(body, &tg_info); err != nil {
@@ -107,7 +111,8 @@ func trigger_update(w http.ResponseWriter, req *http.Request) {
 				w.Write([]byte("Deny"))
 				return
 			}
-			err = session.DB(dbname).C("Trigger").Update(bson.M{"exp": exp}, tg_info)
+			err = session.DB(dbname).C("Trigger").
+				Update(bson.M{"exp": exp}, tg_info)
 		}
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -131,10 +136,13 @@ func trigger_delete(w http.ResponseWriter, req *http.Request) {
 		defer session.Close()
 		if len(alarm_type) > 0 {
 			name := req.FormValue("name")
-			err = session.DB(dbname).C("NotifyAction").Remove(bson.M{"exp": exp, "nm": name})
+			err = session.DB(dbname).C("NotifyAction").
+				Remove(bson.M{"exp": exp, "nm": name})
 		} else {
-			err = session.DB(dbname).C("NotifyAction").Remove(bson.M{"exp": exp})
-			err = session.DB(dbname).C("Trigger").Remove(bson.M{"exp": exp})
+			err = session.DB(dbname).C("NotifyAction").
+				Remove(bson.M{"exp": exp})
+			err = session.DB(dbname).C("Trigger").
+				Remove(bson.M{"exp": exp})
 		}
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)

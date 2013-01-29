@@ -23,7 +23,9 @@ func statistic_controller(w http.ResponseWriter, req *http.Request) {
 	defer session.Close()
 	var json_string string
 	var query []metrictools.StatisticRecord
-	err := session.DB(dbname).C("StatisticRecord").Find(bson.M{"nm": name, "ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
+	err := session.DB(dbname).C("StatisticRecord").
+		Find(bson.M{"nm": name,
+		"ts": bson.M{"$gt": start, "$lt": end}}).Sort("ts").All(&query)
 	if err != nil {
 		log.Printf("query metric error:%s\n", err)
 		db_session.Refresh()

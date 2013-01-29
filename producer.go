@@ -53,14 +53,15 @@ func (this *Producer) connect_mq() {
 			continue
 		}
 
-		// Reliable publisher confirms require confirm.select support from the
-		// connection.
+		// Reliable publisher confirms require confirm.select
+		// support from the connection.
 		if this.Reliable {
 			if err := this.channel.Confirm(false); err != nil {
 				log.Println("Channel could not be put into confirm mode: ", err)
 				continue
 			}
-			this.Ack, this.Nack = this.channel.NotifyConfirm(make(chan uint64), make(chan uint64))
+			this.Ack, this.Nack = this.channel.NotifyConfirm(
+				make(chan uint64), make(chan uint64))
 		}
 		break
 	}
@@ -92,9 +93,9 @@ func (this *Producer) handle(message_chan chan *Message) {
 					ContentType:     "text/plain",
 					ContentEncoding: "",
 					Body:            []byte(msg.Content),
-					DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
-					Priority:        0,              // 0-9
-					// a bunch of application/implementation-specific fields
+					DeliveryMode:    amqp.Transient,
+					// 1=non-persistent, 2=persistent
+					Priority: 0, // 0-9
 				},
 			); err != nil {
 				log.Println("Exchange Publish: ", err)

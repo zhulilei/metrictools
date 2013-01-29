@@ -57,7 +57,9 @@ func main() {
 	defer redis_pool.Close()
 	// get notify
 	notify_chan := make(chan *metrictools.Message)
-	notify_consumer := metrictools.NewConsumer(uri, exchange, exchange_type, notify_queue, notify_routing_key, notify_consumer_tag)
+	notify_consumer := metrictools.NewConsumer(uri, exchange,
+		exchange_type, notify_queue,
+		notify_routing_key, notify_consumer_tag)
 	// read notify from mq
 	go notify_consumer.Read_record(notify_chan)
 	// do notify

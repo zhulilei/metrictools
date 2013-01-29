@@ -64,7 +64,8 @@ func (this *Consumer) connect_mq() {
 			false,             // noWait
 			nil,               // arguments
 		); err != nil {
-			log.Println("Exchange:", this.exchange, " Declare error: ", err)
+			log.Println("Exchange:", this.exchange,
+				" Declare error: ", err)
 			log.Println("Channel: ", this.channel, err)
 			time.Sleep(time.Second * 2)
 			continue
@@ -79,11 +80,13 @@ func (this *Consumer) connect_mq() {
 			nil,        // arguments
 		)
 		if err != nil {
-			log.Println("Queue Declare: ", this.queue, " error: ", err)
+			log.Println("Queue Declare: ", this.queue,
+				" error: ", err)
 			time.Sleep(time.Second * 2)
 			continue
 		}
-		log.Println("Queue Declare: ", this.queue, " message: ", state.Messages, " Consumers:", state.Consumers)
+		log.Println("Queue Declare: ", this.queue, " message: ",
+			state.Messages, " Consumers:", state.Consumers)
 		if err = this.channel.QueueBind(
 			this.queue,    // name of the queue
 			this.key,      // bindingKey

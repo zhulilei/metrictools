@@ -23,16 +23,20 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 		} else {
 			for i := range clist {
 				var index mgo.Index
-				if rst, _ := regexp.MatchString("(1sec|10sec|1min|5min|10min|15min)", clist[i]); rst {
+				if rst, _ := regexp.MatchString(
+					"(1sec|10sec|1min|5min|10min|15min)",
+					clist[i]); rst {
 					index = mgo.Index{
-						Key:        []string{"hs", "nm", "ts"},
+						Key: []string{
+							"hs", "nm", "ts"},
 						Unique:     true,
 						DropDups:   true,
 						Background: true,
 						Sparse:     true,
 					}
 				}
-				if rst, _ := regexp.MatchString("(Trigger|Statistic)", clist[i]); rst {
+				if rst, _ := regexp.MatchString(
+					"(Trigger|Statistic)", clist[i]); rst {
 					index = mgo.Index{
 						Key:        []string{"exp"},
 						Unique:     true,
@@ -42,7 +46,8 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 					}
 				}
 				if len(index.Key) > 0 {
-					if err = session.DB(dbname).C(clist[i]).EnsureIndex(index); err != nil {
+					if err = session.DB(dbname).C(
+						clist[i]).EnsureIndex(index); err != nil {
 						session.Refresh()
 						log.Println("make index error: ", err)
 					}
@@ -69,11 +74,13 @@ func insert_record(message_chan chan *metrictools.Message, db_session *mgo.Sessi
 				if rst, _ := regexp.MatchString("(eth|br|bond)[0-9]{1,2}", record.Nm); !rst && record.App == "interface" {
 					continue
 				}
-				err = session.DB(dbname).C(record.Retention + record.App).Insert(record.Record)
+				err = session.DB(dbname).C(record.Retention +
+					record.App).Insert(record.Record)
 				go func() { metric_chan <- metrics[i] }()
 			} else {
 				if len(msg.Content) > 1 {
-					log.Println("metrics error:", msg.Content)
+					log.Println("metrics error:",
+						msg.Content)
 				}
 			}
 		}
@@ -120,7 +127,8 @@ func scan_trigger(db_session *mgo.Session, dbname string, msg_chan chan string) 
 	for {
 		now := time.Now().Unix()
 		var triggers []metrictools.Trigger
-		err = session.DB(dbname).C("Triggers").Find(bson.M{"last": bson.M{"$lt": now - 120}}).All(&triggers)
+		err = session.DB(dbname).C("Triggers").Find(bson.M{
+			"last": bson.M{"$lt": now - 120}}).All(&triggers)
 		if err == nil {
 			for i := range triggers {
 				msg_chan <- triggers[i].Exp
