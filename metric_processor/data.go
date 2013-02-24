@@ -54,16 +54,20 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 				}
 			}
 			for i := range clist {
-				index := mgo.Index{
-					Key:         []string{"ts"},
-					Background:  true,
-					Sparse:      true,
-					ExpireAfter: time.Hour * 24 * 30,
-				}
-				if err = session.DB(dbname).C(
-					clist[i]).EnsureIndex(index); err != nil {
-					session.Refresh()
-					log.Println("make index error: ", err)
+				if rst, _ := regexp.MatchString(
+					"(1sec|10sec|1min|5min|10min|15min)",
+					clist[i]); rst {
+					index := mgo.Index{
+						Key:         []string{"ts"},
+						Background:  true,
+						Sparse:      true,
+						ExpireAfter: time.Hour * 24 * 30,
+					}
+					if err = session.DB(dbname).C(
+						clist[i]).EnsureIndex(index); err != nil {
+						session.Refresh()
+						log.Println("make index error: ", err)
+					}
 				}
 			}
 			<-ticker.C
