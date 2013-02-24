@@ -29,22 +29,20 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 					index = mgo.Index{
 						Key: []string{
 							"hs", "nm", "ts"},
-						Unique:      true,
-						DropDups:    true,
-						Background:  true,
-						Sparse:      true,
-						ExpireAfter: time.Hour * 24 * 30,
+						Unique:     true,
+						DropDups:   true,
+						Background: true,
+						Sparse:     true,
 					}
 				}
 				if rst, _ := regexp.MatchString(
 					"(Trigger|Statistic)", clist[i]); rst {
 					index = mgo.Index{
-						Key:         []string{"exp"},
-						Unique:      true,
-						DropDups:    true,
-						Background:  true,
-						Sparse:      true,
-						ExpireAfter: time.Hour * 24 * 30,
+						Key:        []string{"exp"},
+						Unique:     true,
+						DropDups:   true,
+						Background: true,
+						Sparse:     true,
 					}
 				}
 				if len(index.Key) > 0 {
@@ -53,6 +51,21 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 						session.Refresh()
 						log.Println("make index error: ", err)
 					}
+				}
+			}
+			for i := range clist {
+				index := mgo.Index{
+					Key:         []string{"_id"},
+					Unique:      true,
+					DropDups:    true,
+					Background:  true,
+					Sparse:      true,
+					ExpireAfter: time.Hour * 24 * 30,
+				}
+				if err = session.DB(dbname).C(
+					clist[i]).EnsureIndex(index); err != nil {
+					session.Refresh()
+					log.Println("make index error: ", err)
 				}
 			}
 			<-ticker.C
