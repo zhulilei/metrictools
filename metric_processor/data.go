@@ -56,8 +56,6 @@ func ensure_index(db_session *mgo.Session, dbname string) {
 			for i := range clist {
 				index := mgo.Index{
 					Key:         []string{"ts"},
-					Unique:      true,
-					DropDups:    true,
 					Background:  true,
 					Sparse:      true,
 					ExpireAfter: time.Hour * 24 * 30,
