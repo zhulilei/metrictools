@@ -16,11 +16,9 @@ import (
 func trigger_chan_dispatch(trigger_chan chan *metrictools.Message, update_chan, calculate_chan chan string) {
 	for {
 		msg := <-trigger_chan
-		go func() {
-			update_chan <- msg.Content
-			calculate_chan <- msg.Content
-			msg.Done <- 1
-		}()
+		update_chan <- msg.Content
+		calculate_chan <- msg.Content
+		msg.Done <- 1
 	}
 }
 

@@ -8,7 +8,6 @@ all:
 	cd metric_statistic; go build
 	cd metric_notify; go build
 	cd metric_web; go build
-	cd metric_expire; go build
 
 fmt:
 	go fmt
@@ -16,11 +15,9 @@ fmt:
 	cd metric_statistic; go fmt
 	cd metric_notify; go fmt
 	cd metric_web; go fmt
-	cd metric_expire; go fmt
 
 clean:
 	cd metric_processor; go clean
 	cd metric_statistic; go clean
 	cd metric_notify; go clean
 	cd metric_web; go clean
-	cd metric_expire; go clean

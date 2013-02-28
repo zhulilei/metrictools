@@ -93,7 +93,7 @@ func insert_record(message_chan chan *metrictools.Message, db_session *mgo.Sessi
 				}
 				err = session.DB(dbname).C(record.Retention +
 					record.App).Insert(record.Record)
-				go func() { metric_chan <- metrics[i] }()
+				metric_chan <- metrics[i]
 			} else {
 				if len(msg.Content) > 1 {
 					log.Println("metrics error:",
@@ -164,8 +164,6 @@ func msg_dispatch(deliver_chan chan *metrictools.Message, routing_key string, ms
 			Key:     routing_key,
 		}
 		deliver_chan <- msg
-		go func() {
-			<-msg.Done
-		}()
+		<-msg.Done
 	}
 }
