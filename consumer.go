@@ -35,7 +35,6 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) *Cons
 		exchangeType: exchangeType,
 		queue:        queue,
 		key:          key,
-		done:         make(chan *amqp.Error),
 	}
 	return this
 }
@@ -118,6 +117,7 @@ func (this *Consumer) connect_mq() {
 
 func (this *Consumer) Read_record(message_chan chan *Message) {
 	for {
+		this.done = make(chan *amqp.Error)
 		this.connect_mq()
 		this.conn.NotifyClose(this.done)
 		this.handle(message_chan)
@@ -127,8 +127,8 @@ func (this *Consumer) Read_record(message_chan chan *Message) {
 func (this *Consumer) handle(message_chan chan *Message) {
 	for {
 		select {
-		case err := <-this.done:
-			log.Println(err)
+		case <-this.done:
+			log.Println("Consumer exit")
 			return
 		case d, ok := <-this.deliveries:
 			{

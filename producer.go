@@ -23,7 +23,6 @@ func NewProducer(amqpURI, exchange, exchangeType string, reliable bool) *Produce
 		exchange:     exchange,
 		exchangeType: exchangeType,
 		Reliable:     reliable,
-		done:         make(chan *amqp.Error),
 	}
 	return this
 }
@@ -68,6 +67,7 @@ func (this *Producer) connect_mq() {
 }
 func (this *Producer) Deliver(message_chan chan *Message) {
 	for {
+		this.done = make(chan *amqp.Error)
 		this.connect_mq()
 		this.conn.NotifyClose(this.done)
 		this.handle(message_chan)
@@ -79,8 +79,8 @@ func (this *Producer) handle(message_chan chan *Message) {
 	var err error
 	for {
 		select {
-		case err = <-this.done:
-			log.Println(err)
+		case <-this.done:
+			log.Println("producer exit")
 			return
 		case msg := <-message_chan:
 			if err = this.channel.Publish(
