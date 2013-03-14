@@ -3,7 +3,6 @@ package metrictools
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"os"
 )
 
