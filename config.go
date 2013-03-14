@@ -13,7 +13,7 @@ type Config struct {
 	Statistic map[string]string `json:"statistic"`
 	Notify    map[string]string `json:"notify"`
 	Redis     map[string]string `json:"redis"`
-	web       map[string]string `json:"web"`
+	Web       map[string]string `json:"web"`
 }
 
 func ReadConfig(file string) (*Config, error) {
