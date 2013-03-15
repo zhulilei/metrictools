@@ -1,12 +1,5 @@
 package metrictools
 
-import (
-	"log"
-	"regexp"
-	"strconv"
-	"strings"
-)
-
 const (
 	AVG     = 1
 	SUM     = 2
@@ -18,7 +11,6 @@ const (
 )
 
 type Record struct {
-	H string  //host
 	K string  //key
 	V float64 //value
 	T int64   //time
@@ -27,12 +19,6 @@ type Record struct {
 type RedisQuery struct {
 	Key   string
 	Value chan float64
-}
-
-type StatisticRecord struct {
-	K string  // trigger's name
-	V  float64 // value
-	Ts int64   // timestamp
 }
 
 type Trigger struct {

@@ -4,8 +4,8 @@
         "user":"admin",
         "password":"admin",
         "dbname":"collectd",
-        "lookupd_addresses":["mon6.photo.163.org:4710"]
-    }
+        "lookupd_addresses":"mon6.photo.163.org:4710"
+    },
     "metric":{
         "channel":"metrics",
         "topic":"metric"
@@ -23,8 +23,8 @@
         "topic":"notify"
     },
     "redis":{
-        "server":"127.0.0.1:6379"
-        "password":"admin"
+        "server":"127.0.0.1:6379",
+        "auth":"admin"
     },
     "web":{
         "bind":"127.0.0.1:1234"
