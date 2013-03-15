@@ -29,7 +29,7 @@ The json data can be processed by [nvd3.js](http://nvd3.org).
 
 ## data format
 
-collectd's json/command format
+collectd's json/command format https://collectd.org/wiki/index.php/Plugin:Write_HTTP
 
 ## Current Staff
 
