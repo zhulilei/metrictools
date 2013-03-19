@@ -33,6 +33,7 @@ func main() {
 	maxInFlight, _ := c.Global["MaxInFlight"]
 	trigger_channel, _ := c.Trigger["channel"]
 	trigger_topic, _ := c.Trigger["topic"]
+	notify_topic, _ := c.Notify["topic"]
 	redis_server, _ := c.Redis["server"]
 	redis_auth, _ := c.Redis["auth"]
 
@@ -96,7 +97,7 @@ func main() {
 	go update_all_trigger(db_session, dbname, update_chan)
 	// redis data calculate
 	go calculate_trigger(redis_pool, db_session, dbname,
-		cal_chan, w)
+		cal_chan, w, notify_topic)
 
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)

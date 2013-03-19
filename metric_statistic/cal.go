@@ -23,7 +23,7 @@ func trigger_chan_dispatch(trigger_chan chan metrictools.NSQMsg, update_chan, ca
 }
 
 // calculate trigger
-func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, w *metrictools.Writer) {
+func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, w *metrictools.Writer, topic string) {
 	session := db_session.Clone()
 	for {
 		exp := <-cal_chan
@@ -34,7 +34,7 @@ func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string,
 			go period_calculate_task(trigger, pool,
 				db_session, dbname)
 			go period_statistic_task(trigger, pool,
-				db_session, dbname, w)
+				db_session, dbname, w, topic)
 		}
 	}
 }
@@ -109,7 +109,7 @@ func calculate_exp(redis_con redis.Conn, metrics []string, exp string) (float64,
 }
 
 //get statistic result
-func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, w *metrictools.Writer) {
+func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, w *metrictools.Writer, topic string) {
 	session := db_session.Clone()
 	ticker := time.Tick(time.Minute * time.Duration(trigger.P))
 	redis_con := pool.Get()
@@ -132,7 +132,7 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 					Value: value,
 				}
 				if body, err := json.Marshal(notify); err == nil {
-					w.Write("metric_notify", body)
+					w.Write(topic, body)
 				} else {
 					log.Println("json nofity", err)
 				}
