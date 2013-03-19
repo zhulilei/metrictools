@@ -37,7 +37,7 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []Msg {
 	for i := range c.Values {
 		var msg Msg
 		msg.Host = c.Host
-		msg.K = c.Host + ":" + keys[i]
+		msg.K = c.Host + "." + keys[i]
 		msg.T = int64(c.TimeStamp)
 		msg.TTL = int(c.Interval) * 3 / 2
 		msg.V = this.GetValue(c.Host+keys[i], i, c)
@@ -70,7 +70,7 @@ func (this *MsgDeliver) ParseCommand(command string) []Msg {
 			log.Println("value error")
 			continue
 		}
-		msg.K = msg.Host + ":" + strconv.Itoa(int(interval)) +
+		msg.K = msg.Host + "." + strconv.Itoa(int(interval)) +
 			strings.Replace(keys[1], "-", "_", -1) +
 			"." + strings.Replace(keys[2], "-", "_", -1)
 		ts, _ := strconv.ParseFloat(t_v[0], 64)
