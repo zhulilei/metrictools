@@ -1,5 +1,7 @@
 package metrictools
 
+import "strconv"
+
 type CollectdJSON struct {
 	Values         []float64 `json:"values"`
 	DSTypes        []string  `json:"dstypes"`
@@ -14,7 +16,7 @@ type CollectdJSON struct {
 }
 
 func (this *CollectdJSON) GenNames() []string {
-	base := this.Plugin
+	base := strconv.Itoa(int(this.Interval)) + this.Plugin
 	if len(this.PluginInstance) > 0 {
 		base += "_" + this.PluginInstance
 	}

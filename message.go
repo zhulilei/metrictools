@@ -41,7 +41,7 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []Msg {
 		msg.T = int64(c.TimeStamp)
 		msg.TTL = int(c.Interval) * 3 / 2
 		msg.V = this.GetValue(c.Host+keys[i], i, c)
-		msg.CollectionName = c.Plugin + strconv.Itoa(int(c.Interval))
+		msg.CollectionName = strconv.Itoa(int(c.Interval)) + c.Plugin
 		msgs = append(msgs, msg)
 	}
 	return msgs
@@ -64,20 +64,20 @@ func (this *MsgDeliver) ParseCommand(command string) []Msg {
 		}
 		msg.Host = keys[0]
 		plugin := strings.Split(keys[1], "-")[0]
-		msg.K = msg.Host + ":" +
-			strings.Replace(keys[1], "-", "_", -1) +
-			"." + strings.Replace(keys[2], "-", "_", -1)
-		t, _ := strconv.ParseFloat(items[2][9:], 64)
-		msg.TTL = int(t)
+		interval, _ := strconv.ParseFloat(items[2][9:], 64)
 		t_v := strings.Split(items[3], ":")
 		if len(t_v) != 2 {
 			log.Println("value error")
 			continue
 		}
+		msg.K = msg.Host + ":" + strconv.Itoa(int(interval)) +
+			strings.Replace(keys[1], "-", "_", -1) +
+			"." + strings.Replace(keys[2], "-", "_", -1)
 		ts, _ := strconv.ParseFloat(t_v[0], 64)
 		msg.T = int64(ts)
 		msg.V, _ = strconv.ParseFloat(t_v[1], 64)
-		msg.CollectionName = plugin + strconv.Itoa(int(t)*3/2)
+		msg.TTL = int(interval) * 3 / 2
+		msg.CollectionName = strconv.Itoa(int(interval)) + plugin
 		msgs = append(msgs, msg)
 	}
 	return msgs
