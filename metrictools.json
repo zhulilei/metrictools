@@ -4,7 +4,8 @@
         "user":"admin",
         "password":"admin",
         "dbname":"collectd",
-        "lookupd_addresses":"mon6.photo.163.org:4710"
+        "lookupd_addresses":"mon6.photo.163.org:4710",
+        "nsqd_addr":"127.0.0.1:4510"
     },
     "metric":{
         "channel":"metrics",

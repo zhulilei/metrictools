@@ -1,13 +1,17 @@
 package main
 
 import (
+	metrictools "../"
 	"flag"
-	"fmt"
-	"github.com/datastream/metrictools"
+	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
-	"github.com/kless/goconfig/config"
+	"labix.org/v2/mgo"
 	"log"
 	"os"
+	"os/signal"
+	"strconv"
+	"strings"
+	"syscall"
 )
 
 var (
@@ -16,33 +20,32 @@ var (
 
 func main() {
 	flag.Parse()
-	c, err := config.ReadDefault(*conf_file)
+	c, err := metrictools.ReadConfig(*conf_file)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatal("config parse error", err)
 	}
-	mongouri, _ := c.String("Generic", "mongodb")
-	dbname, _ := c.String("Generic", "dbname")
-	user, _ := c.String("Generic", "user")
-	password, _ := c.String("Generic", "password")
-	uri, _ := c.String("Generic", "amqpuri")
-	exchange, _ := c.String("Generic", "exchange")
-	exchange_type, _ := c.String("Generic", "exchange_type")
-	trigger_routing_key, _ := c.String("trigger", "routing_key")
-	trigger_queue, _ := c.String("trigger", "queue")
-	trigger_consumer_tag, _ := c.String("trigger", "consumer_tag")
-	notify_routing_key, _ := c.String("notify", "routing_key")
-	redis_server, _ := c.String("redis", "server")
-	redis_auth, _ := c.String("redis", "password")
+	mongouri, _ := c.Global["mongodb"]
+	dbname, _ := c.Global["dbname"]
+	user, _ := c.Global["user"]
+	password, _ := c.Global["password"]
+	lookupd_addresses, _ := c.Global["lookupd_addresses"]
+	nsqd_addr, _ := c.Global["nsqd_addr"]
+	maxInFlight, _ := c.Global["MaxInFlight"]
+	trigger_channel, _ := c.Trigger["channel"]
+	trigger_topic, _ := c.Trigger["topic"]
+	redis_server, _ := c.Redis["server"]
+	redis_auth, _ := c.Redis["auth"]
 
-	// mongodb
-	db_session := metrictools.NewMongo(mongouri, dbname, user, password)
-	defer db_session.Close()
-	if db_session == nil {
-		log.Println("connect database error")
-		os.Exit(1)
+	db_session, err := mgo.Dial(mongouri)
+	if err != nil {
+		log.Fatal(err)
 	}
-	// redis
+	if len(user) > 0 {
+		err = db_session.DB(dbname).Login(user, password)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	redis_con := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", redis_server)
 		if err != nil {
@@ -56,29 +59,47 @@ func main() {
 	}
 	redis_pool := redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
-	// get trigger
-	trigger_chan := make(chan *metrictools.Message)
-	trigger_consumer := metrictools.NewConsumer(uri, exchange,
-		exchange_type, trigger_queue,
-		trigger_routing_key, trigger_consumer_tag)
-	// read trigger from mq
-	go trigger_consumer.Read_record(trigger_chan)
-	// setup channel
-	cal_chan := make(chan string)
+	if redis_pool.Get() == nil {
+		log.Fatal(err)
+	}
+	msg_deliver := metrictools.MsgDeliver{
+		MessageChan:     make(chan metrictools.NSQMsg),
+		MSession:        db_session,
+		DBName:          dbname,
+		RedisInsertChan: make(chan metrictools.Msg),
+		RedisQueryChan:  make(chan metrictools.RedisQuery),
+		RedisPool:       redis_pool,
+	}
+	defer db_session.Close()
+	r, err := nsq.NewReader(trigger_topic, trigger_channel)
+	if err != nil {
+		log.Fatal(err)
+	}
+	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
+	r.SetMaxInFlight(int(max))
+	r.AddHandler(&msg_deliver)
+	lookupdlist := strings.Split(lookupd_addresses, ",")
+	w := metrictools.NewWriter(nsqd_addr)
+	for _, addr := range lookupdlist {
+		log.Printf("lookupd addr %s", addr)
+		err := r.ConnectToLookupd(addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	go msg_deliver.RQuery()
 	update_chan := make(chan string)
-	// dispatch trigger msg
-	go trigger_chan_dispatch(trigger_chan, update_chan, cal_chan)
+	cal_chan := make(chan string)
+	go trigger_chan_dispatch(msg_deliver.MessageChan, update_chan, cal_chan)
 	// update trigger's last modify time in mongodb
 	go update_all_trigger(db_session, dbname, update_chan)
 	// redis data calculate
-	notify_chan := make(chan *metrictools.Notify)
 	go calculate_trigger(redis_pool, db_session, dbname,
-		cal_chan, notify_chan)
+		cal_chan, w)
 
-	deliver_chan := make(chan *metrictools.Message)
-	// pack up notify message to amqp message
-	go deliver_notify(notify_chan, deliver_chan, notify_routing_key)
-	// deliver metrictools.message
-	producer := metrictools.NewProducer(uri, exchange, exchange_type, true)
-	producer.Deliver(deliver_chan)
+	termchan := make(chan os.Signal, 1)
+	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
+	<-termchan
+	r.Stop()
 }

@@ -1,9 +1,9 @@
 package main
 
 import (
+	metrictools "../"
 	"encoding/json"
 	"github.com/datastream/cal"
-	"github.com/datastream/metrictools"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -13,28 +13,28 @@ import (
 )
 
 // dispath trigger message to 2 channels
-func trigger_chan_dispatch(trigger_chan chan *metrictools.Message, update_chan, calculate_chan chan string) {
+func trigger_chan_dispatch(trigger_chan chan metrictools.NSQMsg, update_chan, calculate_chan chan string) {
 	for {
 		msg := <-trigger_chan
-		update_chan <- msg.Content
-		calculate_chan <- msg.Content
-		msg.Done <- 1
+		update_chan <- string(msg.Body)
+		calculate_chan <- string(msg.Body)
+		msg.Stat <- nil
 	}
 }
 
 // calculate trigger
-func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, notify_chan chan *metrictools.Notify) {
+func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, w *metrictools.Writer) {
 	session := db_session.Clone()
 	for {
 		exp := <-cal_chan
 		var trigger metrictools.Trigger
-		err := session.DB(dbname).C("Trigger").
+		err := session.DB(dbname).C("trigger").
 			Find(bson.M{"exp": exp}).One(&trigger)
 		if err == nil {
 			go period_calculate_task(trigger, pool,
 				db_session, dbname)
 			go period_statistic_task(trigger, pool,
-				db_session, dbname, notify_chan)
+				db_session, dbname, w)
 		}
 	}
 }
@@ -44,7 +44,7 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 	session := db_session.Clone()
 	defer session.Close()
 	metrics := cal.Parser(trigger.Exp)
-	ticker := time.NewTicker(time.Minute * time.Duration(trigger.I))
+	ticker := time.Tick(time.Minute * time.Duration(trigger.I))
 	id := 0
 	redis_con := pool.Get()
 	for {
@@ -64,16 +64,16 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 				trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
 			id++
 			if trigger.R {
-				record := metrictools.StatisticRecord{
-					Nm: trigger.Nm,
-					V:  rst,
-					Ts: time.Now().Unix(),
+				record := metrictools.Record{
+					K: trigger.Nm,
+					V: rst,
+					T: time.Now().Unix(),
 				}
-				session.DB(dbname).C("StatisticRecord").
+				session.DB(dbname).C("statistic").
 					Insert(record)
 			}
 		}
-		<-ticker.C
+		<-ticker
 	}
 }
 
@@ -109,9 +109,9 @@ func calculate_exp(redis_con redis.Conn, metrics []string, exp string) (float64,
 }
 
 //get statistic result
-func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, notify_chan chan *metrictools.Notify) {
+func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, w *metrictools.Writer) {
 	session := db_session.Clone()
-	ticker2 := time.NewTicker(time.Minute * time.Duration(trigger.P))
+	ticker := time.Tick(time.Minute * time.Duration(trigger.P))
 	redis_con := pool.Get()
 	for {
 		key := "period_calculate_task:" + trigger.Exp + "*"
@@ -131,10 +131,14 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 					Level: stat,
 					Value: value,
 				}
-				notify_chan <- notify
+				if body, err := json.Marshal(notify); err == nil {
+					w.Write("metric_notify", body)
+				} else {
+					log.Println("json nofity", err)
+				}
 			}
 		}
-		<-ticker2.C
+		<-ticker
 	}
 }
 
@@ -184,24 +188,6 @@ func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
 		session.DB(dbname).C("Trigger").
 			Update(bson.M{"exp": trigger}, bson.M{"last": now})
 		<-ticker.C
-	}
-}
-
-// pack notify message
-func deliver_notify(notify_chan chan *metrictools.Notify, deliver_chan chan *metrictools.Message, routing_key string) {
-	for {
-		notify := <-notify_chan
-		if body, err := json.Marshal(notify); err == nil {
-			msg := &metrictools.Message{
-				Content: string(body),
-				Key:     routing_key,
-				Done:    make(chan int),
-			}
-			// i don't care whether msg send success or not
-			deliver_chan <- msg
-		} else {
-			log.Println("encode error: ", err)
-		}
 	}
 }
 
