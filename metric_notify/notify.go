@@ -1,22 +1,23 @@
 package main
 
 import (
+	metrictools "../"
 	"encoding/json"
-	"github.com/datastream/metrictools"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"time"
 )
 
-func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *metrictools.Message) {
+func do_notify(db_session *mgo.Session, dbname string, notify_chan chan metrictools.NSQMsg) {
 	session := db_session.Clone()
 	defer session.Close()
+	var err error
 	for {
 		raw_msg := <-notify_chan
 		var notify_msg metrictools.Notify
 		var all_notifyaction []metrictools.NotifyAction
-		if err := json.Unmarshal([]byte(raw_msg.Content),
+		if err = json.Unmarshal([]byte(raw_msg.Body),
 			&notify_msg); err != nil {
 			session.DB(dbname).C("NotifyAction").
 				Find(bson.M{"exp": notify_msg.Exp}).
@@ -42,7 +43,7 @@ func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *metrict
 				}
 			}
 		}
-		raw_msg.Done <- 1
+		raw_msg.Stat <- err
 	}
 }
 

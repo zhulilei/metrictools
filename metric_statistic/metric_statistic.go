@@ -103,4 +103,5 @@ func main() {
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
 	r.Stop()
+	w.Stop()
 }
