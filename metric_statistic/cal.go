@@ -23,7 +23,7 @@ func trigger_chan_dispatch(trigger_chan chan metrictools.NSQMsg, update_chan, ca
 }
 
 // calculate trigger
-func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, collection string, cal_chan chan string, w *metrictools.Writer, topic string) {
+func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, collection string, statistic_collection string, cal_chan chan string, w *metrictools.Writer, topic string) {
 	session := db_session.Clone()
 	for {
 		exp := <-cal_chan
@@ -32,7 +32,7 @@ func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string,
 			Find(bson.M{"exp": exp}).One(&trigger)
 		if err == nil {
 			go period_calculate_task(trigger, pool,
-				db_session, dbname)
+				db_session, dbname, statistic_collection)
 			go period_statistic_task(trigger, pool,
 				db_session, dbname, w, topic)
 		}
@@ -40,7 +40,7 @@ func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string,
 }
 
 // calculate trigger.exp
-func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string) {
+func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, statistic_collection string) {
 	session := db_session.Clone()
 	defer session.Close()
 	metrics := cal.Parser(trigger.Exp)
@@ -69,7 +69,7 @@ func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 					V: rst,
 					T: time.Now().Unix(),
 				}
-				session.DB(dbname).C("statistic").
+				session.DB(dbname).C(statistic_collection).
 					Insert(record)
 			}
 		}
