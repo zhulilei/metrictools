@@ -17,9 +17,8 @@ type NSQMsg struct {
 
 type Msg struct {
 	Record
-	Host           string
-	TTL            int
-	CollectionName string
+	Host string
+	TTL  int
 }
 
 type MsgDeliver struct {
@@ -41,7 +40,6 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []Msg {
 		msg.T = int64(c.TimeStamp)
 		msg.TTL = int(c.Interval) * 3 / 2
 		msg.V = this.GetValue(c.Host+keys[i], i, c)
-		msg.CollectionName = strconv.Itoa(int(c.Interval)) + c.Plugin
 		msgs = append(msgs, msg)
 	}
 	return msgs
@@ -63,7 +61,6 @@ func (this *MsgDeliver) ParseCommand(command string) []Msg {
 			continue
 		}
 		msg.Host = keys[0]
-		plugin := strings.Split(keys[1], "-")[0]
 		interval, _ := strconv.ParseFloat(items[2][9:], 64)
 		t_v := strings.Split(items[3], ":")
 		if len(t_v) != 2 {
@@ -77,7 +74,6 @@ func (this *MsgDeliver) ParseCommand(command string) []Msg {
 		msg.T = int64(ts)
 		msg.V, _ = strconv.ParseFloat(t_v[1], 64)
 		msg.TTL = int(interval) * 3 / 2
-		msg.CollectionName = strconv.Itoa(int(interval)) + plugin
 		msgs = append(msgs, msg)
 	}
 	return msgs
@@ -153,7 +149,7 @@ func (this *MsgDeliver) RQuery() {
 	}
 }
 
-func (this *MsgDeliver) InsertDB() {
+func (this *MsgDeliver) InsertDB(collection string) {
 	session := this.MSession.Copy()
 	defer session.Close()
 	var err error
@@ -184,7 +180,7 @@ func (this *MsgDeliver) InsertDB() {
 		}
 		for _, msg := range msgs {
 			err = session.DB(this.DBName).
-				C(msg.CollectionName).
+				C(collection).
 				Insert(msg.Record)
 			if err != nil {
 				break

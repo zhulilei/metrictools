@@ -25,18 +25,14 @@
 
 * MongoDB
 
-1. CollectionName in mongodb
-
-    interval + plugin
-
-2. K
+1. K
 
     host + "." + strconv.Itoa(int(this.Interval)) + plugin + "_" + plugin_instance + "." + type + "_" + type_instance
 
-3. V
+2. V
 
     value
 
-4. T
+3. T
 
     timestamp

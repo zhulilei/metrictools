@@ -34,6 +34,7 @@ func main() {
 	lookupd_addresses, _ := c.Global["lookupd_addresses"]
 	nsqd_addr, _ := c.Global["nsqd_addr"]
 	maxInFlight, _ := c.Global["MaxInFlight"]
+	metric_collection, _ := c.Metric["collection"]
 	metric_channel, _ := c.Metric["channel"]
 	metric_topic, _ := c.Metric["topic"]
 	trigger_topic, _ := c.Trigger["topic"]
@@ -91,7 +92,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go msg_deliver.InsertDB()
+	go msg_deliver.InsertDB(metric_collection)
 	go msg_deliver.RDeliver()
 	go msg_deliver.RQuery()
 	go ScanTrigger(db_session, dbname, w, trigger_topic)

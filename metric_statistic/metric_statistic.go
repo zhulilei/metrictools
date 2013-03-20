@@ -30,6 +30,7 @@ func main() {
 	password, _ := c.Global["password"]
 	lookupd_addresses, _ := c.Global["lookupd_addresses"]
 	nsqd_addr, _ := c.Global["nsqd_addr"]
+	trigger_collection, _ := c.Metric["collection"]
 	maxInFlight, _ := c.Global["MaxInFlight"]
 	trigger_channel, _ := c.Trigger["channel"]
 	trigger_topic, _ := c.Trigger["topic"]
@@ -97,7 +98,7 @@ func main() {
 	go update_all_trigger(db_session, dbname, update_chan)
 	// redis data calculate
 	go calculate_trigger(redis_pool, db_session, dbname,
-		cal_chan, w, notify_topic)
+		trigger_collection, cal_chan, w, notify_topic)
 
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)

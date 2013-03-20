@@ -23,12 +23,12 @@ func trigger_chan_dispatch(trigger_chan chan metrictools.NSQMsg, update_chan, ca
 }
 
 // calculate trigger
-func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, cal_chan chan string, w *metrictools.Writer, topic string) {
+func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, collection string, cal_chan chan string, w *metrictools.Writer, topic string) {
 	session := db_session.Clone()
 	for {
 		exp := <-cal_chan
 		var trigger metrictools.Trigger
-		err := session.DB(dbname).C("trigger").
+		err := session.DB(dbname).C(collection).
 			Find(bson.M{"exp": exp}).One(&trigger)
 		if err == nil {
 			go period_calculate_task(trigger, pool,
