@@ -120,7 +120,7 @@ func ScanTrigger(msession *mgo.Session, dbname string, w *metrictools.Writer, to
 		<-ticker
 	}
 }
-
+// need todo
 func BuildIndex(msession *mgo.Session, dbname string) {
 	session := msession.Copy()
 	defer session.Close()
@@ -136,7 +136,7 @@ func BuildIndex(msession *mgo.Session, dbname string) {
 					"(system|trigger)",
 					clist[i]); !rst {
 					index := mgo.Index{
-						Key:        []string{"k", "v", "t"},
+						Key:        []string{"k", "t"},
 						Unique:     true,
 						DropDups:   true,
 						Background: true,

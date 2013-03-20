@@ -1,19 +1,17 @@
 package main
 
 import (
-	"io"
+	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 )
 
-func host_metric_controller(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
+func HostHandler(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.WriteHeader(http.StatusOK)
-
-	host := req.FormValue("host")
+	host := mux.Vars(req)["host"]
 	redis_con := redis_pool.Get()
 	var query []string
-	var json string
 	metric_list, err := redis_con.Do("SMEMBERS", host)
 	if err == nil {
 		m_list, _ := metric_list.([]interface{})
@@ -24,11 +22,5 @@ func host_metric_controller(w http.ResponseWriter, req *http.Request) {
 	} else {
 		log.Println("failed to get set", err)
 	}
-
-	json = json_host_type(query, host)
-	if len(json) > 0 {
-		io.WriteString(w, "["+json+"]")
-	} else {
-		io.WriteString(w, "internal error")
-	}
+	w.Write(json_host_metric(query, host))
 }

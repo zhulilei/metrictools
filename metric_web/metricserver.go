@@ -1,14 +1,13 @@
 package main
 
 import (
+	metrictools "../"
 	"flag"
-	"github.com/datastream/metrictools"
 	"github.com/garyburd/redigo/redis"
-	"github.com/kless/goconfig/config"
+	"github.com/gorilla/mux"
 	"labix.org/v2/mgo"
 	"log"
 	"net/http"
-	"os"
 )
 
 var (
@@ -23,28 +22,34 @@ const (
 var db_session *mgo.Session
 var dbname string
 var redis_pool *redis.Pool
+var metric_collection string
+var trigger_collection string
+var statistic_collection string
+var notify_collection string
 
 func main() {
 	flag.Parse()
-	c, err := config.ReadDefault(*conf_file)
+	c, err := metrictools.ReadConfig(*conf_file)
 	if err != nil {
-		log.Println(err)
-		os.Exit(1)
+		log.Fatal("config parse error", err)
 	}
-	mongouri, _ := c.String("Generic", "mongodb")
-	dbname, _ = c.String("Generic", "dbname")
-	user, _ := c.String("Generic", "user")
-	password, _ := c.String("Generic", "password")
-	port, _ := c.String("web", "port")
-	redis_server, _ := c.String("redis", "server")
-	redis_auth, _ := c.String("redis", "password")
+	mongouri, _ := c.Global["mongodb"]
+	dbname, _ := c.Global["dbname"]
+	user, _ := c.Global["user"]
+	password, _ := c.Global["password"]
+	redis_server, _ := c.Redis["server"]
+	redis_auth, _ := c.Redis["auth"]
+	metric_collection, _ = c.Metric["collection"]
+	trigger_collection, _ = c.Trigger["collection"]
+	statistic_collection, _ = c.Statistic["collection"]
+	notify_collection, _ = c.Notify["collection"]
+	bind, _ := c.Web["bind"]
 
 	// mongodb
 	db_session = metrictools.NewMongo(mongouri, dbname, user, password)
 	defer db_session.Close()
 	if db_session == nil {
-		log.Println("connect database error")
-		os.Exit(1)
+		log.Fatal("connect database error")
 	}
 	// redis
 	redis_con := func() (redis.Conn, error) {
@@ -60,19 +65,27 @@ func main() {
 	}
 	redis_pool = redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
-
-	// get metric data
-	http.HandleFunc("/monitorapi/metric", metric_controller)
-	// get statistic data
-	http.HandleFunc("/monitorapi/statistic", statistic_controller)
-	// return one host's metric list
-	http.HandleFunc("/monitorapi/host_metric", host_metric_controller)
-	// clean up one host's metric
-	http.HandleFunc("/monitorapi/host_update", host_update_controller)
-	// update trigger setting
-	http.HandleFunc("/monitorapi/trigger", trigger_controller)
-
-	err = http.ListenAndServe(":"+port, nil)
+	r := mux.NewRouter()
+	r.PathPrefix("/monitorapi/")
+	r.HandleFunc("/metric", MetricHandler).
+		Methods("GET").
+		Headers("Accept", "application/json")
+	r.HandleFunc("/host/{host}", HostHandler).
+		Methods("GET").
+		Headers("Accept", "application/json")
+	r.HandleFunc("/host/{host}/mertic", HostUpdateHandler).
+		Methods("DELETE")
+	r.HandleFunc("/statistic/{static}", StatisticHandler).
+		Methods("GET").
+		Headers("Accept", "application/json")
+	r.HandleFunc("/trigger/{tigger}", TriggerShowHandler).
+		Methods("GET").
+		Headers("Accept", "application/json")
+	r.HandleFunc("/trigger/{tigger}", TriggerHandler).
+		Methods("POST", "PUT", "DELETE").
+		Headers("Content-type", "application/json")
+	http.Handle("/", r)
+	err = http.ListenAndServe(bind, nil)
 	if err != nil {
 		log.Println(err)
 	}

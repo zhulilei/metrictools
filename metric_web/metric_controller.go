@@ -1,17 +1,16 @@
 package main
 
 import (
-	"github.com/datastream/metrictools"
-	"io"
+	metrictools "../"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"net/http"
 	"strings"
 )
 
-func metric_controller(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	metricsname := req.FormValue("metricsname") // all
+func MetricHandler(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	metrics := req.FormValue("metrics") // all
 	starttime := req.FormValue("starttime")
 	endtime := req.FormValue("endtime")
 	start := gettime(starttime)
@@ -20,36 +19,23 @@ func metric_controller(w http.ResponseWriter, req *http.Request) {
 		start = end - 3600*3
 	}
 
-	nm := strings.Split(metricsname, ",")
+	metric_list := strings.Split(metrics, ",")
 	session := db_session.Clone()
 	defer session.Close()
-	var json_string string
-	for l := range nm {
-		m := metrictools.NewLiteMetric(nm[l])
-		if m != nil {
-			var query []metrictools.Record
-			err := session.DB(dbname).
-				C(m.Retention + m.App).
-				Find(bson.M{"hs": m.Hs, "nm": m.Nm,
-				"ts": bson.M{"$gt": start, "$lt": end}}).
-				Sort("ts").All(&query)
-			if err != nil {
-				log.Printf("query metric error:%s\n", err)
-				db_session.Refresh()
-			} else {
-				json_string += json_metrics_value(query,
-					m.App, m.Retention)
-			}
+	var record_list []metrictools.Record
+	for _, v := range metric_list {
+		var query []metrictools.Record
+		err := session.DB(dbname).
+			C(metric_collection).
+			Find(bson.M{"k": v,
+			"t": bson.M{"$gt": start, "$lt": end}}).
+			Sort("t").All(&query)
+		if err != nil {
+			log.Printf("query metric error:%s\n", err)
+			db_session.Refresh()
+		} else {
+			record_list = append(record_list, query...)
 		}
 	}
-	if len(json_string) > 1 {
-		w.WriteHeader(http.StatusOK)
-		if json_string[len(json_string)-1] == ',' {
-			json_string = json_string[:len(json_string)-1]
-		}
-		io.WriteString(w, "["+json_string+"]")
-	} else {
-		w.WriteHeader(http.StatusInternalServerError)
-		io.WriteString(w, "[]")
-	}
+	w.Write(json_metrics_value(record_list))
 }

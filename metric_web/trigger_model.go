@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/datastream/metrictools"
+	metrictools "../"
 )
 
 type TriggerRequest struct {

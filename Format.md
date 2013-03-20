@@ -27,7 +27,7 @@
 
 1. K
 
-    host + "." + strconv.Itoa(int(this.Interval)) + plugin + "_" + plugin_instance + "." + type + "_" + type_instance
+    host + "_" + strconv.Itoa(int(this.Interval)) + "_" + plugin + "_" + plugin_instance + "." + type + "_" + type_instance
 
 2. V
 

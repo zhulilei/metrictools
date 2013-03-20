@@ -16,7 +16,7 @@ type CollectdJSON struct {
 }
 
 func (this *CollectdJSON) GenNames() []string {
-	base := strconv.Itoa(int(this.Interval)) + this.Plugin
+	base := strconv.Itoa(int(this.Interval)) + "_" + this.Plugin
 	if len(this.PluginInstance) > 0 {
 		base += "_" + this.PluginInstance
 	}
