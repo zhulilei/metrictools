@@ -8,14 +8,17 @@
         "nsqd_addr":"127.0.0.1:4510"
     },
     "metric":{
+        "collection":"metrics",
         "channel":"metrics",
         "topic":"metric"
     },
     "trigger":{
+        "collection":"trigger",
         "channnel":"triggers",
         "topic":"trigger"
     },
     "statistic":{
+        "collection":"stat",
         "channel":"statistics",
         "topic":"statistic"
     },
