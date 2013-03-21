@@ -14,10 +14,6 @@ var (
 	conf_file = flag.String("conf", "metrictools.conf", "analyst config file")
 )
 
-const (
-	METRIC = 1
-	APP    = 2
-)
 
 var db_session *mgo.Session
 var dbname string
