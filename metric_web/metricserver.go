@@ -14,7 +14,6 @@ var (
 	conf_file = flag.String("conf", "metrictools.conf", "analyst config file")
 )
 
-
 var db_session *mgo.Session
 var dbname string
 var redis_pool *redis.Pool

@@ -120,6 +120,7 @@ func ScanTrigger(msession *mgo.Session, dbname string, w *metrictools.Writer, to
 		<-ticker
 	}
 }
+
 // need todo
 func BuildIndex(msession *mgo.Session, dbname string) {
 	session := msession.Copy()
