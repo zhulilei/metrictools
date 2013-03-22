@@ -33,7 +33,7 @@ func main() {
 	password, _ := c.Global["password"]
 	lookupd_addresses, _ := c.Global["lookupd_addresses"]
 	nsqd_addr, _ := c.Global["nsqd_addr"]
-	maxInFlight, _ := c.Global["MaxInFlight"]
+	maxinflight, _ := c.Global["maxinflight"]
 	metric_collection, _ := c.Metric["collection"]
 	metric_channel, _ := c.Metric["channel"]
 	metric_topic, _ := c.Metric["topic"]
@@ -80,7 +80,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
+	max, _ := strconv.ParseInt(maxinflight, 10, 32)
 	r.SetMaxInFlight(int(max))
 	r.AddHandler(&msg_deliver)
 	lookupdlist := strings.Split(lookupd_addresses, ",")
