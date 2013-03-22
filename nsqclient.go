@@ -79,11 +79,11 @@ func (this *Writer) NewWriteLoop(addr string) {
 func (this *Writer) writeloop(addr string) error {
 	var err error
 	this.Conn, err = net.DialTimeout("tcp", addr, time.Second*5)
-	defer this.Conn.Close()
 	if err != nil {
 		this.islive = false
 		return err
 	}
+	defer this.Conn.Close()
 	this.Conn.Write(nsq.MagicV2)
 	rwbuf := bufio.NewReadWriter(bufio.NewReader(this.Conn),
 		bufio.NewWriter(this.Conn))
