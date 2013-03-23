@@ -174,7 +174,7 @@ func (this *MsgDeliver) InsertDB(collection string) {
 					if len(v.Values) != len(v.DSTypes) {
 						continue
 					}
-					msgs = append(msgs, this.ParseJSON(v))
+					msgs = append(msgs, this.ParseJSON(v)...)
 				}
 			}
 		}
