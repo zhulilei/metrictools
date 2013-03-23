@@ -205,5 +205,6 @@ func sort_json(arrary map[string][]string, host string, data_type string) []inte
 }
 func get_pluginname(metric string) string {
 	splitname := strings.Split(metric, "_")
-	return splitname[2]
+	splitname = strings.Split(splitname[2], ".")
+	return splitname[0]
 }
