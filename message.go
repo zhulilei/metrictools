@@ -63,18 +63,28 @@ func (this *MsgDeliver) ParseCommand(command string) []Msg {
 		msg.Host = keys[0]
 		interval, _ := strconv.ParseFloat(items[2][9:], 64)
 		t_v := strings.Split(items[3], ":")
-		if len(t_v) != 2 {
+		if len(t_v) < 2 {
 			log.Println("value error")
 			continue
 		}
-		msg.K = msg.Host + "_" + strconv.Itoa(int(interval)) +
-			"_" + strings.Replace(keys[1], "-", "_", -1) +
-			"." + strings.Replace(keys[2], "-", "_", -1)
 		ts, _ := strconv.ParseFloat(t_v[0], 64)
 		msg.T = int64(ts)
-		msg.V, _ = strconv.ParseFloat(t_v[1], 64)
 		msg.TTL = int(interval) * 3 / 2
-		msgs = append(msgs, msg)
+		key := msg.Host + "_" + strconv.Itoa(int(interval)) +
+			"_" + strings.Replace(keys[1], "-", "_", -1) +
+			"." + strings.Replace(keys[2], "-", "_", -1)
+		if len(t_v) == 3 {
+			msg.K = key + ".read"
+			msg.V, _ = strconv.ParseFloat(t_v[1], 64)
+			msgs = append(msgs, msg)
+			msg.K = key + ".write"
+			msg.V, _ = strconv.ParseFloat(t_v[2], 64)
+			msgs = append(msgs, msg)
+		} else {
+			msg.K = key
+			msg.V, _ = strconv.ParseFloat(t_v[1], 64)
+			msgs = append(msgs, msg)
+		}
 	}
 	return msgs
 }
