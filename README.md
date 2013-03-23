@@ -31,9 +31,11 @@ The json data can be processed by [nvd3.js](http://nvd3.org).
 
 collectd's json/command format https://collectd.org/wiki/index.php/Plugin:Write_HTTP
 
+json format should be better.
+
 ## Current Staff
 
-1. switching to nsq
+1. test trigger
 
 ## Why switch to NSQ
 
