@@ -29,7 +29,7 @@ func main() {
 		log.Fatal("config parse error", err)
 	}
 	mongouri, _ := c.Global["mongodb"]
-	dbname, _ := c.Global["dbname"]
+	dbname, _ = c.Global["dbname"]
 	user, _ := c.Global["user"]
 	password, _ := c.Global["password"]
 	redis_server, _ := c.Redis["server"]
