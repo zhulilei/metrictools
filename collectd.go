@@ -24,7 +24,7 @@ func (this *CollectdJSON) GenNames() []string {
 		base += "." + this.Type
 	}
 	if len(this.TypeInstance) > 0 {
-		base += "." + this.TypeInstance
+		base += "_" + this.TypeInstance
 	}
 	var rst []string
 	if len(this.DSNames) > 1 {
