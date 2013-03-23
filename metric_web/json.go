@@ -196,9 +196,10 @@ func sort_json(arrary map[string][]string, host string, data_type string) []inte
 		}
 		msg := map[string]interface{}{
 			"key": keys[l],
-			"url": "/monitor?metricsname=" +
+			"url": "/monitor?metrics=" +
 				metrics[:len(metrics)-1] +
-				"&host=" + host + "&type=" + data_type}
+				"&host=" + host,
+		}
 		rst = append(rst, msg)
 	}
 	return rst
