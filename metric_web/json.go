@@ -119,10 +119,10 @@ func json_host_metric(metrics []string, host string) []byte {
 func gen_cpu(v []string, host string) []interface{} {
 	cpus := make(map[string][]string)
 	for i := range v {
-		reg, _ := regexp.Compile("[0-9]{1,2}.cpu")
+		reg, _ := regexp.Compile("cpu_[0-9]{1,2}")
 		st := reg.FindString(v[i])
-		st_list := strings.Split(st, ".")
-		st = st_list[1] + st_list[0]
+		st_list := strings.Split(st, "_")
+		st = st_list[0] + st_list[1]
 		cpus[st] = append(cpus[st], v[i])
 	}
 	return sort_json(cpus, host, "cpu")
