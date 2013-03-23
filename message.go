@@ -183,6 +183,9 @@ func (this *MsgDeliver) InsertDB(collection string) {
 				C(collection).
 				Insert(msg.Record)
 			if err != nil {
+				if err.(*mgo.LastError).Code == 11000 {
+					err = nil
+				}
 				break
 			}
 			this.RedisInsertChan <- msg
