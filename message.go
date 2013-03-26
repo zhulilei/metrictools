@@ -39,7 +39,10 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []Msg {
 		msg.K = c.Host + "_" + keys[i]
 		msg.T = int64(c.TimeStamp)
 		msg.TTL = int(c.Interval) * 3 / 2
-		msg.V = this.GetValue(c.Host+keys[i], i, c)
+		new_value := this.GetNewValue(msg.K, i, c)
+		msg.V = c.Values[i]
+		this.RedisInsertChan <- msg
+		msg.V = new_value
 		msgs = append(msgs, msg)
 	}
 	return msgs
@@ -89,7 +92,7 @@ func (this *MsgDeliver) ParseCommand(command string) []Msg {
 	return msgs
 }
 
-func (this *MsgDeliver) GetValue(key string, i int, c CollectdJSON) float64 {
+func (this *MsgDeliver) GetNewValue(key string, i int, c CollectdJSON) float64 {
 	var value float64
 	switch c.DSTypes[i] {
 	case "counter":
@@ -198,7 +201,6 @@ func (this *MsgDeliver) InsertDB(collection string) {
 				}
 				break
 			}
-			this.RedisInsertChan <- msg
 		}
 		nsqmsg.Stat <- err
 	}
