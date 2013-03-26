@@ -96,7 +96,7 @@ func json_host_metric(metrics []string, host string) []byte {
 				}
 				msg := map[string]interface{}{
 					"key": key,
-					"url": "/monitor?metricsname=" +
+					"url": "/monitor?metrics=" +
 						metrics[:len(metrics)-1] +
 						"&host=" + host +
 						"&type=" + key}
