@@ -61,8 +61,8 @@ func json_host_metric(metrics []string, host string) []byte {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	host_msg := make(map[string]interface{})
-	host_msg["key"] = host
+	host_info := make(map[string]interface{})
+	host_info["key"] = host
 	var val []interface{}
 	for _, key := range keys {
 		sort.Strings(host_metric[key])
@@ -109,8 +109,10 @@ func json_host_metric(metrics []string, host string) []byte {
 			val = append(val, msg)
 		}
 	}
-	host_msg["values"] = val
-	if body, err := json.Marshal(host_msg); err == nil {
+	host_info["values"] = val
+	var host_infos []interface{}
+	host_infos = append(host_infos, host_info)
+	if body, err := json.Marshal(host_infos); err == nil {
 		rst = body
 	}
 	return rst
