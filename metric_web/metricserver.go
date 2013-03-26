@@ -61,22 +61,22 @@ func main() {
 	redis_pool = redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
 	r := mux.NewRouter()
-	r.PathPrefix("/monitorapi/")
-	r.HandleFunc("/metric", MetricHandler).
+	s := r.PathPrefix("/monitorapi/").Subrouter()
+	s.HandleFunc("/metric", MetricHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
-	r.HandleFunc("/host/{host}", HostHandler).
+	s.HandleFunc("/host/{host}", HostHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
-	r.HandleFunc("/host/{host}/mertic", HostUpdateHandler).
+	s.HandleFunc("/host/{host}/mertic", HostUpdateHandler).
 		Methods("DELETE")
-	r.HandleFunc("/statistic/{static}", StatisticHandler).
+	s.HandleFunc("/statistic/{static}", StatisticHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
-	r.HandleFunc("/trigger/{tigger}", TriggerShowHandler).
+	s.HandleFunc("/trigger/{tigger}", TriggerShowHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
-	r.HandleFunc("/trigger/{tigger}", TriggerHandler).
+	s.HandleFunc("/trigger/{tigger}", TriggerHandler).
 		Methods("POST", "PUT", "DELETE").
 		Headers("Content-type", "application/json")
 	http.Handle("/", r)
