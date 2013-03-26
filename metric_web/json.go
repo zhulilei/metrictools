@@ -133,21 +133,8 @@ func gen_partion(v []string, host string) []interface{} {
 	partion := make(map[string][]string)
 	for i := range v {
 		reg, _ := regexp.Compile(
-			"partion.*(free|used|used_percent|total)")
-		st := reg.FindString(v[i])
-		st_list := strings.Split(st, ".")
-		st = "/"
-		for i := 1; i < len(st_list); i++ {
-			if st_list[i] == "free" || st_list[i] == "used" {
-				continue
-			}
-			if st_list[i] == "total" {
-				st += "df/"
-				continue
-			}
-			st += st_list[i] + "/"
-		}
-		st = st[:len(st)-1]
+			"partion_.*(used_percent|total)")
+		st := "/" + reg.FindString(v[i])[8:]
 		partion[st] = append(partion[st], v[i])
 	}
 	return sort_json(partion, host, "partion")
