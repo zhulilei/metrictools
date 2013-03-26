@@ -152,7 +152,7 @@ func gen_apache(v []string, host string) []interface{} {
 func gen_disk(v []string, host string) []interface{} {
 	disk := make(map[string][]string)
 	for i := range v {
-		reg, _ := regexp.Compile("sd[a-z]{1,2}")
+		reg, _ := regexp.Compile("sd[a-z]{1,2}([0-9]{1,2})?")
 		st := reg.FindString(v[i])
 		disk[st] = append(disk[st], v[i])
 	}
