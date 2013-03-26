@@ -29,9 +29,19 @@ The json data can be processed by [nvd3.js](http://nvd3.org).
 
 ## data format
 
-collectd's json/command format https://collectd.org/wiki/index.php/Plugin:Write_HTTP
+collectd's json format https://collectd.org/wiki/index.php/Plugin:Write_HTTP
 
-json format should be better.
+collectd's command format will need addition type.db to genrate record.
+
+## collectd config
+
+    <Plugin write_http>
+      <URL "http://nsq_node:4151/put?topic=metric">
+        Format "JSON"
+        User "instance_name"
+        Password "user_token"
+      </URL>
+    </Plugin>
 
 ## Current Staff
 

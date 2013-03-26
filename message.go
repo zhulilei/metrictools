@@ -7,7 +7,6 @@ import (
 	"labix.org/v2/mgo"
 	"log"
 	"strconv"
-	"strings"
 )
 
 type NSQMsg struct {
@@ -44,50 +43,6 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []Msg {
 		this.RedisInsertChan <- msg
 		msg.V = new_value
 		msgs = append(msgs, msg)
-	}
-	return msgs
-}
-
-func (this *MsgDeliver) ParseCommand(command string) []Msg {
-	lines := strings.Split(strings.TrimSpace(command), "\n")
-	var msgs []Msg
-	for _, line := range lines {
-		items := strings.Split(line, " ")
-		if len(items) != 4 {
-			log.Println("line error")
-			continue
-		}
-		var msg Msg
-		keys := strings.Split(items[1], "/")
-		if len(keys) != 3 {
-			log.Println("key error")
-			continue
-		}
-		msg.Host = keys[0]
-		interval, _ := strconv.ParseFloat(items[2][9:], 64)
-		t_v := strings.Split(items[3], ":")
-		if len(t_v) < 2 {
-			log.Println("value error")
-			continue
-		}
-		ts, _ := strconv.ParseFloat(t_v[0], 64)
-		msg.T = int64(ts)
-		msg.TTL = int(interval) * 3 / 2
-		key := msg.Host + "_" + strconv.Itoa(int(interval)) +
-			"_" + strings.Replace(keys[1], "-", "_", -1) +
-			"." + strings.Replace(keys[2], "-", "_", -1)
-		if len(t_v) == 3 {
-			msg.K = key + ".read"
-			msg.V, _ = strconv.ParseFloat(t_v[1], 64)
-			msgs = append(msgs, msg)
-			msg.K = key + ".write"
-			msg.V, _ = strconv.ParseFloat(t_v[2], 64)
-			msgs = append(msgs, msg)
-		} else {
-			msg.K = key
-			msg.V, _ = strconv.ParseFloat(t_v[1], 64)
-			msgs = append(msgs, msg)
-		}
 	}
 	return msgs
 }
@@ -169,27 +124,21 @@ func (this *MsgDeliver) InsertDB(collection string) {
 	for {
 		var msgs []Msg
 		var nsqmsg NSQMsg
-		select {
-		case nsqmsg = <-this.MessageChan:
-			if string(nsqmsg.Body[:1]) == "P" {
-				msgs = this.ParseCommand(string(nsqmsg.Body))
-			} else {
-				var c []CollectdJSON
-				if err = json.Unmarshal(nsqmsg.Body, &c); err != nil {
-					nsqmsg.Stat <- nil
-					log.Println(err)
-					continue
-				}
-				for _, v := range c {
-					if len(v.Values) != len(v.DSNames) {
-						continue
-					}
-					if len(v.Values) != len(v.DSTypes) {
-						continue
-					}
-					msgs = append(msgs, this.ParseJSON(v)...)
-				}
+		nsqmsg = <-this.MessageChan
+		var c []CollectdJSON
+		if err = json.Unmarshal(nsqmsg.Body, &c); err != nil {
+			nsqmsg.Stat <- nil
+			log.Println(err)
+			continue
+		}
+		for _, v := range c {
+			if len(v.Values) != len(v.DSNames) {
+				continue
 			}
+			if len(v.Values) != len(v.DSTypes) {
+				continue
+			}
+			msgs = append(msgs, this.ParseJSON(v)...)
 		}
 		for _, msg := range msgs {
 			err = session.DB(this.DBName).
