@@ -3,7 +3,7 @@ package main
 import (
 	metrictools "../"
 	"flag"
-	"github.com/bitly/nsq/nsq"
+	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"log"
@@ -82,7 +82,8 @@ func main() {
 	r.SetMaxInFlight(int(max))
 	r.AddHandler(&msg_deliver)
 	lookupdlist := strings.Split(lookupd_addresses, ",")
-	w := metrictools.NewWriter(nsqd_addr)
+	w := nsq.NewWriter()
+	w.ConnectToNSQ(nsqd_addr)
 	for _, addr := range lookupdlist {
 		log.Printf("lookupd addr %s", addr)
 		err := r.ConnectToLookupd(addr)
@@ -90,7 +91,6 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-
 	go msg_deliver.RQuery()
 	update_chan := make(chan string)
 	cal_chan := make(chan string)

@@ -4,6 +4,7 @@ import (
 	metrictools "../"
 	"encoding/json"
 	"github.com/datastream/cal"
+	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -23,7 +24,7 @@ func trigger_chan_dispatch(trigger_chan chan metrictools.NSQMsg, update_chan, ca
 }
 
 // calculate trigger
-func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, collection string, statistic_collection string, cal_chan chan string, w *metrictools.Writer, topic string) {
+func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, collection string, statistic_collection string, cal_chan chan string, w *nsq.Writer, topic string) {
 	session := db_session.Clone()
 	for {
 		exp := <-cal_chan
@@ -109,7 +110,7 @@ func calculate_exp(redis_con redis.Conn, metrics []string, exp string) (float64,
 }
 
 //get statistic result
-func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, w *metrictools.Writer, topic string) {
+func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, w *nsq.Writer, topic string) {
 	session := db_session.Clone()
 	ticker := time.Tick(time.Minute * time.Duration(trigger.P))
 	redis_con := pool.Get()
@@ -132,7 +133,8 @@ func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_ses
 					Value: value,
 				}
 				if body, err := json.Marshal(notify); err == nil {
-					w.Write(topic, body)
+					cmd := nsq.Publish(topic, body)
+					w.Write(cmd)
 				} else {
 					log.Println("json nofity", err)
 				}

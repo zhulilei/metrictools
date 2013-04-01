@@ -3,7 +3,7 @@ package main
 import (
 	metrictools "../"
 	"flag"
-	"github.com/bitly/nsq/nsq"
+	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"log"

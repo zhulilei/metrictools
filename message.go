@@ -2,7 +2,7 @@ package metrictools
 
 import (
 	"encoding/json"
-	"github.com/bitly/nsq/nsq"
+	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"log"
@@ -33,15 +33,21 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []Msg {
 	keys := c.GenNames()
 	var msgs []Msg
 	for i := range c.Values {
-		var msg Msg
-		msg.Host = c.Host
-		msg.K = c.Host + "_" + keys[i]
-		msg.T = int64(c.TimeStamp)
-		msg.TTL = int(c.Interval) * 3 / 2
+		key := c.Host + "_" + keys[i]
+		msg := Msg{
+			Host: c.Host,
+			Record: Record{
+				K: "raw_" + key,
+				T: int64(c.TimeStamp),
+			},
+			TTL: int(c.Interval) * 3 / 2,
+		}
 		new_value := this.GetNewValue(msg.K, i, c)
 		msg.V = c.Values[i]
 		this.RedisInsertChan <- msg
+		msg.K = key
 		msg.V = new_value
+		this.RedisInsertChan <- msg
 		msgs = append(msgs, msg)
 	}
 	return msgs
