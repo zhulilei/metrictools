@@ -3,13 +3,14 @@ package main
 import (
 	metrictools "../"
 	"encoding/json"
+	"github.com/datastream/nsq/nsq"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"time"
 )
 
-func do_notify(db_session *mgo.Session, dbname string, notify_chan chan metrictools.NSQMsg) {
+func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *metrictools.Message) {
 	session := db_session.Clone()
 	defer session.Close()
 	var err error
@@ -18,7 +19,7 @@ func do_notify(db_session *mgo.Session, dbname string, notify_chan chan metricto
 		var notify_msg metrictools.Notify
 		var all_notifyaction []metrictools.NotifyAction
 		if err = json.Unmarshal([]byte(raw_msg.Body),
-			&notify_msg); err != nil {
+			&notify_msg); err == nil {
 			session.DB(dbname).C("NotifyAction").
 				Find(bson.M{"exp": notify_msg.Exp}).
 				All(&all_notifyaction)
@@ -35,15 +36,19 @@ func do_notify(db_session *mgo.Session, dbname string, notify_chan chan metricto
 					}
 					go send_notify(all_notifyaction[i],
 						notify_msg)
-					session.DB(dbname).C("NotifyAction").
-						Update(bson.M{"exp": all_notifyaction[i].Exp,
-						"uri": all_notifyaction[i].Uri},
+					session.DB(dbname).
+						C("NotifyAction").
+						Update(
+						bson.M{
+							"exp": all_notifyaction[i].Exp,
+							"uri": all_notifyaction[i].Uri},
 						bson.M{"last": now,
 							"count": count})
 				}
 			}
 		}
-		raw_msg.Stat <- err
+		raw_msg.ResponseChannel <- &nsq.FinishedMessage{
+			raw_msg.Id, 0, true}
 	}
 }
 

@@ -14,12 +14,13 @@ import (
 )
 
 // dispath trigger message to 2 channels
-func trigger_chan_dispatch(trigger_chan chan metrictools.NSQMsg, update_chan, calculate_chan chan string) {
+func trigger_chan_dispatch(trigger_chan chan *metrictools.Message, update_chan, calculate_chan chan string) {
 	for {
-		msg := <-trigger_chan
-		update_chan <- string(msg.Body)
-		calculate_chan <- string(msg.Body)
-		msg.Stat <- nil
+		m := <-trigger_chan
+		update_chan <- string(m.Body)
+		calculate_chan <- string(m.Body)
+		m.ResponseChannel <- &nsq.FinishedMessage{
+			m.Id, 0, true}
 	}
 }
 

@@ -9,9 +9,9 @@ import (
 	"strconv"
 )
 
-type NSQMsg struct {
-	Body []byte
-	Stat chan error
+type Message struct {
+	*nsq.Message
+	ResponseChannel chan *nsq.FinishedMessage
 }
 
 type Msg struct {
@@ -21,7 +21,7 @@ type Msg struct {
 }
 
 type MsgDeliver struct {
-	MessageChan     chan NSQMsg
+	MessageChan     chan *Message
 	MSession        *mgo.Session
 	DBName          string
 	RedisInsertChan chan *Msg
@@ -81,13 +81,8 @@ func (this *MsgDeliver) get_old_value(key string) float64 {
 	return <-q.Value
 }
 
-func (this *MsgDeliver) HandleMessage(m *nsq.Message) error {
-	msg := NSQMsg{
-		Body: m.Body,
-		Stat: make(chan error),
-	}
-	this.MessageChan <- msg
-	return <-msg.Stat
+func (this *MsgDeliver) HandleMessage(m *nsq.Message, r chan *nsq.FinishedMessage) {
+	this.MessageChan <- &Message{m, r}
 }
 
 func (this *MsgDeliver) RDeliver() {
@@ -132,11 +127,11 @@ func (this *MsgDeliver) InsertDB(collection string) {
 	var err error
 	for {
 		var msgs []*Msg
-		var nsqmsg NSQMsg
-		nsqmsg = <-this.MessageChan
+		m := <-this.MessageChan
 		var c []CollectdJSON
-		if err = json.Unmarshal(nsqmsg.Body, &c); err != nil {
-			nsqmsg.Stat <- nil
+		if err = json.Unmarshal(m.Body, &c); err != nil {
+			m.ResponseChannel <- &nsq.FinishedMessage{
+				m.Id, 0, true}
 			log.Println(err)
 			continue
 		}
@@ -156,10 +151,16 @@ func (this *MsgDeliver) InsertDB(collection string) {
 			if err != nil {
 				if err.(*mgo.LastError).Code == 11000 {
 					err = nil
+				} else {
+					break
 				}
-				break
 			}
 		}
-		nsqmsg.Stat <- err
+		stat := true
+		if err != nil {
+			stat = false
+		}
+		m.ResponseChannel <- &nsq.FinishedMessage{
+			m.Id, 0, stat}
 	}
 }

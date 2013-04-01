@@ -66,7 +66,7 @@ func main() {
 		log.Fatal(err)
 	}
 	msg_deliver := metrictools.MsgDeliver{
-		MessageChan:     make(chan metrictools.NSQMsg),
+		MessageChan:     make(chan *metrictools.Message),
 		MSession:        db_session,
 		DBName:          dbname,
 		RedisInsertChan: make(chan *metrictools.Msg),
@@ -80,7 +80,7 @@ func main() {
 	}
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	r.SetMaxInFlight(int(max))
-	r.AddHandler(&msg_deliver)
+	r.AddAsyncHandler(&msg_deliver)
 	lookupdlist := strings.Split(lookupd_addresses, ",")
 	w := nsq.NewWriter()
 	w.ConnectToNSQ(nsqd_addr)
