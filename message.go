@@ -24,17 +24,17 @@ type MsgDeliver struct {
 	MessageChan     chan NSQMsg
 	MSession        *mgo.Session
 	DBName          string
-	RedisInsertChan chan Msg
+	RedisInsertChan chan *Msg
 	RedisQueryChan  chan RedisQuery
 	RedisPool       *redis.Pool
 }
 
-func (this *MsgDeliver) ParseJSON(c CollectdJSON) []Msg {
+func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Msg {
 	keys := c.GenNames()
-	var msgs []Msg
+	var msgs []*Msg
 	for i := range c.Values {
 		key := c.Host + "_" + keys[i]
-		msg := Msg{
+		msg := &Msg{
 			Host: c.Host,
 			Record: Record{
 				K: "raw_" + key,
@@ -131,7 +131,7 @@ func (this *MsgDeliver) InsertDB(collection string) {
 	defer session.Close()
 	var err error
 	for {
-		var msgs []Msg
+		var msgs []*Msg
 		var nsqmsg NSQMsg
 		nsqmsg = <-this.MessageChan
 		var c []CollectdJSON
