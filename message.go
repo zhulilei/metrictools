@@ -44,10 +44,10 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []Msg {
 		}
 		new_value := this.GetNewValue(msg.K, i, c)
 		msg.V = c.Values[i]
-		go func() { this.RedisInsertChan <- msg }()
+		this.RedisInsertChan <- msg
 		msg.K = key
 		msg.V = new_value
-		go func() { this.RedisInsertChan <- msg }()
+		this.RedisInsertChan <- msg
 		msgs = append(msgs, msg)
 	}
 	return msgs
