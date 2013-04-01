@@ -122,45 +122,48 @@ func (this *MsgDeliver) RQuery() {
 }
 
 func (this *MsgDeliver) InsertDB(collection string) {
+	for {
+		m := <-this.MessageChan
+		go this.insert(collection, m)
+	}
+}
+func (this *MsgDeliver) insert(collection string, m *Message) {
+	var err error
 	session := this.MSession.Copy()
 	defer session.Close()
-	var err error
-	for {
-		var msgs []*Msg
-		m := <-this.MessageChan
-		var c []CollectdJSON
-		if err = json.Unmarshal(m.Body, &c); err != nil {
-			m.ResponseChannel <- &nsq.FinishedMessage{
-				m.Id, 0, true}
-			log.Println(err)
+	var c []CollectdJSON
+	var msgs []*Msg
+	if err = json.Unmarshal(m.Body, &c); err != nil {
+		m.ResponseChannel <- &nsq.FinishedMessage{
+			m.Id, 0, true}
+		log.Println(err)
+		return
+	}
+	for _, v := range c {
+		if len(v.Values) != len(v.DSNames) {
 			continue
 		}
-		for _, v := range c {
-			if len(v.Values) != len(v.DSNames) {
-				continue
-			}
-			if len(v.Values) != len(v.DSTypes) {
-				continue
-			}
-			msgs = append(msgs, this.ParseJSON(v)...)
+		if len(v.Values) != len(v.DSTypes) {
+			continue
 		}
-		for _, msg := range msgs {
-			err = session.DB(this.DBName).
-				C(collection).
-				Insert(msg.Record)
-			if err != nil {
-				if err.(*mgo.LastError).Code == 11000 {
-					err = nil
-				} else {
-					break
-				}
-			}
-		}
-		stat := true
-		if err != nil {
-			stat = false
-		}
-		m.ResponseChannel <- &nsq.FinishedMessage{
-			m.Id, 0, stat}
+		msgs = append(msgs, this.ParseJSON(v)...)
 	}
+	for _, msg := range msgs {
+		err = session.DB(this.DBName).
+			C(collection).
+			Insert(msg.Record)
+		if err != nil {
+			if err.(*mgo.LastError).Code == 11000 {
+				err = nil
+			} else {
+				break
+			}
+		}
+	}
+	stat := true
+	if err != nil {
+		stat = false
+	}
+	m.ResponseChannel <- &nsq.FinishedMessage{
+		m.Id, 0, stat}
 }
