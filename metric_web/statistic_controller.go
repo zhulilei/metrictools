@@ -2,16 +2,17 @@ package main
 
 import (
 	metrictools "../"
+	"github.com/gorilla/mux"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"net/http"
 )
 
-func StatisticHandler(w http.ResponseWriter, req *http.Request) {
+func StatisticHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	name := req.FormValue("name") // all
-	starttime := req.FormValue("start")
-	endtime := req.FormValue("end")
+	name := mux.Vars(r)["name"]
+	starttime := r.FormValue("start")
+	endtime := r.FormValue("end")
 	start := gettime(starttime)
 	end := gettime(endtime)
 	if !checktime(start, end) {

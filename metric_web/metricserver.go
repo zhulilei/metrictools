@@ -62,23 +62,32 @@ func main() {
 	defer redis_pool.Close()
 	r := mux.NewRouter()
 	s := r.PathPrefix("/monitorapi/").Subrouter()
+
 	s.HandleFunc("/metric", MetricHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
-	s.HandleFunc("/host/{host}", HostHandler).
+
+	s.HandleFunc("/host/{name}", HostHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
-	s.HandleFunc("/host/{host}/mertic", HostUpdateHandler).
+
+	s.HandleFunc("/host/{name}/mertic", HostClearMetricHandler).
 		Methods("DELETE")
-	s.HandleFunc("/statistic/{static}", StatisticHandler).
+
+	s.HandleFunc("/statistic/{name}", StatisticHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
-	s.HandleFunc("/trigger/{tigger}", TriggerShowHandler).
-		Methods("GET").
-		Headers("Accept", "application/json")
-	s.HandleFunc("/trigger/{tigger}", TriggerHandler).
-		Methods("POST", "PUT", "DELETE").
+
+	s.HandleFunc("/trigger", TriggerNewHandler).
+		Methods("POST").
 		Headers("Content-type", "application/json")
+	s.HandleFunc("/trigger/{name}", TriggerUpdateHandler).
+		Methods("PUT")
+	s.HandleFunc("/trigger/{name}", TriggerShowHandler).
+		Methods("GET").
+		Headers("Accept", "application/json")
+	s.HandleFunc("/trigger/{name}", TriggerRemoveHandler).
+		Methods("DELETE")
 	http.Handle("/", r)
 	err = http.ListenAndServe(bind, nil)
 	if err != nil {
