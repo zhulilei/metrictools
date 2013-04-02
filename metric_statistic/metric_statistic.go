@@ -65,11 +65,11 @@ func main() {
 	if redis_pool.Get() == nil {
 		log.Fatal(err)
 	}
-	msg_deliver := metrictools.MsgDeliver{
+	msg_deliver := &metrictools.MsgDeliver{
 		MessageChan:     make(chan *metrictools.Message),
 		MSession:        db_session,
 		DBName:          dbname,
-		RedisInsertChan: make(chan *metrictools.Msg),
+		RedisInsertChan: make(chan *metrictools.Record),
 		RedisQueryChan:  make(chan metrictools.RedisQuery),
 		RedisPool:       redis_pool,
 	}
@@ -80,7 +80,7 @@ func main() {
 	}
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	r.SetMaxInFlight(int(max))
-	r.AddAsyncHandler(&msg_deliver)
+	r.AddAsyncHandler(msg_deliver)
 	lookupdlist := strings.Split(lookupd_addresses, ",")
 	w := nsq.NewWriter()
 	w.ConnectToNSQ(nsqd_addr)
@@ -92,16 +92,8 @@ func main() {
 		}
 	}
 	go msg_deliver.RQuery()
-	update_chan := make(chan string)
-	cal_chan := make(chan string)
-	go trigger_chan_dispatch(msg_deliver.MessageChan, update_chan, cal_chan)
-	// update trigger's last modify time in mongodb
-	go update_all_trigger(db_session, dbname, update_chan)
-	// redis data calculate
-	go calculate_trigger(redis_pool, db_session, dbname,
-		trigger_collection, statistic_collection,
-		cal_chan, w, notify_topic)
-
+	go trigger_task(msg_deliver, w, notify_topic,
+		trigger_collection, statistic_collection)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan

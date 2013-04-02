@@ -67,10 +67,17 @@ func (this *MsgDeliver) GetNewValue(key string, i int, c CollectdJSON) float64 {
 func (this *MsgDeliver) get_old_value(key string) float64 {
 	q := RedisQuery{
 		Key:   key,
-		Value: make(chan float64),
+		Value: make(chan []byte),
 	}
 	this.RedisQueryChan <- q
-	return <-q.Value
+	v := <-q.Value
+	if v != nil {
+		d, err := strconv.ParseFloat(string(v), 64)
+		if err == nil {
+			return d
+		}
+	}
+	return 0
 }
 
 func (this *MsgDeliver) HandleMessage(m *nsq.Message, r chan *nsq.FinishedMessage) {
@@ -100,16 +107,9 @@ func (this *MsgDeliver) RQuery() {
 		q := <-this.RedisQueryChan
 		v, err := redis_con.Do("GET", q.Key)
 		if err == nil {
-			if v != nil {
-				value, _ := v.([]byte)
-				d, err := strconv.ParseFloat(string(value), 64)
-				if err == nil {
-					q.Value <- d
-					continue
-				}
-			}
+			q.Value <- v.([]byte)
 		}
-		q.Value <- 0
+		q.Value <- nil
 	}
 }
 

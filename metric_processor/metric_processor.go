@@ -2,6 +2,7 @@ package main
 
 import (
 	metrictools "../"
+	"encoding/json"
 	"flag"
 	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
@@ -37,6 +38,7 @@ func main() {
 	metric_collection, _ := c.Metric["collection"]
 	metric_channel, _ := c.Metric["channel"]
 	metric_topic, _ := c.Metric["topic"]
+	trigger_collection, _ := c.Trigger["collection"]
 	trigger_topic, _ := c.Trigger["topic"]
 	redis_server, _ := c.Redis["server"]
 	redis_auth, _ := c.Redis["auth"]
@@ -96,7 +98,7 @@ func main() {
 	go msg_deliver.InsertDB(metric_collection)
 	go msg_deliver.RDeliver()
 	go msg_deliver.RQuery()
-	go ScanTrigger(db_session, dbname, w, trigger_topic)
+	go ScanTrigger(db_session, dbname, trigger_collection, w, trigger_topic)
 	go BuildIndex(db_session, dbname)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
@@ -105,19 +107,26 @@ func main() {
 	w.Stop()
 }
 
-func ScanTrigger(msession *mgo.Session, dbname string, w *nsq.Writer, topic string) {
+func ScanTrigger(msession *mgo.Session, dbname string, collection string, w *nsq.Writer, topic string) {
 	session := msession.Copy()
 	defer session.Close()
 	ticker := time.Tick(time.Minute)
 	for {
 		now := time.Now().Unix()
 		var triggers []metrictools.Trigger
-		err := session.DB(dbname).C("triggers").Find(bson.M{
+		err := session.DB(dbname).C(collection).Find(bson.M{
 			"last": bson.M{"$lt": now - 120}}).All(&triggers)
 		if err == nil {
+			var trigger_bodys [][]byte
 			for i := range triggers {
-				cmd := nsq.Publish(topic,
-					[]byte(triggers[i].Expression))
+				body, err := json.Marshal(triggers[i])
+				if err == nil {
+					trigger_bodys = append(trigger_bodys,
+						body)
+				}
+			}
+			cmd, err := nsq.MultiPublish(topic, trigger_bodys)
+			if err == nil {
 				w.Write(cmd)
 			}
 		}

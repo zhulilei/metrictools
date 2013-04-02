@@ -70,7 +70,7 @@ func trigger_save(w http.ResponseWriter, req *http.Request) {
 	defer session.Close()
 	err = session.DB(dbname).C(trigger_collection).Insert(tg_req.trigger)
 	for i := range tg_req.actions {
-		tg_req.actions[i].Exp = tg_req.trigger.Exp
+		tg_req.actions[i].Name = tg_req.trigger.Name
 		err = session.DB(dbname).C(notify_collection).
 			Insert(tg_req.actions[i])
 	}

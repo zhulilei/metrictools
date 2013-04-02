@@ -6,103 +6,134 @@ import (
 	"github.com/datastream/cal"
 	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
-	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"strconv"
 	"time"
 )
 
-// dispath trigger message to 2 channels
-func trigger_chan_dispatch(trigger_chan chan *metrictools.Message, update_chan, calculate_chan chan string) {
-	for {
-		m := <-trigger_chan
-		update_chan <- string(m.Body)
-		calculate_chan <- string(m.Body)
-		m.ResponseChannel <- &nsq.FinishedMessage{
-			m.Id, 0, true}
-	}
+type TriggerTask struct {
+	exitChan chan int
+	nw       *nsq.Writer
+	*metrictools.MsgDeliver
+	notifyTopic         string
+	triggerCollection   string
+	statisticCollection string
 }
 
-// calculate trigger
-func calculate_trigger(pool *redis.Pool, db_session *mgo.Session, dbname string, collection string, statistic_collection string, cal_chan chan string, w *nsq.Writer, topic string) {
-	session := db_session.Clone()
+func trigger_task(msg_deliver *metrictools.MsgDeliver, w *nsq.Writer, topic string, tg string, st string) {
 	for {
-		exp := <-cal_chan
-		var trigger metrictools.Trigger
-		err := session.DB(dbname).C(collection).
-			Find(bson.M{"exp": exp}).One(&trigger)
-		if err == nil {
-			go period_calculate_task(trigger, pool,
-				db_session, dbname, statistic_collection)
-			go period_statistic_task(trigger, pool,
-				db_session, dbname, w, topic)
+		m := <-msg_deliver.MessageChan
+		t := &TriggerTask{
+			exitChan:            make(chan int),
+			nw:                  w,
+			MsgDeliver:          msg_deliver,
+			notifyTopic:         topic,
+			triggerCollection:   tg,
+			statisticCollection: st,
+		}
+		go t.trigger_task(m)
+	}
+}
+func (this *TriggerTask) trigger_task(m *metrictools.Message) {
+	var trigger metrictools.Trigger
+	m.ResponseChannel <- &nsq.FinishedMessage{
+		m.Id, 0, true}
+	if err := json.Unmarshal(m.Body, &trigger); err != nil {
+		return
+	}
+	go this.update_trigger(trigger.Expression)
+	go this.calculate(trigger)
+	go this.statistic(trigger)
+}
+
+func (this *TriggerTask) update_trigger(exp string) {
+	session := this.MSession.Copy()
+	defer session.Close()
+	ticker := time.NewTicker(time.Second * 55)
+	for {
+		now := time.Now().Unix()
+		err := session.DB(this.DBName).C(this.triggerCollection).
+			Update(bson.M{"e": exp}, bson.M{"u": now})
+		if err != nil {
+			log.Println(err)
+			close(this.exitChan)
+			return
+		}
+		select {
+		case <-this.exitChan:
+			return
+		case <-ticker.C:
 		}
 	}
 }
 
 // calculate trigger.exp
-func period_calculate_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, statistic_collection string) {
-	session := db_session.Clone()
+func (this *TriggerTask) calculate(trigger metrictools.Trigger) {
+	session := this.MSession.Clone()
 	defer session.Close()
-	metrics := cal.Parser(trigger.Exp)
-	ticker := time.Tick(time.Minute * time.Duration(trigger.I))
+	ticker := time.Tick(time.Minute * time.Duration(trigger.Interval))
 	id := 0
-	redis_con := pool.Get()
+	redis_con := this.RedisPool.Get()
 	for {
-		rst, err := calculate_exp(redis_con, metrics, trigger.Exp)
+		rst, err := calculate_exp(this.RedisQueryChan,
+			trigger.Expression)
 		if err != nil {
-			redis_con = pool.Get()
-			log.Println(trigger.Exp, " calculate failed.", err)
-		} else {
-			_, err := redis_con.Do("SET", "period_calculate_task:"+
-				trigger.Exp+":"+strconv.Itoa(id), rst)
-			if err != nil {
-				redis_con = pool.Get()
-				redis_con.Do("SET", "period_calculate_task:"+
-					trigger.Exp+":"+strconv.Itoa(id), rst)
-			}
-			redis_con.Do("EXPIRE", "period_calculate_task:"+
-				trigger.Exp+":"+strconv.Itoa(id), trigger.P*60)
-			id++
-			if trigger.R {
-				record := metrictools.Record{
-					K: trigger.Nm,
-					V: rst,
-					T: time.Now().Unix(),
-				}
-				session.DB(dbname).C(statistic_collection).
-					Insert(record)
-			}
+			close(this.exitChan)
+			return
 		}
-		<-ticker
+		_, err = redis_con.Do("SET", "period_calculate_task:"+
+			trigger.Expression+":"+strconv.Itoa(id), rst)
+		if err != nil {
+			close(this.exitChan)
+			return
+		}
+		redis_con.Do("EXPIRE", "period_calculate_task:"+
+			trigger.Expression+":"+
+			strconv.Itoa(id), trigger.Period*60)
+		id++
+		if trigger.Insertable {
+			record := metrictools.Record{
+				Key:       trigger.Name,
+				Value:     rst,
+				Timestamp: time.Now().Unix(),
+			}
+			session.DB(this.DBName).C(this.statisticCollection).
+				Insert(record)
+		}
+		select {
+		case <-this.exitChan:
+			return
+		case <-ticker:
+		}
 	}
 }
 
-func calculate_exp(redis_con redis.Conn, metrics []string, exp string) (float64, error) {
+func calculate_exp(qchan chan metrictools.RedisQuery, exp string) (float64, error) {
+	exp_list := cal.Parser(exp)
 	k_v := make(map[string]interface{})
-	for i := range metrics {
-		if len(metrics[i]) > 0 {
-			v, err := redis_con.Do("GET", metrics[i])
-			if err == nil {
-				var d float64
-				var value []byte
-				if v == nil {
-					d, err = strconv.ParseFloat(
-						metrics[i], 64)
-				} else {
-					value, _ = v.([]byte)
-					d, err = strconv.ParseFloat(
-						string(value), 64)
-				}
-				if err == nil {
-					k_v[metrics[i]] = d
-				} else {
-					log.Println("failed to load value of",
-						metrics[i])
-				}
+	var err error
+	for _, item := range exp_list {
+		if len(item) > 0 {
+			q := metrictools.RedisQuery{
+				Key:   item,
+				Value: make(chan []byte),
+			}
+			qchan <- q
+			v := <-q.Value
+			var d float64
+			if v == nil {
+				d, err = strconv.ParseFloat(
+					item, 64)
 			} else {
-				return 0, err
+				d, err = strconv.ParseFloat(
+					string(v), 64)
+			}
+			if err == nil {
+				k_v[item] = d
+			} else {
+				log.Println("failed to load value of",
+					item)
 			}
 		}
 	}
@@ -111,37 +142,42 @@ func calculate_exp(redis_con redis.Conn, metrics []string, exp string) (float64,
 }
 
 //get statistic result
-func period_statistic_task(trigger metrictools.Trigger, pool *redis.Pool, db_session *mgo.Session, dbname string, w *nsq.Writer, topic string) {
-	session := db_session.Clone()
-	ticker := time.Tick(time.Minute * time.Duration(trigger.P))
-	redis_con := pool.Get()
+func (this *TriggerTask) statistic(trigger metrictools.Trigger) {
+	session := this.MSession.Clone()
+	ticker := time.Tick(time.Minute * time.Duration(trigger.Period))
+	redis_con := this.RedisPool.Get()
 	for {
-		key := "period_calculate_task:" + trigger.Exp + "*"
+		key := "period_calculate_task:" + trigger.Expression + "*"
 		values, err := get_redis_keys_values(redis_con, key)
 		if err != nil {
-			redis_con = pool.Get()
-			values, _ = get_redis_keys_values(redis_con, key)
+			close(this.exitChan)
+			return
 		}
 		stat, value := check_value(trigger, values)
 		var tg metrictools.Trigger
-		err = session.DB(dbname).C("Trigger").
-			Find(bson.M{"exp": trigger.Exp}).One(&tg)
+		err = session.DB(this.DBName).C(this.triggerCollection).
+			Find(bson.M{"e": trigger.Expression}).One(&tg)
 		if err == nil {
-			if stat > 0 || tg.Stat != stat {
+			if tg.Stat != stat {
 				notify := &metrictools.Notify{
-					Exp:   trigger.Exp,
+					Name:  trigger.Name,
 					Level: stat,
 					Value: value,
 				}
 				if body, err := json.Marshal(notify); err == nil {
-					cmd := nsq.Publish(topic, body)
-					w.Write(cmd)
+					cmd := nsq.Publish(this.notifyTopic,
+						body)
+					this.nw.Write(cmd)
 				} else {
 					log.Println("json nofity", err)
 				}
 			}
 		}
-		<-ticker
+		select {
+		case <-this.exitChan:
+			return
+		case <-ticker:
+		}
 	}
 }
 
@@ -173,31 +209,10 @@ func get_redis_keys_values(redis_con redis.Conn, key string) ([]float64, error) 
 	return values, nil
 }
 
-//update all trigger last modify time
-func update_all_trigger(db_session *mgo.Session, dbname string, update_chan chan string) {
-	for {
-		trigger := <-update_chan
-		go update_trigger(db_session, dbname, trigger)
-	}
-}
-
-// update last modify time
-func update_trigger(db_session *mgo.Session, dbname string, trigger string) {
-	session := db_session.Copy()
-	defer session.Close()
-	ticker := time.NewTicker(time.Second * 55)
-	for {
-		now := time.Now().Unix()
-		session.DB(dbname).C("Trigger").
-			Update(bson.M{"exp": trigger}, bson.M{"last": now})
-		<-ticker.C
-	}
-}
-
 // check trigger's statistic value
 func check_value(trigger metrictools.Trigger, data []float64) (int, float64) {
 	var rst float64
-	switch trigger.T {
+	switch trigger.TriggerType {
 	case metrictools.AVG:
 		{
 			rst = Avg_value(data)
@@ -263,25 +278,25 @@ func Min_value(r []float64) float64 {
 
 // return trigger's stat, 0 is ok, 1 is warning, 2 is error
 func Judge_value(S metrictools.Trigger, value float64) int {
-	if len(S.V) != 2 {
+	if len(S.Values) != 2 {
 		return 0
 	}
-	switch S.J {
+	switch S.Relation {
 	case metrictools.LESS:
 		{
-			if value < S.V[1] {
+			if value < S.Values[1] {
 				return 2
 			}
-			if value < S.V[0] {
+			if value < S.Values[0] {
 				return 1
 			}
 		}
 	case metrictools.GREATER:
 		{
-			if value > S.V[1] {
+			if value > S.Values[1] {
 				return 2
 			}
-			if value > S.V[0] {
+			if value > S.Values[0] {
 				return 1
 			}
 		}

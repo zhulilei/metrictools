@@ -4,52 +4,57 @@ import (
 	metrictools "../"
 	"encoding/json"
 	"github.com/datastream/nsq/nsq"
-	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"time"
 )
 
-func do_notify(db_session *mgo.Session, dbname string, notify_chan chan *metrictools.Message) {
-	session := db_session.Clone()
-	defer session.Close()
-	var err error
+func do_notify(msg_deliver *metrictools.MsgDeliver, notifyaction string) {
 	for {
-		raw_msg := <-notify_chan
-		var notify_msg metrictools.Notify
-		var all_notifyaction []metrictools.NotifyAction
-		if err = json.Unmarshal([]byte(raw_msg.Body),
-			&notify_msg); err == nil {
-			session.DB(dbname).C("NotifyAction").
-				Find(bson.M{"exp": notify_msg.Exp}).
-				All(&all_notifyaction)
-			for i := range all_notifyaction {
-				now := time.Now().Unix()
-				if all_notifyaction[i].Ir ||
-					((now-all_notifyaction[i].Last) > 300 &&
-						all_notifyaction[i].Count < 3) {
-					var count int
-					if (now - all_notifyaction[i].Last) > 300 {
-						count = 1
-					} else {
-						count = all_notifyaction[i].Count + 1
-					}
-					go send_notify(all_notifyaction[i],
-						notify_msg)
-					session.DB(dbname).
-						C("NotifyAction").
-						Update(
-						bson.M{
-							"exp": all_notifyaction[i].Exp,
-							"uri": all_notifyaction[i].Uri},
-						bson.M{"last": now,
-							"count": count})
+		m := <-msg_deliver.MessageChan
+		go notify(msg_deliver, m, notifyaction)
+	}
+}
+
+func notify(md *metrictools.MsgDeliver, m *metrictools.Message, notifyaction string) {
+	session := md.MSession.Clone()
+	defer session.Close()
+	var notify_msg metrictools.Notify
+	var all_notifyaction []metrictools.NotifyAction
+	var err error
+	stat := true
+	if err = json.Unmarshal([]byte(m.Body), &notify_msg); err == nil {
+		err = session.DB(md.DBName).C(notifyaction).
+			Find(bson.M{"n": notify_msg.Name}).
+			All(&all_notifyaction)
+		if err != nil {
+			stat = false
+		}
+		for _, na := range all_notifyaction {
+			now := time.Now().Unix()
+			if na.Repeat > 0 ||
+				(now-na.UpdateTime > 300 &&
+					na.Count < 3) {
+				var count int
+				if (now - na.UpdateTime) > 300 {
+					count = 1
+				} else {
+					count = na.Count + 1
 				}
+				go send_notify(na, notify_msg)
+				session.DB(md.DBName).C(notifyaction).
+					Update(bson.M{
+					"n":   na.Name,
+					"uri": na.Uri},
+					bson.M{"u": now,
+						"c": count})
 			}
 		}
-		raw_msg.ResponseChannel <- &nsq.FinishedMessage{
-			raw_msg.Id, 0, true}
 	}
+	if err != nil {
+		stat = false
+	}
+	m.ResponseChannel <- &nsq.FinishedMessage{m.Id, 0, stat}
 }
 
 //send notify
@@ -59,32 +64,32 @@ func send_notify(notifyaction metrictools.NotifyAction, notify metrictools.Notif
 	case "mailto":
 		{
 			log.Println("send mail:",
-				data, notify.Exp, notify.Level)
+				data, notify.Name, notify.Level)
 		}
 	case "http":
 		{
 			log.Println("send http:",
-				data, notify.Exp, notify.Level)
+				data, notify.Name, notify.Level)
 		}
 	case "https":
 		{
 			log.Println("send https:",
-				data, notify.Exp, notify.Level)
+				data, notify.Name, notify.Level)
 		}
 	case "mq":
 		{
 			log.Println("send mq:",
-				data, notify.Exp, notify.Level)
+				data, notify.Name, notify.Level)
 		}
 	case "xmpp":
 		{
 			log.Println("send xmpp:",
-				data, notify.Exp, notify.Level)
+				data, notify.Name, notify.Level)
 		}
 	case "sms":
 		{
 			log.Println("send sms:",
-				data, notify.Exp, notify.Level)
+				data, notify.Name, notify.Level)
 		}
 	}
 }

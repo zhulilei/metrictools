@@ -23,7 +23,7 @@ type Record struct {
 
 type RedisQuery struct {
 	Key   string
-	Value chan float64
+	Value chan []byte
 }
 
 type Trigger struct {
@@ -41,13 +41,13 @@ type Trigger struct {
 }
 
 type Notify struct {
-	Expression string  `bson:"e" json:"expression"`
-	Level      int     `bson:"l" json:"level"`
-	Value      float64 `bson:"v" json:"value"`
+	Name  string  `bson:"n" json:"trigger_name"`
+	Level int     `bson:"l" json:"level"`
+	Value float64 `bson:"v" json:"value"`
 }
 
 type NotifyAction struct {
-	Expression string `bson:"e" json:"expression"`
+	Name       string `bson:"n" json:"trigger_name"`
 	Repeat     int    `bson:"r" json:"repeat"`
 	Uri        string `bson:"uri" json:"uri"`
 	UpdateTime int64  `bson:"u" json:"update_time"`

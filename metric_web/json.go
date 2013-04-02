@@ -11,8 +11,8 @@ import (
 func json_metrics_value(m []metrictools.Record) []byte {
 	metrics := make(map[string][]interface{})
 	for _, v := range m {
-		metrics[v.K] = append(metrics[v.K],
-			[]interface{}{v.T, v.V})
+		metrics[v.Key] = append(metrics[v.Key],
+			[]interface{}{v.Timestamp, v.Value})
 	}
 	var keys []string
 	for k, _ := range metrics {
