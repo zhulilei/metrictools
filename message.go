@@ -14,39 +14,31 @@ type Message struct {
 	ResponseChannel chan *nsq.FinishedMessage
 }
 
-type Msg struct {
-	Record
-	Host string
-	TTL  int
-}
-
 type MsgDeliver struct {
 	MessageChan     chan *Message
 	MSession        *mgo.Session
 	DBName          string
-	RedisInsertChan chan *Msg
+	RedisInsertChan chan *Record
 	RedisQueryChan  chan RedisQuery
 	RedisPool       *redis.Pool
 }
 
-func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Msg {
+func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Record {
 	keys := c.GenNames()
-	var msgs []*Msg
+	var msgs []*Record
 	for i := range c.Values {
 		key := c.Host + "_" + keys[i]
-		msg := &Msg{
-			Host: c.Host,
-			Record: Record{
-				K: "raw_" + key,
-				T: int64(c.TimeStamp),
-			},
-			TTL: int(c.Interval) * 3 / 2,
+		msg := &Record{
+			Host:      c.Host,
+			Key:       "raw_" + key,
+			Timestamp: int64(c.TimeStamp),
+			TTL:       int(c.Interval) * 3 / 2,
 		}
-		new_value := this.GetNewValue(msg.K, i, c)
-		msg.V = c.Values[i]
+		new_value := this.GetNewValue(msg.Key, i, c)
+		msg.Value = c.Values[i]
 		this.RedisInsertChan <- msg
-		msg.K = key
-		msg.V = new_value
+		msg.Key = key
+		msg.Value = new_value
 		this.RedisInsertChan <- msg
 		msgs = append(msgs, msg)
 	}
@@ -89,16 +81,16 @@ func (this *MsgDeliver) RDeliver() {
 	redis_con := this.RedisPool.Get()
 	for {
 		msg := <-this.RedisInsertChan
-		_, err := redis_con.Do("SET", msg.K, msg.V)
+		_, err := redis_con.Do("SET", msg.Key, msg.Value)
 		if err != nil {
 			redis_con = this.RedisPool.Get()
-			redis_con.Do("SET", msg.K, msg.V)
+			redis_con.Do("SET", msg.Key, msg.Value)
 		}
-		if msg.K[:3] == "raw" {
+		if msg.Key[:3] == "raw" {
 			continue
 		}
-		redis_con.Do("EXPIRE", msg.K, msg.TTL)
-		redis_con.Do("SADD", msg.Host, msg.K)
+		redis_con.Do("EXPIRE", msg.Key, msg.TTL)
+		redis_con.Do("SADD", msg.Host, msg.Key)
 	}
 }
 
@@ -132,7 +124,7 @@ func (this *MsgDeliver) insert(collection string, m *Message) {
 	session := this.MSession.Copy()
 	defer session.Close()
 	var c []CollectdJSON
-	var msgs []*Msg
+	var msgs []*Record
 	if err = json.Unmarshal(m.Body, &c); err != nil {
 		m.ResponseChannel <- &nsq.FinishedMessage{
 			m.Id, 0, true}
@@ -151,7 +143,7 @@ func (this *MsgDeliver) insert(collection string, m *Message) {
 	for _, msg := range msgs {
 		err = session.DB(this.DBName).
 			C(collection).
-			Insert(msg.Record)
+			Insert(msg)
 		if err != nil {
 			if err.(*mgo.LastError).Code == 11000 {
 				err = nil

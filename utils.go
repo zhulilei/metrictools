@@ -1,5 +1,7 @@
 package metrictools
 
+import "labix.org/v2/mgo/bson"
+
 const (
 	AVG     = 1
 	SUM     = 2
@@ -11,9 +13,12 @@ const (
 )
 
 type Record struct {
-	K string  //key
-	V float64 //value
-	T int64   //time
+	Id        bson.ObjectId `bson:"_id,omitempty" json:"-"`
+	Key       string        `bson:"k" json:"key"`
+	Value     float64       `bson:"v" json:"value"`
+	Timestamp int64         `bson:"t", json:"timestamp"`
+	Host      string        `bson:"-" json:"host"`
+	TTL       int           `bson:"-" json:"-"`
 }
 
 type RedisQuery struct {
@@ -22,29 +27,29 @@ type RedisQuery struct {
 }
 
 type Trigger struct {
-	Exp  string    // expressions, h+":"+k / h2+":"+k
-	T    int       // AVG, SUM, MAX, MIN
-	P    int       // 1min, 5min, 15min
-	J    int       // LESS, GREATER
-	I    int       // check interval time: 1min, 5min, 15min
-	V    []float64 // value
-	R    bool      // insert into mongodb?
-	Nm   string    // auto generate
-	Pd   string    // blog, photo, reader, etc.
-	Last int64     // last modify time
-	Stat int       // last trigger stat
+	Expression  string    `bson:"e" json:"expression"`
+	TriggerType int       `bson:"t" json:"trigger_type"`
+	Period      int       `bson:"p" json:"period"`
+	Relation    int       `bson:"r" json:"relation"`
+	Interval    int       `bson:"i" json:"interval"`
+	Values      []float64 `bson:"v" json:"values"`
+	Insertable  bool      `bson:"i" json:"insert_able"`
+	Name        string    `bson:"n" json:"name"`
+	Production  string    `bson:"pd" json:"production"`
+	Stat        int       `bson:"st" json:"stat"`
+	UpdateTime  int64     `bson:"u" json:"update_time"`
 }
 
 type Notify struct {
-	Exp   string // metric expressions
-	Level int    // 0 ok, 1 error, 2 critical
-	Value float64
+	Expression string  `bson:"e" json:"expression"`
+	Level      int     `bson:"l" json:"level"`
+	Value      float64 `bson:"v" json:"value"`
 }
 
 type NotifyAction struct {
-	Exp   string // metric expressions
-	Ir    bool   // repeated ? default: false ,send 3 times in 5mins
-	Uri   string // email address, phone number, im id, mq info
-	Last  int64  // last notify time
-	Count int    // count in period time
+	Expression string `bson:"e" json:"expression"`
+	Repeat     int    `bson:"r" json:"repeat"`
+	Uri        string `bson:"uri" json:"uri"`
+	UpdateTime int64  `bson:"u" json:"update_time"`
+	Count      int    `bson:"c" json:"count"`
 }

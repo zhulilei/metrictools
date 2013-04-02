@@ -71,7 +71,7 @@ func main() {
 		MessageChan:     make(chan *metrictools.Message),
 		MSession:        db_session,
 		DBName:          dbname,
-		RedisInsertChan: make(chan *metrictools.Msg),
+		RedisInsertChan: make(chan *metrictools.Record),
 		RedisQueryChan:  make(chan metrictools.RedisQuery),
 		RedisPool:       redis_pool,
 	}
@@ -117,7 +117,7 @@ func ScanTrigger(msession *mgo.Session, dbname string, w *nsq.Writer, topic stri
 		if err == nil {
 			for i := range triggers {
 				cmd := nsq.Publish(topic,
-					[]byte(triggers[i].Exp))
+					[]byte(triggers[i].Expression))
 				w.Write(cmd)
 			}
 		}
@@ -141,7 +141,7 @@ func BuildIndex(msession *mgo.Session, dbname string) {
 					"(system|trigger)",
 					clist[i]); !rst {
 					index := mgo.Index{
-						Key:        []string{"k", "t"},
+						Key:        []string{"t", "k"},
 						Unique:     true,
 						DropDups:   true,
 						Background: true,
