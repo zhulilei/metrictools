@@ -108,8 +108,9 @@ func (this *MsgDeliver) RQuery() {
 		v, err := redis_con.Do("GET", q.Key)
 		if err == nil {
 			q.Value <- v.([]byte)
+		} else {
+			q.Value <- nil
 		}
-		q.Value <- nil
 	}
 }
 
