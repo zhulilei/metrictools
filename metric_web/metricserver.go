@@ -82,12 +82,25 @@ func main() {
 		Methods("POST").
 		Headers("Content-type", "application/json")
 	s.HandleFunc("/trigger/{name}", TriggerUpdateHandler).
-		Methods("PUT")
+		Methods("PUT").
+		Headers("Content-type", "application/json")
 	s.HandleFunc("/trigger/{name}", TriggerShowHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
 	s.HandleFunc("/trigger/{name}", TriggerRemoveHandler).
 		Methods("DELETE")
+
+	s.HandleFunc("/trigger/{tigger}/action", TriggerActionNewHandler).
+		Methods("POST").Headers("Content-type", "application/json")
+	s.HandleFunc("/trigger/{trigger}/action/{name}",
+		TriggerActionUpdateHandler).Methods("PUT").
+		Headers("Content-type", "application/json")
+	s.HandleFunc("/trigger/{trigger}/action",
+		TriggerActionIndexHandler).Methods("GET").
+		Headers("Accept", "application/json")
+	s.HandleFunc("/trigger/{trigger}/action/{name}",
+		TriggerActionRemoveHandler).Methods("DELETE")
+
 	http.Handle("/", r)
 	err = http.ListenAndServe(bind, nil)
 	if err != nil {

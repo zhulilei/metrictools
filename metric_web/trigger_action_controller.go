@@ -10,26 +10,26 @@ import (
 	"net/http"
 )
 
-func TriggerShowHandler(w http.ResponseWriter, r *http.Request) {
+func TriggerActionIndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	name := mux.Vars(r)["name"]
+	tg := mux.Vars(r)["trigger"]
 	var err error
 	session := db_session.Clone()
 	defer session.Close()
-	var tg metrictools.Trigger
-	err = session.DB(dbname).C(trigger_collection).
-		Find(bson.M{"n": name}).One(&tg)
+	var actions []metrictools.NotifyAction
+	err = session.DB(dbname).C(notify_collection).
+		Find(bson.M{"n": tg}).All(&actions)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
-		body, _ := json.Marshal(tg)
+		body, _ := json.Marshal(actions)
 		w.WriteHeader(http.StatusOK)
 		w.Write(body)
 	}
 }
 
-func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
+func TriggerActionNewHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -38,8 +38,8 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	var tg metrictools.Trigger
-	if err = json.Unmarshal(body, &tg); err != nil {
+	var action metrictools.NotifyAction
+	if err = json.Unmarshal(body, &action); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Json error"))
 		return
@@ -48,8 +48,8 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	session := db_session.Clone()
 	defer session.Close()
-	//tg.Name = genname(tg.Expression)
-	err = session.DB(dbname).C(trigger_collection).Insert(tg)
+	action.Name = mux.Vars(r)["trigger"]
+	err = session.DB(dbname).C(notify_collection).Insert(action)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
@@ -58,7 +58,7 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Add successful"))
 	}
 }
-func TriggerUpdateHandler(w http.ResponseWriter, r *http.Request) {
+func TriggerActionUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -66,9 +66,15 @@ func TriggerUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
+	tg_name := mux.Vars(r)["trigger"]
 	name := mux.Vars(r)["name"]
-	var tg metrictools.Trigger
-	if err = json.Unmarshal(body, &tg); err != nil {
+	var action metrictools.NotifyAction
+	if tg_name != name {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("json error"))
+		return
+	}
+	if err = json.Unmarshal(body, &action); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("json error"))
 		return
@@ -77,8 +83,9 @@ func TriggerUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	session := db_session.Clone()
 	defer session.Close()
-	err = session.DB(dbname).C(trigger_collection).
-		Update(bson.M{"n": name}, tg)
+	action.Name = tg_name
+	err = session.DB(dbname).C(notify_collection).
+		Update(bson.M{"n": tg_name}, action)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -87,14 +94,12 @@ func TriggerUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("update successful"))
 	}
 }
-func TriggerRemoveHandler(w http.ResponseWriter, r *http.Request) {
+func TriggerActionRemoveHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	name := mux.Vars(r)["name"]
 	session := db_session.Clone()
 	defer session.Close()
 	err = session.DB(dbname).C(notify_collection).
-		Remove(bson.M{"n": name})
-	err = session.DB(dbname).C(trigger_collection).
 		Remove(bson.M{"n": name})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
