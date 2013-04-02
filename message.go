@@ -94,10 +94,10 @@ func (this *MsgDeliver) RDeliver() {
 			redis_con = this.RedisPool.Get()
 			redis_con.Do("SET", msg.K, msg.V)
 		}
-		redis_con.Do("EXPIRE", msg.K, msg.TTL)
 		if msg.K[:3] == "raw" {
 			continue
 		}
+		redis_con.Do("EXPIRE", msg.K, msg.TTL)
 		redis_con.Do("SADD", msg.Host, msg.K)
 	}
 }
