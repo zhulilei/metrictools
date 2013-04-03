@@ -100,6 +100,8 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 		var new_value float64
 		if msg.DSType == "counter" || msg.DSType == "derive" {
 			new_value, err = this.gen_new_value(msg)
+		} else {
+			new_value = msg.Value
 		}
 		if err != nil && err.Error() == "ignore" {
 			continue
@@ -140,6 +142,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 			this.RedisChan <- op
 			<-op.done
 		}
+		msg.Value = new_value
 		err = session.DB(this.DBName).C(collection).Insert(msg)
 		if err != nil {
 			if err.(*mgo.LastError).Code == 11000 {
