@@ -99,7 +99,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 	for _, msg := range msgs {
 		var new_value float64
 		if msg.DSType == "counter" || msg.DSType == "derive" {
-			new_value, err = this.get_new_value(msg)
+			new_value, err = this.gen_new_value(msg)
 		}
 		if err != nil && err.Error() == "ignore" {
 			continue
@@ -171,7 +171,7 @@ func (this *MsgDeliver) Redis() {
 	}
 }
 
-func (this *MsgDeliver) get_new_value(msg *Record) (float64, error) {
+func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
 	var value float64
 	op := &RedisOP{
 		action: "GET",
@@ -196,11 +196,11 @@ func (this *MsgDeliver) get_new_value(msg *Record) (float64, error) {
 				float64(msg.Timestamp-tv.Timestamp)
 		}
 		if tv.Timestamp > msg.Timestamp {
-			value = (msg.Value - tv.Value) /
+			value = (tv.Value - msg.Value) /
 				float64(tv.Timestamp-msg.Timestamp)
 		}
 		if value < 0 {
-			value = msg.Value
+			value = 0
 		}
 	} else {
 		log.Println(msg.Value, "raw data", err)
