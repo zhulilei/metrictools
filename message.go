@@ -106,7 +106,7 @@ func (this *MsgDeliver) RQuery() {
 	for {
 		q := <-this.RedisQueryChan
 		v, err := redis_con.Do("GET", q.Key)
-		if err == nil {
+		if err == nil && v != nil {
 			q.Value <- v.([]byte)
 		} else {
 			q.Value <- nil
