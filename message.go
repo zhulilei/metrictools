@@ -95,6 +95,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 			continue
 		}
 		if err != nil {
+			log.Println("fail to get new value", err)
 			return err
 		}
 		redis_con.Do("SADD", msg.Host, msg.Key)
@@ -109,6 +110,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 		}
 		err = session.DB(this.DBName).C(collection).Insert(msg)
 		if err != nil {
+			log.Println("fail to insert mongo", err)
 			break
 		}
 	}
