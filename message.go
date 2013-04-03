@@ -18,8 +18,18 @@ type MsgDeliver struct {
 	MessageChan    chan *Message
 	MSession       *mgo.Session
 	DBName         string
+	RedisChan      chan *RedisOP
 	RedisPool      *redis.Pool
 	VerboseLogging bool
+}
+
+type RedisOP struct {
+	action string
+	key    string
+	value  interface{}
+	result interface{}
+	err    error
+	done   chan int
 }
 
 func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Record {
@@ -45,6 +55,7 @@ func (this *MsgDeliver) HandleMessage(m *nsq.Message, r chan *nsq.FinishedMessag
 }
 
 func (this *MsgDeliver) ProcessData(collection string) {
+	go this.Redis()
 	for {
 		m := <-this.MessageChan
 		go this.insert_data(collection, m)
@@ -82,14 +93,13 @@ func (this *MsgDeliver) insert_data(collection string, m *Message) {
 }
 
 func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
-	redis_con := this.RedisPool.Get()
 	session := this.MSession.Copy()
 	defer session.Close()
 	var err error
 	for _, msg := range msgs {
 		var new_value float64
 		if msg.DSType == "counter" || msg.DSType == "derive" {
-			new_value, err = this.get_new_value(redis_con, msg)
+			new_value, err = this.get_new_value(msg)
 		}
 		if err != nil && err.Error() == "ignore" {
 			continue
@@ -98,15 +108,37 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		redis_con.Do("SADD", msg.Host, msg.Key)
-		redis_con.Do("SET", msg.Key, new_value)
+		op := &RedisOP{
+			action: "SADD",
+			key:    msg.Host,
+			value:  msg.Key,
+			done:   make(chan int),
+		}
+		this.RedisChan <- op
+		<-op.done
+		op = &RedisOP{
+			action: "SET",
+			key:    msg.Key,
+			value:  new_value,
+			done:   make(chan int),
+		}
+		this.RedisChan <- op
+		<-op.done
+
 		v := &KeyValue{
 			Timestamp: msg.Timestamp,
 			Value:     msg.Value,
 		}
 		var body []byte
 		if body, err = json.Marshal(v); err == nil {
-			redis_con.Do("SET", "raw_"+msg.Key, body)
+			op = &RedisOP{
+				action: "SET",
+				key:    "raw_" + msg.Key,
+				value:  body,
+				done:   make(chan int),
+			}
+			this.RedisChan <- op
+			<-op.done
 		}
 		err = session.DB(this.DBName).C(collection).Insert(msg)
 		if err != nil {
@@ -120,17 +152,41 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 	return err
 }
 
-func (this *MsgDeliver) get_new_value(redis_con redis.Conn, msg *Record) (float64, error) {
-	var value float64
-	v, err := redis_con.Do("GET", "raw_"+msg.Key)
-	if err != nil {
-		return 0, err
+func (this *MsgDeliver) Redis() {
+	redis_con := this.RedisPool.Get()
+	for {
+		op := <-this.RedisChan
+		if op.action == "GET" {
+			op.result, op.err = redis_con.Do(op.action,
+				op.key)
+		} else {
+			op.result, op.err = redis_con.Do(op.action,
+				op.key, op.value)
+		}
+		if op.err != nil {
+			redis_con = this.RedisPool.Get()
+		}
+		op.done <- 1
 	}
-	if v == nil {
+}
+
+func (this *MsgDeliver) get_new_value(msg *Record) (float64, error) {
+	var value float64
+	op := &RedisOP{
+		action: "GET",
+		key:    "raw_" + msg.Key,
+		done:   make(chan int),
+	}
+	this.RedisChan <- op
+	<-op.done
+	if op.err != nil {
+		return 0, op.err
+	}
+	if op.result == nil {
 		return msg.Value, nil
 	}
 	var tv KeyValue
-	if err = json.Unmarshal(v.([]byte), &tv); err == nil {
+	if err := json.Unmarshal(op.result.([]byte), &tv); err == nil {
 		if tv.Timestamp == msg.Timestamp {
 			err = errors.New("ignore")
 		}

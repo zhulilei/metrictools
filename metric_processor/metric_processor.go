@@ -74,6 +74,7 @@ func main() {
 		MSession:       db_session,
 		DBName:         dbname,
 		RedisPool:      redis_pool,
+		RedisChan:      make(chan *metrictools.RedisOP),
 		VerboseLogging: false,
 	}
 	defer db_session.Close()
