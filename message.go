@@ -203,6 +203,7 @@ func (this *MsgDeliver) get_new_value(msg *Record) (float64, error) {
 			value = msg.Value
 		}
 	} else {
+		log.Println(msg.Value, "raw data", err)
 		value = msg.Value
 	}
 	return value, nil
