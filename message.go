@@ -122,26 +122,27 @@ func (this *MsgDeliver) get_new_value(msg *Record) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if v != nil {
-		var tv KeyValue
-		if err = json.Unmarshal(v.([]byte), &tv); err == nil {
-			if tv.Timestamp == msg.Timestamp {
-				err = errors.New("ignore")
-			}
-			if tv.Timestamp < msg.Timestamp {
-				value = (msg.Value - tv.Value) /
-					float64(msg.Timestamp-tv.Timestamp)
-			}
-			if tv.Timestamp > msg.Timestamp {
-				value = (msg.Value - tv.Value) /
-					float64(tv.Timestamp-msg.Timestamp)
-			}
-			if value < 0 {
-				value = msg.Value
-			}
+	if v == nil {
+		return msg.Value, nil
+	}
+	var tv KeyValue
+	if err = json.Unmarshal(v.([]byte), &tv); err == nil {
+		if tv.Timestamp == msg.Timestamp {
+			err = errors.New("ignore")
+		}
+		if tv.Timestamp < msg.Timestamp {
+			value = (msg.Value - tv.Value) /
+				float64(msg.Timestamp-tv.Timestamp)
+		}
+		if tv.Timestamp > msg.Timestamp {
+			value = (msg.Value - tv.Value) /
+				float64(tv.Timestamp-msg.Timestamp)
+		}
+		if value < 0 {
+			value = msg.Value
 		}
 	} else {
 		value = msg.Value
 	}
-	return value, err
+	return value, nil
 }
