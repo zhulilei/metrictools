@@ -89,7 +89,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 	for _, msg := range msgs {
 		var new_value float64
 		if msg.DSType == "counter" || msg.DSType == "derive" {
-			new_value, err = this.get_new_value(msg)
+			new_value, err = this.get_new_value(redis_con, msg)
 		}
 		if err != nil && err.Error() == "ignore" {
 			continue
@@ -110,6 +110,9 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 		}
 		err = session.DB(this.DBName).C(collection).Insert(msg)
 		if err != nil {
+			if err.(*mgo.LastError).Code == 11000 {
+				continue
+			}
 			log.Println("fail to insert mongo", err)
 			break
 		}
@@ -117,8 +120,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 	return err
 }
 
-func (this *MsgDeliver) get_new_value(msg *Record) (float64, error) {
-	redis_con := this.RedisPool.Get()
+func (this *MsgDeliver) get_new_value(redis_con redis.Conn, msg *Record) (float64, error) {
 	var value float64
 	v, err := redis_con.Do("GET", "raw_"+msg.Key)
 	if err != nil {
