@@ -2,11 +2,11 @@ package metrictools
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"log"
-	"strconv"
 )
 
 type Message struct {
@@ -15,124 +15,45 @@ type Message struct {
 }
 
 type MsgDeliver struct {
-	MessageChan     chan *Message
-	MSession        *mgo.Session
-	DBName          string
-	RedisInsertChan chan Record
-	RedisQueryChan  chan RedisQuery
-	RedisPool       *redis.Pool
-	VerboseLogging  bool
+	MessageChan    chan *Message
+	MSession       *mgo.Session
+	DBName         string
+	RedisPool      *redis.Pool
+	VerboseLogging bool
 }
 
 func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Record {
 	keys := c.GenNames()
 	var msgs []*Record
 	for i := range c.Values {
-		key := c.Host + "_" + keys[i]
 		msg := &Record{
 			Host:      c.Host,
-			Key:       "raw_" + key,
+			Key:       c.Host + "_" + keys[i],
+			Value:     c.Values[i],
 			Timestamp: int64(c.TimeStamp),
 			TTL:       int(c.Interval) * 3 / 2,
+			DSType:    c.DSTypes[i],
+			Interval:  c.Interval,
 		}
-		new_value := this.GetNewValue(msg.Key, i, c)
-		msg.Value = c.Values[i]
-		if this.VerboseLogging {
-			log.Println("RAW : ", msg.Key, msg.Value, msg.Timestamp)
-		}
-		this.RedisInsertChan <- *msg
-		msg.Key = key
-		msg.Value = new_value
-		if this.VerboseLogging {
-			log.Println("New : ", msg.Key, msg.Value, msg.Timestamp)
-		}
-		this.RedisInsertChan <- *msg
 		msgs = append(msgs, msg)
 	}
 	return msgs
-}
-
-func (this *MsgDeliver) GetNewValue(key string, i int, c CollectdJSON) float64 {
-	var value float64
-	switch c.DSTypes[i] {
-	case "counter":
-		fallthrough
-	case "derive":
-		old_value := this.get_old_value(key)
-		if c.Values[i] < old_value {
-			// can't get max size setting
-			// current collectd's default setting is U
-			value = 0
-		} else {
-			value = (c.Values[i] - old_value) / c.Interval
-		}
-	default:
-		value = c.Values[i]
-	}
-	return value
-}
-func (this *MsgDeliver) get_old_value(key string) float64 {
-	q := RedisQuery{
-		Key:   key,
-		Value: make(chan []byte),
-	}
-	this.RedisQueryChan <- q
-	v := <-q.Value
-	if v != nil {
-		d, err := strconv.ParseFloat(string(v), 64)
-		if err == nil {
-			return d
-		}
-	}
-	return 0
 }
 
 func (this *MsgDeliver) HandleMessage(m *nsq.Message, r chan *nsq.FinishedMessage) {
 	this.MessageChan <- &Message{m, r}
 }
 
-func (this *MsgDeliver) RDeliver() {
-	redis_con := this.RedisPool.Get()
-	for {
-		msg := <-this.RedisInsertChan
-		_, err := redis_con.Do("SET", msg.Key, msg.Value)
-		if err != nil {
-			redis_con = this.RedisPool.Get()
-			redis_con.Do("SET", msg.Key, msg.Value)
-		}
-		if msg.Key[:3] == "raw" {
-			continue
-		}
-		redis_con.Do("EXPIRE", msg.Key, msg.TTL)
-		redis_con.Do("SADD", msg.Host, msg.Key)
-	}
-}
-
-func (this *MsgDeliver) RQuery() {
-	redis_con := this.RedisPool.Get()
-	for {
-		q := <-this.RedisQueryChan
-		v, err := redis_con.Do("GET", q.Key)
-		if err == nil && v != nil {
-			q.Value <- v.([]byte)
-		} else {
-			q.Value <- nil
-		}
-	}
-}
-
-func (this *MsgDeliver) InsertDB(collection string) {
+func (this *MsgDeliver) ProcessData(collection string) {
 	for {
 		m := <-this.MessageChan
-		go this.insert(collection, m)
+		go this.insert_data(collection, m)
 	}
 }
-func (this *MsgDeliver) insert(collection string, m *Message) {
+
+func (this *MsgDeliver) insert_data(collection string, m *Message) {
 	var err error
-	session := this.MSession.Copy()
-	defer session.Close()
 	var c []CollectdJSON
-	var msgs []*Record
 	if err = json.Unmarshal(m.Body, &c); err != nil {
 		m.ResponseChannel <- &nsq.FinishedMessage{
 			m.Id, 0, true}
@@ -143,6 +64,7 @@ func (this *MsgDeliver) insert(collection string, m *Message) {
 		log.Println("RAW JSON String: ", string(m.Body))
 		log.Println("JSON SIZE: ", len(c))
 	}
+	stat := true
 	for _, v := range c {
 		if len(v.Values) != len(v.DSNames) {
 			continue
@@ -150,24 +72,76 @@ func (this *MsgDeliver) insert(collection string, m *Message) {
 		if len(v.Values) != len(v.DSTypes) {
 			continue
 		}
-		msgs = append(msgs, this.ParseJSON(v)...)
-	}
-	for _, msg := range msgs {
-		err = session.DB(this.DBName).
-			C(collection).
-			Insert(msg)
-		if err != nil {
-			if err.(*mgo.LastError).Code == 11000 {
-				err = nil
-			} else {
-				break
-			}
+		msgs := this.ParseJSON(v)
+		if err := this.PersistData(msgs, collection); err != nil {
+			stat = false
+			break
 		}
 	}
-	stat := true
-	if err != nil {
-		stat = false
+	m.ResponseChannel <- &nsq.FinishedMessage{m.Id, 0, stat}
+}
+
+func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
+	redis_con := this.RedisPool.Get()
+	session := this.MSession.Copy()
+	defer session.Close()
+	var err error
+	for _, msg := range msgs {
+		var new_value float64
+		if msg.DSType == "counter" || msg.DSType == "derive" {
+			new_value, err = this.get_new_value(msg)
+		}
+		if err != nil && err.Error() == "ignore" {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		redis_con.Do("SADD", msg.Host, msg.Key)
+		redis_con.Do("SET", msg.Key, new_value)
+		v := &KeyValue{
+			Timestamp: msg.Timestamp,
+			Value:     msg.Value,
+		}
+		var body []byte
+		if body, err = json.Marshal(v); err == nil {
+			redis_con.Do("SET", "raw_"+msg.Key, body)
+		}
+		err = session.DB(this.DBName).C(collection).Insert(msg)
+		if err != nil {
+			break
+		}
 	}
-	m.ResponseChannel <- &nsq.FinishedMessage{
-		m.Id, 0, stat}
+	return err
+}
+
+func (this *MsgDeliver) get_new_value(msg *Record) (float64, error) {
+	redis_con := this.RedisPool.Get()
+	var value float64
+	v, err := redis_con.Do("GET", "raw_"+msg.Key)
+	if err != nil {
+		return 0, err
+	}
+	if v != nil {
+		var tv KeyValue
+		if err = json.Unmarshal(v.([]byte), &tv); err == nil {
+			if tv.Timestamp == msg.Timestamp {
+				err = errors.New("ignore")
+			}
+			if tv.Timestamp < msg.Timestamp {
+				value = (msg.Value - tv.Value) /
+					float64(msg.Timestamp-tv.Timestamp)
+			}
+			if tv.Timestamp > msg.Timestamp {
+				value = (msg.Value - tv.Value) /
+					float64(tv.Timestamp-msg.Timestamp)
+			}
+			if value < 0 {
+				value = msg.Value
+			}
+		}
+	} else {
+		value = msg.Value
+	}
+	return value, err
 }

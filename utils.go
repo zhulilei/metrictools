@@ -19,11 +19,13 @@ type Record struct {
 	Timestamp int64         `bson:"t", json:"timestamp"`
 	Host      string        `bson:"-" json:"host"`
 	TTL       int           `bson:"-" json:"-"`
+	DSType    string        `bson:"-" json:"-"`
+	Interval  float64       `bson:"-" json:"-"`
 }
 
-type RedisQuery struct {
-	Key   string
-	Value chan []byte
+type KeyValue struct {
+	Timestamp int64   `json:"t"`
+	Value     float64 `json:"v"`
 }
 
 type Trigger struct {

@@ -76,7 +76,7 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger) {
 	id := 0
 	redis_con := this.RedisPool.Get()
 	for {
-		rst, err := calculate_exp(this.RedisQueryChan,
+		rst, err := calculate_exp(this,
 			trigger.Expression)
 		if err != nil {
 			close(this.exitChan)
@@ -109,25 +109,24 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger) {
 	}
 }
 
-func calculate_exp(qchan chan metrictools.RedisQuery, exp string) (float64, error) {
+func calculate_exp(t *TriggerTask, exp string) (float64, error) {
+	redis_con := t.RedisPool.Get()
 	exp_list := cal.Parser(exp)
 	k_v := make(map[string]interface{})
 	var err error
 	for _, item := range exp_list {
 		if len(item) > 0 {
-			q := metrictools.RedisQuery{
-				Key:   item,
-				Value: make(chan []byte),
+			v, err := redis_con.Do("GET", item)
+			if err != nil {
+				return 0, err
 			}
-			qchan <- q
-			v := <-q.Value
 			var d float64
 			if v == nil {
 				d, err = strconv.ParseFloat(
 					item, 64)
 			} else {
 				d, err = strconv.ParseFloat(
-					string(v), 64)
+					string(v.([]byte)), 64)
 			}
 			if err == nil {
 				k_v[item] = d

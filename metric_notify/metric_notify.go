@@ -63,13 +63,11 @@ func main() {
 		log.Fatal(err)
 	}
 	msg_deliver := &metrictools.MsgDeliver{
-		MessageChan:     make(chan *metrictools.Message),
-		MSession:        db_session,
-		DBName:          dbname,
-		RedisInsertChan: make(chan metrictools.Record),
-		RedisQueryChan:  make(chan metrictools.RedisQuery),
-		RedisPool:       redis_pool,
-		VerboseLogging:  false,
+		MessageChan:    make(chan *metrictools.Message),
+		MSession:       db_session,
+		DBName:         dbname,
+		RedisPool:      redis_pool,
+		VerboseLogging: false,
 	}
 	defer db_session.Close()
 

@@ -66,13 +66,11 @@ func main() {
 		log.Fatal(err)
 	}
 	msg_deliver := &metrictools.MsgDeliver{
-		MessageChan:     make(chan *metrictools.Message),
-		MSession:        db_session,
-		DBName:          dbname,
-		RedisInsertChan: make(chan metrictools.Record),
-		RedisQueryChan:  make(chan metrictools.RedisQuery),
-		RedisPool:       redis_pool,
-		VerboseLogging:  false,
+		MessageChan:    make(chan *metrictools.Message),
+		MSession:       db_session,
+		DBName:         dbname,
+		RedisPool:      redis_pool,
+		VerboseLogging: false,
 	}
 	defer db_session.Close()
 	r, err := nsq.NewReader(trigger_topic, trigger_channel)
@@ -92,7 +90,6 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go msg_deliver.RQuery()
 	go trigger_task(msg_deliver, w, notify_topic,
 		trigger_collection, statistic_collection)
 	termchan := make(chan os.Signal, 1)
