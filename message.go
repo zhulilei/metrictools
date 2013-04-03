@@ -139,15 +139,16 @@ func (this *MsgDeliver) insert(collection string, m *Message) {
 		log.Println(err)
 		return
 	}
+	if this.VerboseLogging {
+		log.Println("RAW JSON String: ", string(m.Body))
+		log.Println("JSON SIZE: ", len(c))
+	}
 	for _, v := range c {
 		if len(v.Values) != len(v.DSNames) {
 			continue
 		}
 		if len(v.Values) != len(v.DSTypes) {
 			continue
-		}
-		if this.VerboseLogging {
-			log.Println("RAW JSON: ", v)
 		}
 		msgs = append(msgs, this.ParseJSON(v)...)
 	}
