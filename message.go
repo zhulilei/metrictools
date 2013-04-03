@@ -143,6 +143,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 		err = session.DB(this.DBName).C(collection).Insert(msg)
 		if err != nil {
 			if err.(*mgo.LastError).Code == 11000 {
+				err = nil
 				continue
 			}
 			log.Println("fail to insert mongo", err)
