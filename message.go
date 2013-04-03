@@ -18,7 +18,7 @@ type MsgDeliver struct {
 	MessageChan     chan *Message
 	MSession        *mgo.Session
 	DBName          string
-	RedisInsertChan chan *Record
+	RedisInsertChan chan Record
 	RedisQueryChan  chan RedisQuery
 	RedisPool       *redis.Pool
 }
@@ -36,10 +36,10 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Record {
 		}
 		new_value := this.GetNewValue(msg.Key, i, c)
 		msg.Value = c.Values[i]
-		this.RedisInsertChan <- msg
+		this.RedisInsertChan <- *msg
 		msg.Key = key
 		msg.Value = new_value
-		this.RedisInsertChan <- msg
+		this.RedisInsertChan <- *msg
 		msgs = append(msgs, msg)
 	}
 	return msgs

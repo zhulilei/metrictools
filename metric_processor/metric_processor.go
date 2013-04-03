@@ -73,7 +73,7 @@ func main() {
 		MessageChan:     make(chan *metrictools.Message),
 		MSession:        db_session,
 		DBName:          dbname,
-		RedisInsertChan: make(chan *metrictools.Record),
+		RedisInsertChan: make(chan metrictools.Record),
 		RedisQueryChan:  make(chan metrictools.RedisQuery),
 		RedisPool:       redis_pool,
 	}
