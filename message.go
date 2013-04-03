@@ -21,6 +21,7 @@ type MsgDeliver struct {
 	RedisInsertChan chan Record
 	RedisQueryChan  chan RedisQuery
 	RedisPool       *redis.Pool
+	VerboseLogging  bool
 }
 
 func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Record {
@@ -36,9 +37,15 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Record {
 		}
 		new_value := this.GetNewValue(msg.Key, i, c)
 		msg.Value = c.Values[i]
+		if this.VerboseLogging {
+			log.Println("RAW : ", msg.Key, msg.Value, msg.Timestamp)
+		}
 		this.RedisInsertChan <- *msg
 		msg.Key = key
 		msg.Value = new_value
+		if this.VerboseLogging {
+			log.Println("New : ", msg.Key, msg.Value, msg.Timestamp)
+		}
 		this.RedisInsertChan <- *msg
 		msgs = append(msgs, msg)
 	}
@@ -138,6 +145,9 @@ func (this *MsgDeliver) insert(collection string, m *Message) {
 		}
 		if len(v.Values) != len(v.DSTypes) {
 			continue
+		}
+		if this.VerboseLogging {
+			log.Println("RAW JSON: ", v)
 		}
 		msgs = append(msgs, this.ParseJSON(v)...)
 	}

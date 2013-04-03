@@ -69,6 +69,7 @@ func main() {
 		RedisInsertChan: make(chan metrictools.Record),
 		RedisQueryChan:  make(chan metrictools.RedisQuery),
 		RedisPool:       redis_pool,
+		VerboseLogging:  false,
 	}
 	defer db_session.Close()
 
