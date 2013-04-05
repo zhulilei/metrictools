@@ -141,7 +141,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 		if body, err = json.Marshal(v); err == nil {
 			op = &RedisOP{
 				action: "SET",
-				key:    "raw_" + msg.Key,
+				key:    "raw:" + msg.Key,
 				value:  body,
 				done:   make(chan int),
 			}
