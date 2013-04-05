@@ -201,14 +201,8 @@ func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
 		if tv.Timestamp == msg.Timestamp {
 			err = errors.New("ignore")
 		}
-		if tv.Timestamp < msg.Timestamp {
-			value = (msg.Value - tv.Value) /
-				float64(msg.Timestamp-tv.Timestamp)
-		}
-		if tv.Timestamp > msg.Timestamp {
-			value = (tv.Value - msg.Value) /
-				float64(tv.Timestamp-msg.Timestamp)
-		}
+		value = (msg.Value - tv.Value) /
+			float64(msg.Timestamp-tv.Timestamp)
 		if value < 0 {
 			value = 0
 		}
