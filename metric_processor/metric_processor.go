@@ -35,7 +35,7 @@ func main() {
 	lookupd_addresses, _ := c.Global["lookupd_addresses"]
 	nsqd_addr, _ := c.Global["nsqd_addr"]
 	maxinflight, _ := c.Global["maxinflight"]
-	redis_count, _ := c.Global["redix_conn_count"]
+	redis_count, _ := c.Global["redis_conn_count"]
 	metric_channel, _ := c.Metric["channel"]
 	metric_topic, _ := c.Metric["topic"]
 	trigger_collection, _ := c.Trigger["collection"]
