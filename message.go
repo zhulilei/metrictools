@@ -3,7 +3,6 @@ package metrictools
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
@@ -123,15 +122,11 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 			Timestamp: msg.Timestamp,
 			Value:     new_value,
 		}
-		var body []byte
-		if body, err = json.Marshal(n_v); err == nil {
-			v, _ := fmt.Printf("%d %s", msg.Timestamp, body)
-			op = &RedisOP{
-				action: "ZADD",
-				key:    "archive:" + msg.Key,
-				value:  v,
-				done:   make(chan int),
-			}
+		op = &RedisOP{
+			action: "ZADD",
+			key:    "archive:" + msg.Key,
+			value:  n_v,
+			done:   make(chan int),
 		}
 		this.RedisChan <- op
 		<-op.done
@@ -143,6 +138,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 			Timestamp: msg.Timestamp,
 			Value:     msg.Value,
 		}
+		var body []byte
 		if body, err = json.Marshal(v); err == nil {
 			op = &RedisOP{
 				action: "SET",
@@ -165,10 +161,17 @@ func (this *MsgDeliver) Redis() {
 	redis_con := this.RedisPool.Get()
 	for {
 		op := <-this.RedisChan
-		if op.action == "GET" {
+		switch op.action {
+		case "GET":
 			op.result, op.err = redis_con.Do(op.action,
 				op.key)
-		} else {
+		case "ZADD":
+			v := op.value.(KeyValue)
+			if body, err := json.Marshal(v); err == nil {
+				op.result, op.err = redis_con.Do(op.action,
+					op.key, v.Timestamp, body)
+			}
+		default:
 			op.result, op.err = redis_con.Do(op.action,
 				op.key, op.value)
 		}
