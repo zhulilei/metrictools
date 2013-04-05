@@ -55,7 +55,6 @@ func (this *MsgDeliver) HandleMessage(m *nsq.Message, r chan *nsq.FinishedMessag
 }
 
 func (this *MsgDeliver) ProcessData(collection string) {
-	go this.Redis()
 	for {
 		m := <-this.MessageChan
 		go this.insert_data(collection, m)

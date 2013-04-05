@@ -82,6 +82,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	go msg_deliver.Redis()
 	max, _ := strconv.ParseInt(maxinflight, 10, 32)
 	r.SetMaxInFlight(int(max))
 	r.AddAsyncHandler(&msg_deliver)
