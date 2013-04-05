@@ -3,6 +3,7 @@ package metrictools
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
@@ -118,20 +119,30 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 		}
 		this.RedisChan <- op
 		<-op.done
-		op = &RedisOP{
-			action: "SET",
-			key:    msg.Key,
-			value:  new_value,
-			done:   make(chan int),
+		n_v := &KeyValue{
+			Timestamp: msg.Timestamp,
+			Value:     new_value,
+		}
+		var body []byte
+		if body, err = json.Marshal(n_v); err == nil {
+			v, _ := fmt.Printf("%d %s", msg.Timestamp, body)
+			op = &RedisOP{
+				action: "ZADD",
+				key:    "archive:" + msg.Key,
+				value:  v,
+				done:   make(chan int),
+			}
 		}
 		this.RedisChan <- op
 		<-op.done
-
+		if op.err != nil {
+			log.Println(op.err)
+			break
+		}
 		v := &KeyValue{
 			Timestamp: msg.Timestamp,
 			Value:     msg.Value,
 		}
-		var body []byte
 		if body, err = json.Marshal(v); err == nil {
 			op = &RedisOP{
 				action: "SET",
@@ -141,16 +152,10 @@ func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
 			}
 			this.RedisChan <- op
 			<-op.done
-		}
-		msg.Value = new_value
-		err = session.DB(this.DBName).C(collection).Insert(msg)
-		if err != nil {
-			if err.(*mgo.LastError).Code == 11000 {
-				err = nil
-				continue
+			if op.err != nil {
+				log.Println(op.err)
+				break
 			}
-			log.Println("fail to insert mongo", err)
-			break
 		}
 	}
 	return err
