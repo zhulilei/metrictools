@@ -206,7 +206,7 @@ func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
 		if value < 0 {
 			value = 0
 		}
-		value = float64(int64(value)*100)/100
+		value = float64(int64(value))
 	} else {
 		log.Println(msg.Value, "raw data", err)
 		value = msg.Value
