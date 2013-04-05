@@ -35,7 +35,7 @@ func main() {
 	lookupd_addresses, _ := c.Global["lookupd_addresses"]
 	nsqd_addr, _ := c.Global["nsqd_addr"]
 	maxinflight, _ := c.Global["maxinflight"]
-	metric_collection, _ := c.Metric["collection"]
+	redis_count, _ := c.Global["redix_conn_count"]
 	metric_channel, _ := c.Metric["channel"]
 	metric_topic, _ := c.Metric["topic"]
 	trigger_collection, _ := c.Trigger["collection"]
@@ -82,7 +82,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	go msg_deliver.Redis()
+	con_max, _ := strconv.Atoi(redis_count)
+	if con_max == 0 {
+		con_max = 1
+	}
+	for i := 0; i < con_max; i++ {
+		go msg_deliver.Redis()
+	}
 	max, _ := strconv.ParseInt(maxinflight, 10, 32)
 	r.SetMaxInFlight(int(max))
 	r.AddAsyncHandler(&msg_deliver)
@@ -96,7 +102,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go msg_deliver.ProcessData(metric_collection)
+	go msg_deliver.ProcessData()
 	go ScanTrigger(db_session, dbname, trigger_collection, w, trigger_topic)
 	go BuildIndex(db_session, dbname)
 	termchan := make(chan os.Signal, 1)

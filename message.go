@@ -54,14 +54,14 @@ func (this *MsgDeliver) HandleMessage(m *nsq.Message, r chan *nsq.FinishedMessag
 	this.MessageChan <- &Message{m, r}
 }
 
-func (this *MsgDeliver) ProcessData(collection string) {
+func (this *MsgDeliver) ProcessData() {
 	for {
 		m := <-this.MessageChan
-		go this.insert_data(collection, m)
+		go this.insert_data(m)
 	}
 }
 
-func (this *MsgDeliver) insert_data(collection string, m *Message) {
+func (this *MsgDeliver) insert_data(m *Message) {
 	var err error
 	var c []CollectdJSON
 	if err = json.Unmarshal(m.Body, &c); err != nil {
@@ -83,7 +83,7 @@ func (this *MsgDeliver) insert_data(collection string, m *Message) {
 			continue
 		}
 		msgs := this.ParseJSON(v)
-		if err := this.PersistData(msgs, collection); err != nil {
+		if err := this.PersistData(msgs); err != nil {
 			stat = false
 			break
 		}
@@ -91,7 +91,7 @@ func (this *MsgDeliver) insert_data(collection string, m *Message) {
 	m.ResponseChannel <- &nsq.FinishedMessage{m.Id, 0, stat}
 }
 
-func (this *MsgDeliver) PersistData(msgs []*Record, collection string) error {
+func (this *MsgDeliver) PersistData(msgs []*Record) error {
 	session := this.MSession.Copy()
 	defer session.Close()
 	var err error
