@@ -166,7 +166,7 @@ func (this *MsgDeliver) Redis() {
 			op.result, op.err = redis_con.Do(op.action,
 				op.key)
 		case "ZADD":
-			v := op.value.(KeyValue)
+			v := op.value.(*KeyValue)
 			if body, err := json.Marshal(v); err == nil {
 				op.result, op.err = redis_con.Do(op.action,
 					op.key, v.Timestamp, body)
