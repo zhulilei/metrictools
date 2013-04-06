@@ -24,7 +24,7 @@ func MetricHandler(w http.ResponseWriter, req *http.Request) {
 	record_list := make(map[string][]interface{})
 	redis_con := redis_pool.Get()
 	for _, v := range metric_list {
-		metric_data, err := redis_con.Do("ZRANKBYSCORE", v, start, end)
+		metric_data, err := redis_con.Do("ZRANGEBYSCORE", v, start, end)
 		if err != nil {
 			log.Println(err)
 			continue
