@@ -167,7 +167,7 @@ func (this *MsgDeliver) Redis() {
 				op.key)
 		case "ZADD":
 			v := op.value.(*KeyValue)
-			body := fmt.Sprintf("%d:%f", v.Timestamp, v.Value)
+			body := fmt.Sprintf("%d:%.2f", v.Timestamp, v.Value)
 			op.result, op.err = redis_con.Do(op.action,
 				op.key, v.Timestamp, body)
 		default:
@@ -206,7 +206,6 @@ func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
 		if value < 0 {
 			value = 0
 		}
-		value = float64(int64(value))
 	} else {
 		log.Println(msg.Value, "raw data", err)
 		value = msg.Value
