@@ -8,6 +8,8 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"log"
+	"strconv"
+	"strings"
 )
 
 type Message struct {
@@ -138,20 +140,18 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 			Timestamp: msg.Timestamp,
 			Value:     msg.Value,
 		}
-		var body []byte
-		if body, err = json.Marshal(v); err == nil {
-			op = &RedisOP{
-				action: "SET",
-				key:    "raw:" + msg.Key,
-				value:  body,
-				done:   make(chan int),
-			}
-			this.RedisChan <- op
-			<-op.done
-			if op.err != nil {
-				log.Println(op.err)
-				break
-			}
+		body := fmt.Sprintf("%d:%.0f", v.Timestamp, v.Value)
+		op = &RedisOP{
+			action: "SET",
+			key:    "raw:" + msg.Key,
+			value:  body,
+			done:   make(chan int),
+		}
+		this.RedisChan <- op
+		<-op.done
+		if op.err != nil {
+			log.Println(op.err)
+			break
 		}
 	}
 	return err
@@ -167,7 +167,7 @@ func (this *MsgDeliver) Redis() {
 				op.key)
 		case "ZADD":
 			v := op.value.(*KeyValue)
-			body := fmt.Sprintf("%d:%.2f", v.Timestamp, v.Value)
+			body := fmt.Sprintf("%d:%.0f", v.Timestamp, v.Value)
 			op.result, op.err = redis_con.Do(op.action,
 				op.key, v.Timestamp, body)
 		default:
@@ -185,7 +185,7 @@ func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
 	var value float64
 	op := &RedisOP{
 		action: "GET",
-		key:    "raw_" + msg.Key,
+		key:    "raw:" + msg.Key,
 		done:   make(chan int),
 	}
 	this.RedisChan <- op
@@ -196,19 +196,26 @@ func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
 	if op.result == nil {
 		return msg.Value, nil
 	}
+	body := string(op.result.([]byte))
+	kv := strings.Split(body, ":")
+	var err error
 	var tv KeyValue
-	if err := json.Unmarshal(op.result.([]byte), &tv); err == nil {
+	if len(kv) == 2 {
+		tv.Timestamp, err = strconv.ParseInt(kv[0], 10, 64)
+		tv.Value, err = strconv.ParseFloat(kv[1], 64)
+		if err != nil {
+			log.Println(kv, err)
+		}
 		if tv.Timestamp == msg.Timestamp {
 			err = errors.New("ignore")
 		}
 		value = (msg.Value - tv.Value) /
 			float64(msg.Timestamp-tv.Timestamp)
-		if value < 0 {
-			value = 0
-		}
 	} else {
-		log.Println(msg.Value, "raw data", err)
 		value = msg.Value
+	}
+	if value < 0 {
+		value = 0
 	}
 	return value, nil
 }
