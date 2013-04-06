@@ -38,7 +38,8 @@ func MetricHandler(w http.ResponseWriter, req *http.Request) {
 		var kv []interface{}
 		for _, v := range md {
 			t_v := strings.Split(string(v.([]byte)), ":")
-			if len(kv) != 2 {
+			if len(t_v) != 2 {
+				log.Println("error redis data")
 				continue
 			}
 			t, _ := strconv.ParseInt(t_v[0], 10, 64)
