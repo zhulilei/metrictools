@@ -140,7 +140,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 			Timestamp: msg.Timestamp,
 			Value:     msg.Value,
 		}
-		body := fmt.Sprintf("%d:%.0f", v.Timestamp, v.Value)
+		body := fmt.Sprintf("%d:%.2f", v.Timestamp, v.Value)
 		op = &RedisOP{
 			action: "SET",
 			key:    "raw:" + msg.Key,
