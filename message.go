@@ -3,6 +3,7 @@ package metrictools
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/datastream/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
@@ -166,7 +167,8 @@ func (this *MsgDeliver) Redis() {
 				op.key)
 		case "ZADD":
 			v := op.value.(*KeyValue)
-			if body, err := json.Marshal(v); err == nil {
+			body, err := fmt.Printf("%d:%d", v.Timestamp, v.Value)
+			if err == nil {
 				op.result, op.err = redis_con.Do(op.action,
 					op.key, v.Timestamp, body)
 			}
@@ -206,7 +208,6 @@ func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
 		if value < 0 {
 			value = 0
 		}
-		value = float64(int64(value))
 	} else {
 		log.Println(msg.Value, "raw data", err)
 		value = msg.Value
