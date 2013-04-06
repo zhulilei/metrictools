@@ -27,12 +27,12 @@ type MsgDeliver struct {
 }
 
 type RedisOP struct {
-	action string
-	key    string
-	value  interface{}
-	result interface{}
-	err    error
-	done   chan int
+	Action string
+	Key    string
+	Value  interface{}
+	Result interface{}
+	Err    error
+	Done   chan int
 }
 
 func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Record {
@@ -113,44 +113,40 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 			return err
 		}
 		op := &RedisOP{
-			action: "SADD",
-			key:    msg.Host,
-			value:  msg.Key,
-			done:   make(chan int),
+			Action: "SADD",
+			Key:    msg.Host,
+			Value:  msg.Key,
+			Done:   make(chan int),
 		}
 		this.RedisChan <- op
-		<-op.done
+		<-op.Done
 		n_v := &KeyValue{
 			Timestamp: msg.Timestamp,
 			Value:     new_value,
 		}
 		op = &RedisOP{
-			action: "ZADD",
-			key:    "archive:" + msg.Key,
-			value:  n_v,
-			done:   make(chan int),
+			Action: "ZADD",
+			Key:    "archive:" + msg.Key,
+			Value:  n_v,
+			Done:   make(chan int),
 		}
 		this.RedisChan <- op
-		<-op.done
-		if op.err != nil {
-			log.Println(op.err)
+		<-op.Done
+		if op.Err != nil {
+			log.Println(op.Err)
 			break
 		}
-		v := &KeyValue{
-			Timestamp: msg.Timestamp,
-			Value:     msg.Value,
-		}
-		body := fmt.Sprintf("%d:%.2f", v.Timestamp, v.Value)
+		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
 		op = &RedisOP{
-			action: "SET",
-			key:    "raw:" + msg.Key,
-			value:  body,
-			done:   make(chan int),
+			Action: "SET",
+			Key:    "raw:" + msg.Key,
+			Value:  body,
+			Done:   make(chan int),
 		}
 		this.RedisChan <- op
-		<-op.done
-		if op.err != nil {
-			log.Println(op.err)
+		<-op.Done
+		if op.Err != nil {
+			log.Println(op.Err)
 			break
 		}
 	}
@@ -161,42 +157,52 @@ func (this *MsgDeliver) Redis() {
 	redis_con := this.RedisPool.Get()
 	for {
 		op := <-this.RedisChan
-		switch op.action {
+		switch op.Action {
 		case "GET":
-			op.result, op.err = redis_con.Do(op.action,
-				op.key)
+			op.Result, op.Err = redis_con.Do(op.Action,
+				op.Key)
 		case "ZADD":
-			v := op.value.(*KeyValue)
+			v := op.Value.(*KeyValue)
 			body := fmt.Sprintf("%d:%.2f", v.Timestamp, v.Value)
-			op.result, op.err = redis_con.Do(op.action,
-				op.key, v.Timestamp, body)
+			op.Result, op.Err = redis_con.Do(op.Action,
+				op.Key, v.Timestamp, body)
+		case "ZREMRANGEBYSCORE":
+			fallthrough
+		case "ZRANGEBYSCORE":
+			v := op.Value.([]interface{})
+			if len(v) < 2 {
+				op.Err = errors.New("wrong arg")
+			} else {
+				op.Result, op.Err = redis_con.Do(op.Action,
+					op.Key, v[0], v[1])
+			}
 		default:
-			op.result, op.err = redis_con.Do(op.action,
-				op.key, op.value)
+			op.Result, op.Err = redis_con.Do(op.Action,
+				op.Key, op.Value)
 		}
-		if op.err != nil {
+		if op.Err != nil {
 			redis_con = this.RedisPool.Get()
 		}
-		op.done <- 1
+		op.Done <- 1
 	}
 }
 
 func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
 	var value float64
 	op := &RedisOP{
-		action: "GET",
-		key:    "raw:" + msg.Key,
-		done:   make(chan int),
+		Action: "GET",
+		Key:    "raw:" + msg.Key,
+		Done:   make(chan int),
 	}
 	this.RedisChan <- op
-	<-op.done
-	if op.err != nil {
-		return 0, op.err
+	<-op.Done
+	if op.Err != nil {
+		return 0, op.Err
 	}
-	if op.result == nil {
+	if op.Result == nil {
 		return msg.Value, nil
 	}
-	body := string(op.result.([]byte))
+	body := string(op.Result.([]byte))
 	kv := strings.Split(body, ":")
 	var err error
 	var tv KeyValue

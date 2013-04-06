@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"github.com/datastream/cal"
 	"github.com/datastream/nsq/nsq"
-	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -73,8 +73,6 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger) {
 	session := this.MSession.Clone()
 	defer session.Close()
 	ticker := time.Tick(time.Minute * time.Duration(trigger.Interval))
-	id := 0
-	redis_con := this.RedisPool.Get()
 	for {
 		rst, err := calculate_exp(this,
 			trigger.Expression)
@@ -82,24 +80,22 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger) {
 			close(this.exitChan)
 			return
 		}
-		_, err = redis_con.Do("SET", "period_calculate_task:"+
-			trigger.Expression+":"+strconv.Itoa(id), rst)
-		if err != nil {
+		t := time.Now().Unix()
+		n_v := &metrictools.KeyValue{
+			Timestamp: t,
+			Value:     rst,
+		}
+		op := &metrictools.RedisOP{
+			Action: "ZADD",
+			Key:    "archive:" + trigger.Name,
+			Value:  n_v,
+			Done:   make(chan int),
+		}
+		this.RedisChan <- op
+		<-op.Done
+		if op.Err != nil {
 			close(this.exitChan)
 			return
-		}
-		redis_con.Do("EXPIRE", "period_calculate_task:"+
-			trigger.Expression+":"+
-			strconv.Itoa(id), trigger.Period*60)
-		id++
-		if trigger.Insertable {
-			record := metrictools.Record{
-				Key:       trigger.Name,
-				Value:     rst,
-				Timestamp: time.Now().Unix(),
-			}
-			session.DB(this.DBName).C(this.statisticCollection).
-				Insert(record)
 		}
 		select {
 		case <-this.exitChan:
@@ -110,23 +106,28 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger) {
 }
 
 func calculate_exp(t *TriggerTask, exp string) (float64, error) {
-	redis_con := t.RedisPool.Get()
 	exp_list := cal.Parser(exp)
 	k_v := make(map[string]interface{})
 	var err error
 	for _, item := range exp_list {
 		if len(item) > 0 {
-			v, err := redis_con.Do("GET", item)
-			if err != nil {
+			op := &metrictools.RedisOP{
+				Action: "GET",
+				Key:    item,
+				Done:   make(chan int),
+			}
+			t.RedisChan <- op
+			<-op.Done
+			if op.Err != nil {
 				return 0, err
 			}
 			var d float64
-			if v == nil {
+			if op.Result == nil {
 				d, err = strconv.ParseFloat(
 					item, 64)
 			} else {
 				d, err = strconv.ParseFloat(
-					string(v.([]byte)), 64)
+					string(op.Result.([]byte)), 64)
 			}
 			if err == nil {
 				k_v[item] = d
@@ -144,17 +145,53 @@ func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 func (this *TriggerTask) statistic(trigger metrictools.Trigger) {
 	session := this.MSession.Clone()
 	ticker := time.Tick(time.Minute * time.Duration(trigger.Period))
-	redis_con := this.RedisPool.Get()
 	for {
-		key := "period_calculate_task:" + trigger.Expression + "*"
-		values, err := get_redis_keys_values(redis_con, key)
-		if err != nil {
+		e := time.Now().Unix()
+		s := e - int64(trigger.Interval)
+		n_v := []interface{}{s, e}
+		op := &metrictools.RedisOP{
+			Action: "ZRANGEBYSCORE",
+			Key:    "archive:" + trigger.Name,
+			Value:  n_v,
+			Done:   make(chan int),
+		}
+		this.RedisChan <- op
+		<-op.Done
+		if !trigger.Insertable {
+			n_v = []interface{}{"-inf", s - 1}
+			op = &metrictools.RedisOP{
+				Action: "ZREMRANGEBYSCORE",
+				Key:    "archive:" + trigger.Name,
+				Value:  n_v,
+				Done:   make(chan int),
+			}
+			this.RedisChan <- op
+			<-op.Done
+		}
+		if op.Err != nil {
 			close(this.exitChan)
 			return
 		}
+
+		md, ok := op.Result.([]interface{})
+		if !ok {
+			log.Println("not []interface{}")
+			continue
+		}
+		var values []float64
+		for _, v := range md {
+			t_v := strings.Split(string(v.([]byte)), ":")
+			if len(t_v) != 2 {
+				log.Println("error redis data")
+				continue
+			}
+			v, _ := strconv.ParseFloat(t_v[1], 64)
+			values = append(values, v)
+		}
 		stat, value := check_value(trigger, values)
+
 		var tg metrictools.Trigger
-		err = session.DB(this.DBName).C(this.triggerCollection).
+		err := session.DB(this.DBName).C(this.triggerCollection).
 			Find(bson.M{"e": trigger.Expression}).One(&tg)
 		if err == nil {
 			if tg.Stat != stat {
@@ -178,34 +215,6 @@ func (this *TriggerTask) statistic(trigger metrictools.Trigger) {
 		case <-ticker:
 		}
 	}
-}
-
-// read keys and return keys' values
-func get_redis_keys_values(redis_con redis.Conn, key string) ([]float64, error) {
-	v, err := redis_con.Do("KEYS", key)
-	if err != nil {
-		return nil, err
-	}
-	keys, _ := v.([]interface{})
-	var values []float64
-	for i := range keys {
-		key, _ := keys[i].([]byte)
-		v, err := redis_con.Do("GET", string(key))
-		if err == nil {
-			if value, ok := v.([]byte); ok {
-				d, e := strconv.ParseFloat(string(value), 64)
-				if e == nil {
-					values = append(values, d)
-				} else {
-					log.Println(string(value),
-						" convert to float64 failed")
-				}
-			}
-		} else {
-			return nil, err
-		}
-	}
-	return values, nil
 }
 
 // check trigger's statistic value
