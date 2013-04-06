@@ -36,15 +36,15 @@ func MetricHandler(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		var kv []interface{}
-		for _, v := range md {
-			t_v := strings.Split(string(v.([]byte)), ":")
+		for _, item := range md {
+			t_v := strings.Split(string(item.([]byte)), ":")
 			if len(t_v) != 2 {
 				log.Println("error redis data")
 				continue
 			}
 			t, _ := strconv.ParseInt(t_v[0], 10, 64)
-			v, _ := strconv.ParseFloat(t_v[1], 64)
-			kv = append(kv, []interface{}{t, v})
+			value, _ := strconv.ParseFloat(t_v[1], 64)
+			kv = append(kv, []interface{}{t, value})
 		}
 		record_list[v] = kv
 	}
