@@ -30,13 +30,14 @@ func MetricHandler(w http.ResponseWriter, req *http.Request) {
 			log.Println(err)
 			continue
 		}
-		md, ok := metric_data.([][]byte)
+		md, ok := metric_data.([]interface{})
 		if !ok {
+			log.Println("not []interface{}")
 			return
 		}
 		var kv []interface{}
 		for _, v := range md {
-			t_v := strings.Split(string(v), ":")
+			t_v := strings.Split(string(v.([]byte)), ":")
 			if len(kv) != 2 {
 				continue
 			}
