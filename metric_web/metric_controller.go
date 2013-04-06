@@ -25,31 +25,26 @@ func MetricHandler(w http.ResponseWriter, req *http.Request) {
 	redis_con := redis_pool.Get()
 	for _, v := range metric_list {
 		metric_data, err := redis_con.Do("ZRANGEBYSCORE",
-			"archive:" + v, start, end)
+			"archive:"+v, start, end)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		kv := gen_keyvalue(metric_data)
+		md, ok := metric_data.([][]byte)
+		if !ok {
+			return
+		}
+		var kv []interface{}
+		for _, v := range md {
+			t_v := strings.Split(string(v), ":")
+			if len(kv) != 2 {
+				continue
+			}
+			t, _ := strconv.ParseInt(t_v[0], 10, 64)
+			v, _ := strconv.ParseFloat(t_v[1], 64)
+			kv = append(kv, []interface{}{t, v})
+		}
 		record_list[v] = kv
 	}
 	w.Write(gen_json(record_list))
-}
-
-func gen_keyvalue(data interface{}) []interface{} {
-	metric_data, ok := data.([][]byte)
-	if !ok {
-		return nil
-	}
-	var rst []interface{}
-	for _, v := range metric_data {
-		kv := strings.Split(string(v), ":")
-		if len(kv) != 2 {
-			continue
-		}
-		t, _ := strconv.ParseInt(kv[0], 10, 64)
-		v, _ := strconv.ParseFloat(kv[1], 64)
-		rst = append(rst, []interface{}{t, v})
-	}
-	return rst
 }
