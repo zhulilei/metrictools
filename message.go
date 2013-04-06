@@ -145,6 +145,14 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 		}
 		this.RedisChan <- op
 		<-op.Done
+		op = &RedisOP{
+			Action: "SET",
+			Key:    msg.Key,
+			Value:  new_value,
+			Done:   make(chan int),
+		}
+		this.RedisChan <- op
+		<-op.Done
 		if op.Err != nil {
 			log.Println(op.Err)
 			break
