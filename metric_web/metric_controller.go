@@ -1,10 +1,9 @@
 package main
 
 import (
-	metrictools "../"
-	"labix.org/v2/mgo/bson"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -22,20 +21,34 @@ func MetricHandler(w http.ResponseWriter, req *http.Request) {
 	metric_list := strings.Split(metrics, ",")
 	session := db_session.Clone()
 	defer session.Close()
-	var record_list []metrictools.Record
+	record_list := make(map[string][]interface{})
+	redis_con := redis_pool.Get()
 	for _, v := range metric_list {
-		var query []metrictools.Record
-		err := session.DB(dbname).
-			C(metric_collection).
-			Find(bson.M{"k": v,
-			"t": bson.M{"$gt": start, "$lt": end}}).
-			Sort("t").All(&query)
+		metric_data, err := redis_con.Do("ZRANKBYSCORE", v, start, end)
 		if err != nil {
-			log.Printf("query metric error:%s\n", err)
-			db_session.Refresh()
-		} else {
-			record_list = append(record_list, query...)
+			log.Println(err)
+			continue
 		}
+		kv := gen_keyvalue(metric_data)
+		record_list[v] = kv
 	}
-	w.Write(json_metrics_value(record_list))
+	w.Write(gen_json(record_list))
+}
+
+func gen_keyvalue(data interface{}) []interface{} {
+	metric_data, ok := data.([][]byte)
+	if !ok {
+		return nil
+	}
+	var rst []interface{}
+	for _, v := range metric_data {
+		kv := strings.Split(string(v), ":")
+		if len(kv) != 2 {
+			continue
+		}
+		t, _ := strconv.ParseInt(kv[0], 10, 64)
+		v, _ := strconv.ParseFloat(kv[1], 64)
+		rst = append(rst, []interface{}{t, v})
+	}
+	return rst
 }
