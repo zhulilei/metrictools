@@ -167,7 +167,7 @@ func (this *MsgDeliver) Redis() {
 				op.key)
 		case "ZADD":
 			v := op.value.(*KeyValue)
-			body, err := fmt.Printf("%d:%d", v.Timestamp, v.Value)
+			body, err := fmt.Printf("%d:%d", v.Timestamp, int64(v.Value))
 			if err == nil {
 				op.result, op.err = redis_con.Do(op.action,
 					op.key, v.Timestamp, body)
