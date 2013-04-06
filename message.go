@@ -167,7 +167,7 @@ func (this *MsgDeliver) Redis() {
 				op.key)
 		case "ZADD":
 			v := op.value.(*KeyValue)
-			body := fmt.Sprintf("%d:%d", v.Timestamp, v.Value)
+			body := fmt.Sprintf("%d:%d", v.Timestamp, int64(v.Value))
 			op.result, op.err = redis_con.Do(op.action,
 				op.key, v.Timestamp, body)
 		default:
