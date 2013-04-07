@@ -102,6 +102,7 @@ func main() {
 		}
 	}
 	go msg_deliver.ProcessData()
+	go msg_deliver.ExpireData()
 	go ScanTrigger(db_session, dbname, trigger_collection, w, trigger_topic)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)

@@ -10,6 +10,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Message struct {
@@ -161,22 +162,117 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 	return err
 }
 
+func (this *MsgDeliver) ExpireData() {
+	tick := time.Tick(time.Hour * 24)
+	for {
+		op := &RedisOP{
+			Action: "Keys",
+			Key:    "archiv:*",
+			Done:   make(chan int),
+		}
+		this.RedisChan <- op
+		<-op.Done
+		if op.Err == nil {
+			value_list := op.Result.([]interface{})
+			for _, value := range value_list {
+				go this.cleanup(value.([]byte))
+			}
+		} else {
+			time.Sleep(time.Minute)
+			continue
+		}
+		<-tick
+	}
+}
+
+func (this *MsgDeliver) cleanup(key []byte) {
+	s := 0
+	e := time.Now().Add(-time.Hour * 24 * 6).Unix()
+	op := &RedisOP{
+		Action: "ZREMRANGEBYSCORE",
+		Key:    string(key),
+		Value:  []interface{}{s, e},
+		Done:   make(chan int),
+	}
+	this.RedisChan <- op
+	<-op.Done
+	if op.Err == nil {
+		value_list := op.Result.([]interface{})
+		go this.to5min(string(key), &value_list)
+	}
+}
+
+// use 5min interval data instead
+func (this *MsgDeliver) to5min(key string, value_list *[]interface{}) {
+	var last int64
+	last = 0
+	for _, value := range *value_list {
+		v := string(value.([]byte))
+		t, _ := GetTimestamp(v)
+		if t-last >= 300 {
+			last = t
+			continue
+		}
+		op := &RedisOP{
+			Action: "ZREM",
+			Key:    key,
+			Value:  v,
+			Done:   make(chan int),
+		}
+		this.RedisChan <- op
+		<-op.Done
+	}
+}
+
+func GetTimestamp(key string) (int64, error) {
+	t, _, err := GetTimestampValue(key)
+	return t, err
+}
+
+func GetValue(key string) (float64, error) {
+	_, v, err := GetTimestampValue(key)
+	return v, err
+}
+
+func GetTimestampValue(key string) (int64, float64, error) {
+	body := string(key)
+	kv := strings.Split(body, ":")
+	var t int64
+	var v float64
+	var err error
+	if len(kv) == 2 {
+		t, err = strconv.ParseInt(kv[0], 10, 64)
+		v, err = strconv.ParseFloat(kv[1], 64)
+		if err != nil {
+			log.Println(kv, err)
+		}
+	} else {
+		err = errors.New("wrong data")
+	}
+	return t, v, err
+}
+
 func (this *MsgDeliver) Redis() {
 	redis_con := this.RedisPool.Get()
 	for {
 		op := <-this.RedisChan
 		switch op.Action {
+		case "KEYS":
+			fallthrough
 		case "GET":
 			op.Result, op.Err = redis_con.Do(op.Action,
 				op.Key)
+		case "ZREM":
+			op.Result, op.Err = redis_con.Do(op.Action,
+				op.Key, op.Value)
 		case "ZADD":
 			v := op.Value.(*KeyValue)
 			body := fmt.Sprintf("%d:%.2f", v.Timestamp, v.Value)
 			op.Result, op.Err = redis_con.Do(op.Action,
 				op.Key, v.Timestamp, body)
-		case "ZREMRANGEBYSCORE":
-			fallthrough
 		case "ZRANGEBYSCORE":
+			fallthrough
+		case "ZREMRANGEBYSCORE":
 			v := op.Value.([]interface{})
 			if len(v) < 2 {
 				op.Err = errors.New("wrong arg")
@@ -196,7 +292,6 @@ func (this *MsgDeliver) Redis() {
 }
 
 func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
-	var value float64
 	op := &RedisOP{
 		Action: "GET",
 		Key:    "raw:" + msg.Key,
@@ -210,21 +305,11 @@ func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
 	if op.Result == nil {
 		return msg.Value, nil
 	}
-	body := string(op.Result.([]byte))
-	kv := strings.Split(body, ":")
-	var err error
-	var tv KeyValue
-	if len(kv) == 2 {
-		tv.Timestamp, err = strconv.ParseInt(kv[0], 10, 64)
-		tv.Value, err = strconv.ParseFloat(kv[1], 64)
-		if err != nil {
-			log.Println(kv, err)
-		}
-		if tv.Timestamp == msg.Timestamp {
-			err = errors.New("ignore")
-		}
-		value = (msg.Value - tv.Value) /
-			float64(msg.Timestamp-tv.Timestamp)
+	var value float64
+	t, v, err := GetTimestampValue(string(op.Result.([]byte)))
+	if err == nil {
+		value = (msg.Value - v) /
+			float64(msg.Timestamp-t)
 	} else {
 		value = msg.Value
 	}
