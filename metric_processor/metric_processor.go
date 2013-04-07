@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -104,7 +103,6 @@ func main() {
 	}
 	go msg_deliver.ProcessData()
 	go ScanTrigger(db_session, dbname, trigger_collection, w, trigger_topic)
-	go BuildIndex(db_session, dbname)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
@@ -136,64 +134,5 @@ func ScanTrigger(msession *mgo.Session, dbname string, collection string, w *nsq
 			}
 		}
 		<-ticker
-	}
-}
-
-// need todo
-func BuildIndex(msession *mgo.Session, dbname string) {
-	session := msession.Copy()
-	defer session.Close()
-	ticker := time.Tick(time.Second * 3600)
-	for {
-		clist, err := session.DB(dbname).CollectionNames()
-		if err != nil {
-			time.Sleep(time.Second * 10)
-			session.Refresh()
-		} else {
-			for i := range clist {
-				if rst, _ := regexp.MatchString(
-					"(system|trigger)",
-					clist[i]); !rst {
-					index := mgo.Index{
-						Key:        []string{"t", "k"},
-						Unique:     true,
-						DropDups:   true,
-						Background: true,
-						Sparse:     true,
-					}
-					go mkindex(session, dbname, clist[i], index)
-				}
-				if rst, _ := regexp.MatchString(
-					"trigger",
-					clist[i]); rst {
-					index := mgo.Index{
-						Key:        []string{"exp"},
-						Unique:     true,
-						DropDups:   true,
-						Background: true,
-						Sparse:     true,
-					}
-					go mkindex(session, dbname, clist[i], index)
-				}
-				if rst, _ := regexp.MatchString(
-					"(system|trigger)",
-					clist[i]); !rst {
-					index := mgo.Index{
-						Key:         []string{"t"},
-						Background:  true,
-						Sparse:      true,
-						ExpireAfter: time.Hour * 24 * 30,
-					}
-					go mkindex(session, dbname, clist[i], index)
-				}
-			}
-		}
-		<-ticker
-	}
-}
-
-func mkindex(session *mgo.Session, dbname string, collection string, index mgo.Index) {
-	if err := session.DB(dbname).C(collection).EnsureIndex(index); err != nil {
-		log.Println("make index error: ", err)
 	}
 }
