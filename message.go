@@ -175,7 +175,7 @@ func (this *MsgDeliver) remove_dup(key []byte) {
 		if op.Err == nil {
 			value_list := op.Result.([]interface{})
 			var last float64
-			last = 0
+			last = -1
 			var last_v interface{}
 			for _, value := range value_list {
 				v := string(value.([]byte))
