@@ -193,6 +193,7 @@ func (this *MsgDeliver) remove_dup(key []byte) {
 				this.UpdateValue("ZREM",
 					string(key), last_key)
 				last_key = value
+				last_t = t
 				count--
 				index--
 			}
