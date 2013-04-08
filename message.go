@@ -113,49 +113,24 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		op := &RedisOP{
-			Action: "SADD",
-			Key:    msg.Host,
-			Value:  msg.Key,
-			Done:   make(chan int),
-		}
-		this.RedisChan <- op
-		<-op.Done
 		n_v := &KeyValue{
 			Timestamp: msg.Timestamp,
 			Value:     new_value,
 		}
-		op = &RedisOP{
-			Action: "ZADD",
-			Key:    "archive:" + msg.Key,
-			Value:  n_v,
-			Done:   make(chan int),
-		}
-		this.RedisChan <- op
-		<-op.Done
-		if op.Err != nil {
-			log.Println(op.Err)
+		err = this.UpdateValue("ZADD", "archive:"+msg.Key, n_v)
+		if err != nil {
+			log.Println(err)
 			break
 		}
 		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
-		op = &RedisOP{
-			Action: "SET",
-			Key:    "raw:" + msg.Key,
-			Value:  body,
-			Done:   make(chan int),
+		err = this.UpdateValue("SET", "raw:"+msg.Key, body)
+		if err != nil {
+			log.Println("set raw", err)
+			break
 		}
-		this.RedisChan <- op
-		<-op.Done
-		op = &RedisOP{
-			Action: "SET",
-			Key:    msg.Key,
-			Value:  new_value,
-			Done:   make(chan int),
-		}
-		this.RedisChan <- op
-		<-op.Done
-		if op.Err != nil {
-			log.Println(op.Err)
+		err = this.UpdateValue("SET", msg.Key, new_value)
+		if err != nil {
+			log.Println("last data", err)
 			break
 		}
 	}
@@ -163,10 +138,9 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 }
 
 func (this *MsgDeliver) ExpireData() {
-	tick := time.Tick(time.Hour * 24)
 	for {
 		op := &RedisOP{
-			Action: "Keys",
+			Action: "KEYS",
 			Key:    "archiv:*",
 			Done:   make(chan int),
 		}
@@ -175,53 +149,79 @@ func (this *MsgDeliver) ExpireData() {
 		if op.Err == nil {
 			value_list := op.Result.([]interface{})
 			for _, value := range value_list {
-				go this.cleanup(value.([]byte))
+				this.remove_dup(value.([]byte))
 			}
 		} else {
 			time.Sleep(time.Minute)
 			continue
 		}
-		<-tick
 	}
 }
 
-func (this *MsgDeliver) cleanup(key []byte) {
-	s := 0
-	e := time.Now().Add(-time.Hour * 24 * 6).Unix()
-	op := &RedisOP{
-		Action: "ZREMRANGEBYSCORE",
-		Key:    string(key),
-		Value:  []interface{}{s, e},
-		Done:   make(chan int),
-	}
-	this.RedisChan <- op
-	<-op.Done
-	if op.Err == nil {
-		value_list := op.Result.([]interface{})
-		go this.to5min(string(key), &value_list)
-	}
-}
-
-// use 5min interval data instead
-func (this *MsgDeliver) to5min(key string, value_list *[]interface{}) {
-	var last int64
-	last = 0
-	for _, value := range *value_list {
-		v := string(value.([]byte))
-		t, _ := GetTimestamp(v)
-		if t-last >= 300 {
-			last = t
-			continue
+func (this *MsgDeliver) remove_dup(key []byte) {
+	index := 0
+	count := this.GetSetSize(string(key))
+	for {
+		if index > count {
+			break
 		}
 		op := &RedisOP{
-			Action: "ZREM",
-			Key:    key,
-			Value:  v,
+			Action: "ZRANG",
+			Key:    string(key),
+			Value:  []interface{}{index, index + 5},
 			Done:   make(chan int),
 		}
 		this.RedisChan <- op
 		<-op.Done
+		if op.Err == nil {
+			value_list := op.Result.([]interface{})
+			var last float64
+			last = 0
+			for _, value := range value_list {
+				v := string(value.([]byte))
+				d, _ := GetValue(v)
+				if d != last {
+					last = d
+					continue
+				}
+				this.UpdateValue("ZREM", string(key), v)
+				count--
+				index--
+			}
+		}
+		index = index + 5
 	}
+}
+
+func (this *MsgDeliver) GetSetSize(key string) int {
+	op := &RedisOP{
+		Action: "ZCARD",
+		Key:    key,
+		Done:   make(chan int),
+	}
+	this.RedisChan <- op
+	<-op.Done
+	count := 0
+	if op.Err == nil {
+		v := op.Result.([]byte)
+		t, err := strconv.ParseInt(string(v), 10, 32)
+		if err == nil {
+			count = int(t)
+		}
+	}
+	return count
+}
+
+func (this *MsgDeliver) UpdateValue(action string, key string, value interface{}) error {
+	op := &RedisOP{
+		Action: action,
+		Key:    key,
+		Value:  value,
+		Done:   make(chan int),
+	}
+	this.RedisChan <- op
+	<-op.Done
+	return op.Err
 }
 
 func GetTimestamp(key string) (int64, error) {
@@ -257,6 +257,8 @@ func (this *MsgDeliver) Redis() {
 	for {
 		op := <-this.RedisChan
 		switch op.Action {
+		case "ZCARD":
+			fallthrough
 		case "KEYS":
 			fallthrough
 		case "GET":
