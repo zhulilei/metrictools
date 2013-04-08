@@ -138,6 +138,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 }
 
 func (this *MsgDeliver) ExpireData() {
+	tick := time.Tick(time.Minute*10)
 	for {
 		op := &RedisOP{
 			Action: "KEYS",
@@ -151,10 +152,8 @@ func (this *MsgDeliver) ExpireData() {
 			for _, value := range value_list {
 				this.remove_dup(value.([]byte))
 			}
-		} else {
-			time.Sleep(time.Minute)
-			continue
 		}
+		<-tick
 	}
 }
 
