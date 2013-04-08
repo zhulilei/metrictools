@@ -176,12 +176,18 @@ func (this *MsgDeliver) remove_dup(key []byte) {
 			value_list := op.Result.([]interface{})
 			var last_key interface{}
 			var last_v float64
+			var last_t int64
 			last_v = -1
 			for _, value := range value_list {
-				v, _ := GetValue(string(value.([]byte)))
+				t, v, _ := GetTimestampValue(string(value.([]byte)))
 				if v != last_v {
 					last_v = v
+					last_t = t
 					last_key = value
+					continue
+				}
+				if (t - last_t) > 3600 {
+					last_t = t
 					continue
 				}
 				this.UpdateValue("ZREM",
