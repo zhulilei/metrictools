@@ -138,11 +138,11 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 }
 
 func (this *MsgDeliver) ExpireData() {
-	tick := time.Tick(time.Minute*10)
+	tick := time.Tick(time.Minute * 10)
 	for {
 		op := &RedisOP{
 			Action: "KEYS",
-			Key:    "archiv:*",
+			Key:    "archive:*",
 			Done:   make(chan int),
 		}
 		this.RedisChan <- op
@@ -158,7 +158,7 @@ func (this *MsgDeliver) ExpireData() {
 }
 
 func (this *MsgDeliver) remove_dup(key []byte) {
-	index := 0
+	index := int64(0)
 	count := this.GetSetSize(string(key))
 	for {
 		if index > count {
@@ -194,7 +194,7 @@ func (this *MsgDeliver) remove_dup(key []byte) {
 	}
 }
 
-func (this *MsgDeliver) GetSetSize(key string) int {
+func (this *MsgDeliver) GetSetSize(key string) int64 {
 	op := &RedisOP{
 		Action: "ZCARD",
 		Key:    key,
@@ -202,12 +202,13 @@ func (this *MsgDeliver) GetSetSize(key string) int {
 	}
 	this.RedisChan <- op
 	<-op.Done
-	count := 0
+	var count int64
 	if op.Err == nil {
-		v := op.Result.([]byte)
-		t, err := strconv.ParseInt(string(v), 10, 32)
-		if err == nil {
-			count = int(t)
+		v, ok := op.Result.(int64)
+		if ok {
+			count = v
+		} else {
+			log.Println("ZCARD return not int64")
 		}
 	}
 	return count
