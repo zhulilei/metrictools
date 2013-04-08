@@ -165,7 +165,7 @@ func (this *MsgDeliver) remove_dup(key []byte) {
 			break
 		}
 		op := &RedisOP{
-			Action: "ZRANG",
+			Action: "ZRANGE",
 			Key:    string(key),
 			Value:  []interface{}{index, index + 5},
 			Done:   make(chan int),
@@ -274,6 +274,8 @@ func (this *MsgDeliver) Redis() {
 			body := fmt.Sprintf("%d:%.2f", v.Timestamp, v.Value)
 			op.Result, op.Err = redis_con.Do(op.Action,
 				op.Key, v.Timestamp, body)
+		case "ZRANGE":
+			fallthrough
 		case "ZRANGEBYSCORE":
 			fallthrough
 		case "ZREMRANGEBYSCORE":
