@@ -12,12 +12,12 @@ func HostHandler(w http.ResponseWriter, req *http.Request) {
 	host := mux.Vars(req)["name"]
 	redis_con := redis_pool.Get()
 	var query []string
-	metric_list, err := redis_con.Do("SMEMBERS", host)
+	metric_list, err := redis_con.Do("KEYS", "archive:"+host)
 	if err == nil {
 		m_list, _ := metric_list.([]interface{})
 		for i := range m_list {
 			v1, _ := m_list[i].([]byte)
-			query = append(query, string(v1))
+			query = append(query, string(v1)[8:])
 		}
 	} else {
 		log.Println("failed to get set", err)
