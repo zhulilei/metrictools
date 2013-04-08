@@ -177,14 +177,16 @@ func (this *MsgDeliver) remove_dup(key []byte) {
 			value_list := op.Result.([]interface{})
 			var last float64
 			last = 0
+			var last_v interface{}
 			for _, value := range value_list {
 				v := string(value.([]byte))
 				d, _ := GetValue(v)
 				if d != last {
 					last = d
+					last_v = v
 					continue
 				}
-				this.UpdateValue("ZREM", string(key), v)
+				this.UpdateValue("ZREM", string(key), last_v)
 				count--
 				index--
 			}
