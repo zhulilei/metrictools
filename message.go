@@ -117,18 +117,18 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 			Timestamp: msg.Timestamp,
 			Value:     new_value,
 		}
-		err = this.UpdateValue("ZADD", "archive:"+msg.Key, n_v)
+		_, err = this.RedisDo("ZADD", "archive:"+msg.Key, n_v)
 		if err != nil {
 			log.Println(err)
 			break
 		}
 		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
-		err = this.UpdateValue("SET", "raw:"+msg.Key, body)
+		_, err = this.RedisDo("SET", "raw:"+msg.Key, body)
 		if err != nil {
 			log.Println("set raw", err)
 			break
 		}
-		err = this.UpdateValue("SET", msg.Key, new_value)
+		_, err = this.RedisDo("SET", msg.Key, new_value)
 		if err != nil {
 			log.Println("last data", err)
 			break
@@ -137,20 +137,15 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 	return err
 }
 
-func (this *MsgDeliver) ExpireData() {
-	tick := time.Tick(time.Minute * 60)
+func (this *MsgDeliver) CompressData() {
+	tick := time.Tick(time.Minute * 10)
 	for {
-		op := &RedisOP{
-			Action: "KEYS",
-			Key:    "archive:*",
-			Done:   make(chan int),
-		}
-		this.RedisChan <- op
-		<-op.Done
-		if op.Err == nil {
-			value_list := op.Result.([]interface{})
+		rst, err := this.RedisDo("KEYS", "archive:*", nil)
+		if err == nil {
+			value_list := rst.([]interface{})
 			for _, value := range value_list {
 				this.remove_old(value.([]byte))
+				this.remove_dup(value.([]byte))
 			}
 		}
 		<-tick
@@ -159,30 +154,10 @@ func (this *MsgDeliver) ExpireData() {
 
 func (this *MsgDeliver) remove_old(key []byte) {
 	lastweek := time.Now().Unix() - 7*24*3600
-	err := this.UpdateValue("ZREMRANGEBYSCORE",
+	_, err := this.RedisDo("ZREMRANGEBYSCORE",
 		string(key), []interface{}{0, lastweek})
 	if err != nil {
 		log.Println("last data", err)
-	}
-}
-
-func (this *MsgDeliver) CompressData() {
-	tick := time.Tick(time.Minute * 10)
-	for {
-		op := &RedisOP{
-			Action: "KEYS",
-			Key:    "archive:*",
-			Done:   make(chan int),
-		}
-		this.RedisChan <- op
-		<-op.Done
-		if op.Err == nil {
-			value_list := op.Result.([]interface{})
-			for _, value := range value_list {
-				this.remove_dup(value.([]byte))
-			}
-		}
-		<-tick
 	}
 }
 
@@ -193,16 +168,10 @@ func (this *MsgDeliver) remove_dup(key []byte) {
 		if index > count {
 			break
 		}
-		op := &RedisOP{
-			Action: "ZRANGE",
-			Key:    string(key),
-			Value:  []interface{}{index, index + 5},
-			Done:   make(chan int),
-		}
-		this.RedisChan <- op
-		<-op.Done
-		if op.Err == nil {
-			value_list := op.Result.([]interface{})
+		rst, err := this.RedisDo("ZRANGE", string(key),
+			[]interface{}{index, index + 5})
+		if err == nil {
+			value_list := rst.([]interface{})
 			var last_key interface{}
 			var last_v float64
 			var last_t int64
@@ -219,7 +188,7 @@ func (this *MsgDeliver) remove_dup(key []byte) {
 					last_t = t
 					continue
 				}
-				this.UpdateValue("ZREM",
+				this.RedisDo("ZREM",
 					string(key), last_key)
 				last_key = value
 				last_t = t
@@ -232,16 +201,10 @@ func (this *MsgDeliver) remove_dup(key []byte) {
 }
 
 func (this *MsgDeliver) GetSetSize(key string) int64 {
-	op := &RedisOP{
-		Action: "ZCARD",
-		Key:    key,
-		Done:   make(chan int),
-	}
-	this.RedisChan <- op
-	<-op.Done
+	rst, err := this.RedisDo("ZCARD", key, nil)
 	var count int64
-	if op.Err == nil {
-		v, ok := op.Result.(int64)
+	if err == nil {
+		v, ok := rst.(int64)
 		if ok {
 			count = v
 		} else {
@@ -251,7 +214,7 @@ func (this *MsgDeliver) GetSetSize(key string) int64 {
 	return count
 }
 
-func (this *MsgDeliver) UpdateValue(action string, key string, value interface{}) error {
+func (this *MsgDeliver) RedisDo(action string, key string, value interface{}) (interface{}, error) {
 	op := &RedisOP{
 		Action: action,
 		Key:    key,
@@ -260,7 +223,7 @@ func (this *MsgDeliver) UpdateValue(action string, key string, value interface{}
 	}
 	this.RedisChan <- op
 	<-op.Done
-	return op.Err
+	return op.Result, op.Err
 }
 
 func GetTimestamp(key string) (int64, error) {
@@ -335,21 +298,15 @@ func (this *MsgDeliver) Redis() {
 }
 
 func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
-	op := &RedisOP{
-		Action: "GET",
-		Key:    "raw:" + msg.Key,
-		Done:   make(chan int),
+	rst, err := this.RedisDo("GET", "raw:"+msg.Key, nil)
+	if err != nil {
+		return 0, err
 	}
-	this.RedisChan <- op
-	<-op.Done
-	if op.Err != nil {
-		return 0, op.Err
-	}
-	if op.Result == nil {
+	if rst == nil {
 		return msg.Value, nil
 	}
 	var value float64
-	t, v, err := GetTimestampValue(string(op.Result.([]byte)))
+	t, v, err := GetTimestampValue(string(rst.([]byte)))
 	if err == nil {
 		value = (msg.Value - v) /
 			float64(msg.Timestamp-t)

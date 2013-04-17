@@ -72,7 +72,6 @@ func main() {
 	for i := 0; i < con_max; i++ {
 		go msg_deliver.Redis()
 	}
-	go msg_deliver.ExpireData()
 	go msg_deliver.CompressData()
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)

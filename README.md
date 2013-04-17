@@ -18,8 +18,11 @@ metric_statistic can read/write calculate result in redis.
 metric_notify read notify from mq, then query notify's action in mongodb.
 
 ### metric_web
-It's a web api to access metric data in mongodb.
+It's a web api to access metric data in redis.
 The json data can be processed by [nvd3.js](http://nvd3.org).
+
+### metric_archive
+delete old data, remove dup data
 
 ## Require
  * collectd v4.8+ (write_http plugin)
