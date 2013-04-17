@@ -138,6 +138,38 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 }
 
 func (this *MsgDeliver) ExpireData() {
+	tick := time.Tick(time.Minute * 60)
+	for {
+		op := &RedisOP{
+			Action: "KEYS",
+			Key:    "archive:*",
+			Done:   make(chan int),
+		}
+		this.RedisChan <- op
+		<-op.Done
+		if op.Err == nil {
+			value_list := op.Result.([]interface{})
+			for _, value := range value_list {
+				this.remove_old(value.([]byte))
+			}
+		}
+		<-tick
+	}
+}
+
+func (this *MsgDeliver) remove_old(key []byte) {
+	lastweek := time.Now().Unix() - 7*24*60
+	op := &RedisOP{
+		Action: "ZRANGEBYSCORE",
+		Key:    string(key),
+		Value:  []interface{}{0, lastweek},
+		Done:   make(chan int),
+	}
+	this.RedisChan <- op
+	<-op.Done
+}
+
+func (this *MsgDeliver) CompressData() {
 	tick := time.Tick(time.Minute * 10)
 	for {
 		op := &RedisOP{
