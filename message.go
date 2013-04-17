@@ -158,15 +158,12 @@ func (this *MsgDeliver) ExpireData() {
 }
 
 func (this *MsgDeliver) remove_old(key []byte) {
-	lastweek := time.Now().Unix() - 7*24*60
-	op := &RedisOP{
-		Action: "ZRANGEBYSCORE",
-		Key:    string(key),
-		Value:  []interface{}{0, lastweek},
-		Done:   make(chan int),
+	lastweek := time.Now().Unix() - 7*24*3600
+	err := this.UpdateValue("ZREMRANGEBYSCORE",
+		string(key), []interface{}{0, lastweek})
+	if err != nil {
+		log.Println("last data", err)
 	}
-	this.RedisChan <- op
-	<-op.Done
 }
 
 func (this *MsgDeliver) CompressData() {
