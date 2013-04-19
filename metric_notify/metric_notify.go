@@ -63,11 +63,14 @@ func main() {
 		log.Fatal(err)
 	}
 	msg_deliver := &metrictools.MsgDeliver{
-		MessageChan:    make(chan *metrictools.Message),
 		MSession:       db_session,
 		DBName:         dbname,
 		RedisPool:      redis_pool,
 		VerboseLogging: false,
+	}
+	nt := &Notify{
+		MsgDeliver: msg_deliver,
+		Collecion:  notify_collection,
 	}
 	defer db_session.Close()
 
@@ -77,7 +80,9 @@ func main() {
 	}
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	r.SetMaxInFlight(int(max))
-	r.AddAsyncHandler(msg_deliver)
+	for i := 0; i < int(max); i++ {
+		r.AddHandler(nt)
+	}
 	lookupdlist := strings.Split(lookupd_addresses, ",")
 	for _, addr := range lookupdlist {
 		log.Printf("lookupd addr %s", addr)
@@ -86,7 +91,6 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go do_notify(msg_deliver, notify_collection)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan

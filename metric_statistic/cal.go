@@ -12,13 +12,14 @@ import (
 	"time"
 )
 
+// add map to maintain current calculating exp
 type TriggerTask struct {
-	exitChan chan int
-	writer   *nsq.Writer
 	*metrictools.MsgDeliver
+	writer              *nsq.Writer
 	notifyTopic         string
 	triggerCollection   string
 	statisticCollection string
+	exitChan            chan int
 }
 
 func (this *TriggerTask) HandleMessage(m *nsq.Message) error {

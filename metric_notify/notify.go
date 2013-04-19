@@ -9,27 +9,21 @@ import (
 	"time"
 )
 
-func do_notify(msg_deliver *metrictools.MsgDeliver, notifyaction string) {
-	for {
-		m := <-msg_deliver.MessageChan
-		go notify(msg_deliver, m, notifyaction)
-	}
+type Notify struct {
+	*metrictools.MsgDeliver
+	Collecion string
 }
 
-func notify(md *metrictools.MsgDeliver, m *metrictools.Message, notifyaction string) {
-	session := md.MSession.Clone()
+func (this *Notify) HandleMessage(m *nsq.Message) error {
+	session := this.MSession.Clone()
 	defer session.Close()
 	var notify_msg metrictools.Notify
 	var all_notifyaction []metrictools.NotifyAction
 	var err error
-	stat := true
 	if err = json.Unmarshal([]byte(m.Body), &notify_msg); err == nil {
-		err = session.DB(md.DBName).C(notifyaction).
+		err = session.DB(this.DBName).C(this.Collecion).
 			Find(bson.M{"n": notify_msg.Name}).
 			All(&all_notifyaction)
-		if err != nil {
-			stat = false
-		}
 		for _, na := range all_notifyaction {
 			now := time.Now().Unix()
 			if na.Repeat > 0 ||
@@ -42,19 +36,15 @@ func notify(md *metrictools.MsgDeliver, m *metrictools.Message, notifyaction str
 					count = na.Count + 1
 				}
 				go send_notify(na, notify_msg)
-				session.DB(md.DBName).C(notifyaction).
+				session.DB(this.DBName).C(this.Collecion).
 					Update(bson.M{
 					"n":   na.Name,
 					"uri": na.Uri},
-					bson.M{"u": now,
-						"c": count})
+					bson.M{"u": now, "c": count})
 			}
 		}
 	}
-	if err != nil {
-		stat = false
-	}
-	m.ResponseChannel <- &nsq.FinishedMessage{m.Id, 0, stat}
+	return err
 }
 
 //send notify
