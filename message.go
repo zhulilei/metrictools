@@ -74,11 +74,9 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		n_v := &KeyValue{
-			Timestamp: msg.Timestamp,
-			Value:     new_value,
-		}
-		_, err = this.RedisDo("ZADD", "archive:"+msg.Key, n_v)
+		_, err = this.RedisDo("ZADD",
+			"archive:"+msg.Key,
+			[]interface{}{msg.Timestamp, new_value})
 		if err != nil {
 			log.Println(err)
 			break
@@ -231,10 +229,15 @@ func (this *MsgDeliver) Redis() {
 			op.Result, op.Err = redis_con.Do(op.Action,
 				op.Key, op.Value)
 		case "ZADD":
-			v := op.Value.(*KeyValue)
-			body := fmt.Sprintf("%d:%.2f", v.Timestamp, v.Value)
+			v := op.Value.([]interface{})
+			if len(v) != 2 {
+				op.Err = errors.New("wrong args")
+				op.Done <- 1
+				continue
+			}
+			body := fmt.Sprintf("%d:%.2f", v[0], v[1])
 			op.Result, op.Err = redis_con.Do(op.Action,
-				op.Key, v.Timestamp, body)
+				v[0], v[1], body)
 		case "ZRANGE":
 			fallthrough
 		case "ZRANGEBYSCORE":
