@@ -63,7 +63,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 	for _, msg := range msgs {
 		var new_value float64
 		if msg.DSType == "counter" || msg.DSType == "derive" {
-			new_value, err = this.gen_new_value(msg)
+			new_value, err = this.getRate(msg)
 		} else {
 			new_value = msg.Value
 		}
@@ -258,7 +258,7 @@ func (this *MsgDeliver) Redis() {
 	}
 }
 
-func (this *MsgDeliver) gen_new_value(msg *Record) (float64, error) {
+func (this *MsgDeliver) getRate(msg *Record) (float64, error) {
 	rst, err := this.RedisDo("GET", "raw:"+msg.Key, nil)
 	if err != nil {
 		return 0, err
