@@ -66,7 +66,6 @@ func main() {
 		log.Fatal(err)
 	}
 	msg_deliver := &metrictools.MsgDeliver{
-		MessageChan:    make(chan *metrictools.Message),
 		MSession:       db_session,
 		DBName:         dbname,
 		RedisPool:      redis_pool,
@@ -80,10 +79,20 @@ func main() {
 	go msg_deliver.Redis()
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	r.SetMaxInFlight(int(max))
-	r.AddAsyncHandler(msg_deliver)
-	lookupdlist := strings.Split(lookupd_addresses, ",")
 	w := nsq.NewWriter()
 	w.ConnectToNSQ(nsqd_addr)
+	tt := &TriggerTask{
+		exitChan:            make(chan int),
+		writer:              w,
+		MsgDeliver:          msg_deliver,
+		notifyTopic:         notify_topic,
+		triggerCollection:   trigger_collection,
+		statisticCollection: statistic_collection,
+	}
+	for i := 0; i < int(max); i++ {
+		r.AddHandler(tt)
+	}
+	lookupdlist := strings.Split(lookupd_addresses, ",")
 	for _, addr := range lookupdlist {
 		log.Printf("lookupd addr %s", addr)
 		err := r.ConnectToLookupd(addr)
@@ -91,8 +100,6 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go trigger_task(msg_deliver, w, notify_topic,
-		trigger_collection, statistic_collection)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan

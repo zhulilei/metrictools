@@ -14,37 +14,22 @@ import (
 
 type TriggerTask struct {
 	exitChan chan int
-	nw       *nsq.Writer
+	writer   *nsq.Writer
 	*metrictools.MsgDeliver
 	notifyTopic         string
 	triggerCollection   string
 	statisticCollection string
 }
 
-func trigger_task(msg_deliver *metrictools.MsgDeliver, w *nsq.Writer, topic string, tg string, st string) {
-	for {
-		m := <-msg_deliver.MessageChan
-		t := &TriggerTask{
-			exitChan:            make(chan int),
-			nw:                  w,
-			MsgDeliver:          msg_deliver,
-			notifyTopic:         topic,
-			triggerCollection:   tg,
-			statisticCollection: st,
-		}
-		go t.trigger_task(m)
-	}
-}
-func (this *TriggerTask) trigger_task(m *metrictools.Message) {
+func (this *TriggerTask) HandleMessage(m *nsq.Message) error {
 	var trigger metrictools.Trigger
-	m.ResponseChannel <- &nsq.FinishedMessage{
-		m.Id, 0, true}
 	if err := json.Unmarshal(m.Body, &trigger); err != nil {
-		return
+		return nil
 	}
 	go this.update_trigger(trigger.Expression)
 	go this.calculate(trigger)
 	go this.statistic(trigger)
+	return nil
 }
 
 func (this *TriggerTask) update_trigger(exp string) {
@@ -203,7 +188,7 @@ func (this *TriggerTask) statistic(trigger metrictools.Trigger) {
 				if body, err := json.Marshal(notify); err == nil {
 					cmd := nsq.Publish(this.notifyTopic,
 						body)
-					this.nw.Write(cmd)
+					this.writer.Write(cmd)
 				} else {
 					log.Println("json nofity", err)
 				}
