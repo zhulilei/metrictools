@@ -237,7 +237,7 @@ func (this *MsgDeliver) Redis() {
 			}
 			body := fmt.Sprintf("%d:%.2f", v[0], v[1])
 			op.Result, op.Err = redis_con.Do(op.Action,
-				v[0], v[1], body)
+				op.Key, v[0], body)
 		case "ZRANGE":
 			fallthrough
 		case "ZRANGEBYSCORE":
