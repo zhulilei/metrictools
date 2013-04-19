@@ -23,11 +23,6 @@ type Record struct {
 	Interval  float64       `bson:"-" json:"-"`
 }
 
-type KeyValue struct {
-	Timestamp int64   `json:"t"`
-	Value     float64 `json:"v"`
-}
-
 type Trigger struct {
 	Expression  string    `bson:"e" json:"expression"`
 	TriggerType int       `bson:"t" json:"trigger_type"`

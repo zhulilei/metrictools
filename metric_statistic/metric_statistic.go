@@ -82,7 +82,6 @@ func main() {
 	w := nsq.NewWriter()
 	w.ConnectToNSQ(nsqd_addr)
 	tt := &TriggerTask{
-		exitChan:            make(chan int),
 		writer:              w,
 		MsgDeliver:          msg_deliver,
 		notifyTopic:         notify_topic,

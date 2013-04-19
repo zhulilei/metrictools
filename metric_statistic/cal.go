@@ -8,7 +8,6 @@ import (
 	"labix.org/v2/mgo/bson"
 	"log"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -19,21 +18,20 @@ type TriggerTask struct {
 	notifyTopic         string
 	triggerCollection   string
 	statisticCollection string
-	exitChan            chan int
 }
 
 func (this *TriggerTask) HandleMessage(m *nsq.Message) error {
 	var trigger metrictools.Trigger
-	if err := json.Unmarshal(m.Body, &trigger); err != nil {
-		return nil
+	if err := json.Unmarshal(m.Body, &trigger); err == nil {
+		triggerChan := make(chan int)
+		go this.update_trigger(trigger.Expression, triggerChan)
+		go this.calculate(trigger, triggerChan)
+		go this.statistic(trigger, triggerChan)
 	}
-	go this.update_trigger(trigger.Expression)
-	go this.calculate(trigger)
-	go this.statistic(trigger)
 	return nil
 }
 
-func (this *TriggerTask) update_trigger(exp string) {
+func (this *TriggerTask) update_trigger(exp string, triggerchan chan int) {
 	session := this.MSession.Copy()
 	defer session.Close()
 	ticker := time.NewTicker(time.Second * 55)
@@ -43,11 +41,11 @@ func (this *TriggerTask) update_trigger(exp string) {
 			Update(bson.M{"e": exp}, bson.M{"u": now})
 		if err != nil {
 			log.Println(err)
-			close(this.exitChan)
+			close(triggerchan)
 			return
 		}
 		select {
-		case <-this.exitChan:
+		case <-triggerchan:
 			return
 		case <-ticker.C:
 		}
@@ -55,36 +53,24 @@ func (this *TriggerTask) update_trigger(exp string) {
 }
 
 // calculate trigger.exp
-func (this *TriggerTask) calculate(trigger metrictools.Trigger) {
+func (this *TriggerTask) calculate(trigger metrictools.Trigger, triggerchan chan int) {
 	session := this.MSession.Clone()
 	defer session.Close()
 	ticker := time.Tick(time.Minute * time.Duration(trigger.Interval))
 	for {
-		rst, err := calculate_exp(this,
-			trigger.Expression)
+		v, err := calculate_exp(this, trigger.Expression)
 		if err != nil {
-			close(this.exitChan)
+			close(triggerchan)
 			return
 		}
 		t := time.Now().Unix()
-		n_v := &metrictools.KeyValue{
-			Timestamp: t,
-			Value:     rst,
-		}
-		op := &metrictools.RedisOP{
-			Action: "ZADD",
-			Key:    "archive:" + trigger.Name,
-			Value:  n_v,
-			Done:   make(chan int),
-		}
-		this.RedisChan <- op
-		<-op.Done
-		if op.Err != nil {
-			close(this.exitChan)
+		_, err = this.RedisDo("ZADD", "statistic:"+trigger.Name, []interface{}{t, v})
+		if err != nil {
+			close(triggerchan)
 			return
 		}
 		select {
-		case <-this.exitChan:
+		case <-triggerchan:
 			return
 		case <-ticker:
 		}
@@ -94,32 +80,23 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger) {
 func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 	exp_list := cal.Parser(exp)
 	k_v := make(map[string]interface{})
-	var err error
 	for _, item := range exp_list {
 		if len(item) > 0 {
-			op := &metrictools.RedisOP{
-				Action: "GET",
-				Key:    item,
-				Done:   make(chan int),
-			}
-			t.RedisChan <- op
-			<-op.Done
-			if op.Err != nil {
+			v, err := t.RedisDo("GET", item, nil)
+			if err != nil {
 				return 0, err
 			}
 			var d float64
-			if op.Result == nil {
-				d, err = strconv.ParseFloat(
-					item, 64)
+			if v == nil {
+				d, err = strconv.ParseFloat(item, 64)
 			} else {
 				d, err = strconv.ParseFloat(
-					string(op.Result.([]byte)), 64)
+					string(v.([]byte)), 64)
 			}
 			if err == nil {
 				k_v[item] = d
 			} else {
-				log.Println("failed to load value of",
-					item)
+				log.Println("failed to load value of", item)
 			}
 		}
 	}
@@ -128,56 +105,33 @@ func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 }
 
 //get statistic result
-func (this *TriggerTask) statistic(trigger metrictools.Trigger) {
+func (this *TriggerTask) statistic(trigger metrictools.Trigger, triggerchan chan int) {
 	session := this.MSession.Clone()
 	ticker := time.Tick(time.Minute * time.Duration(trigger.Period))
 	for {
 		e := time.Now().Unix()
 		s := e - int64(trigger.Interval)
-		n_v := []interface{}{s, e}
-		op := &metrictools.RedisOP{
-			Action: "ZRANGEBYSCORE",
-			Key:    "archive:" + trigger.Name,
-			Value:  n_v,
-			Done:   make(chan int),
-		}
-		this.RedisChan <- op
-		<-op.Done
-		if !trigger.Insertable {
-			n_v = []interface{}{"-inf", s - 1}
-			op = &metrictools.RedisOP{
-				Action: "ZREMRANGEBYSCORE",
-				Key:    "archive:" + trigger.Name,
-				Value:  n_v,
-				Done:   make(chan int),
-			}
-			this.RedisChan <- op
-			<-op.Done
-		}
-		if op.Err != nil {
-			close(this.exitChan)
+		rst, err := this.RedisDo("ZRANGEBYSCORE",
+			"statistic:"+trigger.Name, []interface{}{s, e})
+		if err != nil {
+			close(triggerchan)
 			return
 		}
-
-		md, ok := op.Result.([]interface{})
+		md, ok := rst.([]interface{})
 		if !ok {
 			log.Println("not []interface{}")
 			continue
 		}
 		var values []float64
 		for _, v := range md {
-			t_v := strings.Split(string(v.([]byte)), ":")
-			if len(t_v) != 2 {
-				log.Println("error redis data")
-				continue
+			value, err := metrictools.GetValue(string(v.([]byte)))
+			if err == nil {
+				values = append(values, value)
 			}
-			v, _ := strconv.ParseFloat(t_v[1], 64)
-			values = append(values, v)
 		}
 		stat, value := check_value(trigger, values)
-
 		var tg metrictools.Trigger
-		err := session.DB(this.DBName).C(this.triggerCollection).
+		err = session.DB(this.DBName).C(this.triggerCollection).
 			Find(bson.M{"e": trigger.Expression}).One(&tg)
 		if err == nil {
 			if tg.Stat != stat {
@@ -196,7 +150,7 @@ func (this *TriggerTask) statistic(trigger metrictools.Trigger) {
 			}
 		}
 		select {
-		case <-this.exitChan:
+		case <-triggerchan:
 			return
 		case <-ticker:
 		}
