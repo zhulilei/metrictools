@@ -68,8 +68,7 @@ func main() {
 	if redis_pool.Get() == nil {
 		log.Fatal(err)
 	}
-	msg_deliver := metrictools.MsgDeliver{
-		MessageChan:    make(chan *metrictools.Message),
+	msg_deliver := &metrictools.MsgDeliver{
 		MSession:       db_session,
 		DBName:         dbname,
 		RedisPool:      redis_pool,
@@ -90,7 +89,9 @@ func main() {
 	}
 	max, _ := strconv.ParseInt(maxinflight, 10, 32)
 	r.SetMaxInFlight(int(max))
-	r.AddAsyncHandler(&msg_deliver)
+	for i := 0; i < int(max); i++ {
+		r.AddHandler(msg_deliver)
+	}
 	lookupdlist := strings.Split(lookupd_addresses, ",")
 	w := nsq.NewWriter()
 	w.ConnectToNSQ(nsqd_addr)
@@ -101,7 +102,6 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go msg_deliver.ProcessData()
 	go ScanTrigger(db_session, dbname, trigger_collection, w, trigger_topic)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)

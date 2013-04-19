@@ -13,13 +13,7 @@ import (
 	"time"
 )
 
-type Message struct {
-	*nsq.Message
-	ResponseChannel chan *nsq.FinishedMessage
-}
-
 type MsgDeliver struct {
-	MessageChan    chan *Message
 	MSession       *mgo.Session
 	DBName         string
 	RedisChan      chan *RedisOP
@@ -54,31 +48,17 @@ func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Record {
 	return msgs
 }
 
-func (this *MsgDeliver) HandleMessage(m *nsq.Message, r chan *nsq.FinishedMessage) {
-	this.MessageChan <- &Message{m, r}
-}
-
-func (this *MsgDeliver) ProcessData() {
-	for {
-		m := <-this.MessageChan
-		go this.insert_data(m)
-	}
-}
-
-func (this *MsgDeliver) insert_data(m *Message) {
+func (this *MsgDeliver) HandleMessage(m *nsq.Message) error {
 	var err error
 	var c []CollectdJSON
 	if err = json.Unmarshal(m.Body, &c); err != nil {
-		m.ResponseChannel <- &nsq.FinishedMessage{
-			m.Id, 0, true}
 		log.Println(err)
-		return
+		return nil
 	}
 	if this.VerboseLogging {
 		log.Println("RAW JSON String: ", string(m.Body))
 		log.Println("JSON SIZE: ", len(c))
 	}
-	stat := true
 	for _, v := range c {
 		if len(v.Values) != len(v.DSNames) {
 			continue
@@ -88,11 +68,10 @@ func (this *MsgDeliver) insert_data(m *Message) {
 		}
 		msgs := this.ParseJSON(v)
 		if err := this.PersistData(msgs); err != nil {
-			stat = false
-			break
+			return err
 		}
 	}
-	m.ResponseChannel <- &nsq.FinishedMessage{m.Id, 0, stat}
+	return nil
 }
 
 func (this *MsgDeliver) PersistData(msgs []*Record) error {
