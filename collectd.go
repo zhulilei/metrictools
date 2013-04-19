@@ -36,3 +36,20 @@ func (this *CollectdJSON) GenNames() []string {
 	}
 	return rst
 }
+func (this *CollectdJSON) ToRecord() []*Record {
+	keys := this.GenNames()
+	var msgs []*Record
+	for i := range this.Values {
+		msg := &Record{
+			Host:      this.Host,
+			Key:       this.Host + "_" + keys[i],
+			Value:     this.Values[i],
+			Timestamp: int64(this.TimeStamp),
+			TTL:       int(this.Interval) * 3 / 2,
+			DSType:    this.DSTypes[i],
+			Interval:  this.Interval,
+		}
+		msgs = append(msgs, msg)
+	}
+	return msgs
+}

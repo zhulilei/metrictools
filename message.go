@@ -30,24 +30,6 @@ type RedisOP struct {
 	Done   chan int
 }
 
-func (this *MsgDeliver) ParseJSON(c CollectdJSON) []*Record {
-	keys := c.GenNames()
-	var msgs []*Record
-	for i := range c.Values {
-		msg := &Record{
-			Host:      c.Host,
-			Key:       c.Host + "_" + keys[i],
-			Value:     c.Values[i],
-			Timestamp: int64(c.TimeStamp),
-			TTL:       int(c.Interval) * 3 / 2,
-			DSType:    c.DSTypes[i],
-			Interval:  c.Interval,
-		}
-		msgs = append(msgs, msg)
-	}
-	return msgs
-}
-
 func (this *MsgDeliver) HandleMessage(m *nsq.Message) error {
 	var err error
 	var c []CollectdJSON
@@ -66,7 +48,7 @@ func (this *MsgDeliver) HandleMessage(m *nsq.Message) error {
 		if len(v.Values) != len(v.DSTypes) {
 			continue
 		}
-		msgs := this.ParseJSON(v)
+		msgs := v.ToRecord()
 		if err := this.PersistData(msgs); err != nil {
 			return err
 		}
