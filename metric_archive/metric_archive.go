@@ -57,7 +57,6 @@ func main() {
 		log.Fatal(err)
 	}
 	msg_deliver := metrictools.MsgDeliver{
-		MessageChan:    make(chan *metrictools.Message),
 		MSession:       db_session,
 		DBName:         dbname,
 		RedisPool:      redis_pool,
