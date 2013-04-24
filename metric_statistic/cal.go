@@ -3,8 +3,8 @@ package main
 import (
 	metrictools "../"
 	"encoding/json"
+	"github.com/bitly/nsq/nsq"
 	"github.com/datastream/cal"
-	"github.com/datastream/nsq/nsq"
 	"labix.org/v2/mgo/bson"
 	"log"
 	"strconv"
@@ -141,9 +141,7 @@ func (this *TriggerTask) statistic(trigger metrictools.Trigger, triggerchan chan
 					Value: value,
 				}
 				if body, err := json.Marshal(notify); err == nil {
-					cmd := nsq.Publish(this.notifyTopic,
-						body)
-					this.writer.Write(cmd)
+					_, _, _ = this.writer.Publish(this.notifyTopic, body)
 				} else {
 					log.Println("json nofity", err)
 				}

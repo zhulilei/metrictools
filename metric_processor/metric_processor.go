@@ -4,7 +4,7 @@ import (
 	metrictools "../"
 	"encoding/json"
 	"flag"
-	"github.com/datastream/nsq/nsq"
+	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -93,7 +93,7 @@ func main() {
 		r.AddHandler(msg_deliver)
 	}
 	lookupdlist := strings.Split(lookupd_addresses, ",")
-	w := nsq.NewWriter()
+	w := nsq.NewWriter(0)
 	w.ConnectToNSQ(nsqd_addr)
 	for _, addr := range lookupdlist {
 		log.Printf("lookupd addr %s", addr)
@@ -102,7 +102,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go ScanTrigger(db_session, dbname, trigger_collection, w, trigger_topic)
+	go ScanTrigger(db_session, dbname, trigger_collection, w, trigger_topic, nsqd_addr)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
@@ -110,7 +110,7 @@ func main() {
 	w.Stop()
 }
 
-func ScanTrigger(msession *mgo.Session, dbname string, collection string, w *nsq.Writer, topic string) {
+func ScanTrigger(msession *mgo.Session, dbname string, collection string, w *nsq.Writer, topic string, addr string) {
 	session := msession.Copy()
 	defer session.Close()
 	ticker := time.Tick(time.Minute)
@@ -128,9 +128,9 @@ func ScanTrigger(msession *mgo.Session, dbname string, collection string, w *nsq
 						body)
 				}
 			}
-			cmd, err := nsq.MultiPublish(topic, trigger_bodys)
-			if err == nil {
-				w.Write(cmd)
+			_, _, err = w.MultiPublish(topic, trigger_bodys)
+			if err != nil {
+				w.ConnectToNSQ(addr)
 			}
 		}
 		<-ticker

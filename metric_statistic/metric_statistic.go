@@ -3,7 +3,7 @@ package main
 import (
 	metrictools "../"
 	"flag"
-	"github.com/datastream/nsq/nsq"
+	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"log"
@@ -79,7 +79,7 @@ func main() {
 	go msg_deliver.Redis()
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	r.SetMaxInFlight(int(max))
-	w := nsq.NewWriter()
+	w := nsq.NewWriter(0)
 	w.ConnectToNSQ(nsqd_addr)
 	tt := &TriggerTask{
 		writer:              w,

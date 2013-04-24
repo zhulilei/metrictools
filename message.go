@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/datastream/nsq/nsq"
+	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"labix.org/v2/mgo"
 	"log"
@@ -74,8 +74,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		_, err = this.RedisDo("ZADD",
-			"archive:"+msg.Key,
+		_, err = this.RedisDo("ZADD", "archive:"+msg.Key,
 			[]interface{}{msg.Timestamp, new_value})
 		if err != nil {
 			log.Println(err)
@@ -104,7 +103,7 @@ func (this *MsgDeliver) CompressData() {
 			value_list := rst.([]interface{})
 			for _, value := range value_list {
 				this.remove_old(value.([]byte))
-				this.remove_dup(value.([]byte))
+				this.do_compress(value.([]byte))
 			}
 		}
 		<-tick
@@ -112,7 +111,7 @@ func (this *MsgDeliver) CompressData() {
 }
 
 func (this *MsgDeliver) remove_old(key []byte) {
-	lastweek := time.Now().Unix() - 7*24*3600
+	lastweek := time.Now().Unix() - 60*24*3600
 	_, err := this.RedisDo("ZREMRANGEBYSCORE",
 		string(key), []interface{}{0, lastweek})
 	if err != nil {
@@ -120,42 +119,38 @@ func (this *MsgDeliver) remove_old(key []byte) {
 	}
 }
 
-func (this *MsgDeliver) remove_dup(key []byte) {
-	index := int64(0)
-	count := this.GetSetSize(string(key))
+func (this *MsgDeliver) do_compress(key []byte) {
+	current := time.Now().Unix() - 60*24*3600
+	last_d := time.Now().Unix() - 24*3600
+	last_2d := time.Now().Unix() - 2*24*3600
+	var interval int64
 	for {
-		if index > count {
+		if current > last_d {
 			break
 		}
-		rst, err := this.RedisDo("ZRANGE", string(key),
-			[]interface{}{index, index + 5})
+		if current < last_2d {
+			interval = 600
+		} else {
+			interval = 300
+		}
+		rst, err := this.RedisDo("ZRANGEBYSCORE", string(key),
+			[]interface{}{current, current + interval})
 		if err == nil {
 			value_list := rst.([]interface{})
-			var last_key interface{}
-			var last_v float64
-			var last_t int64
-			last_v = -1
+			sumvalue := float64(0)
+			sumtime := int64(0)
 			for _, value := range value_list {
 				t, v, _ := GetTimestampValue(string(value.([]byte)))
-				if v != last_v {
-					last_v = v
-					last_t = t
-					last_key = value
-					continue
-				}
-				if (t - last_t) > 3600 {
-					last_t = t
-					continue
-				}
-				this.RedisDo("ZREM",
-					string(key), last_key)
-				last_key = value
-				last_t = t
-				count--
-				index--
+				sumvalue += v
+				sumtime += t
+				this.RedisDo("ZREM", string(key), value)
+			}
+			size := len(value_list)
+			if size > 0 {
+				this.RedisDo("ZADD", string(key),
+					[]interface{}{sumtime / int64(size), sumvalue / float64(size)})
 			}
 		}
-		index = index + 5
 	}
 }
 
