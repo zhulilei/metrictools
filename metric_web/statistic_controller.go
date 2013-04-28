@@ -19,10 +19,9 @@ func StatisticHandler(w http.ResponseWriter, r *http.Request) {
 		start = end - 3600*3
 	}
 	record_list := make(map[string][]interface{})
-	redis_con := data_redis_pool.Get()
 
-	metric_data, err := redis_con.Do("ZRANGEBYSCORE",
-		"archive:"+name, start, end)
+	metric_data, err := wb.dataservice.Do("ZRANGEBYSCORE",
+		"archive:"+name, []interface{}{start, end})
 	if err != nil {
 		log.Println(err)
 		return

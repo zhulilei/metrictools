@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 )
 
 var (
@@ -70,30 +69,41 @@ func main() {
 		log.Fatal(err)
 	}
 
-	msg_deliver := &metrictools.MsgDeliver{
-		RedisPool:      redis_pool,
-		RedisChan:      make(chan *metrictools.RedisOP),
-		VerboseLogging: false,
+	rs := &metrictools.RedisService{
+		RedisPool: redis_pool,
+		RedisChan: make(chan *metrictools.RedisOP),
 	}
-	r, err := nsq.NewReader(metric_topic, metric_channel)
-	if err != nil {
-		log.Fatal(err)
+	rs2 := &metrictools.RedisService{
+		RedisPool: config_redis_pool,
+		RedisChan: make(chan *metrictools.RedisOP),
 	}
+	go rs2.Run()
 	con_max, _ := strconv.Atoi(redis_count)
 	if con_max == 0 {
 		con_max = 1
 	}
 	for i := 0; i < con_max; i++ {
-		go metrictools.Redis(msg_deliver.RedisPool, msg_deliver.RedisChan)
+		go rs.Run()
+	}
+	w := nsq.NewWriter(0)
+	w.ConnectToNSQ(nsqd_addr)
+	msg_deliver := &MsgDeliver{
+		dataservice:   rs,
+		configservice: rs2,
+		writer:        w,
+		topic:         trigger_topic,
+		nsqd_addr:     nsqd_addr,
 	}
 	max, _ := strconv.ParseInt(maxinflight, 10, 32)
+	r, err := nsq.NewReader(metric_topic, metric_channel)
+	if err != nil {
+		log.Fatal(err)
+	}
 	r.SetMaxInFlight(int(max))
 	for i := 0; i < int(max); i++ {
 		r.AddHandler(msg_deliver)
 	}
 	lookupdlist := strings.Split(lookupd_addresses, ",")
-	w := nsq.NewWriter(0)
-	w.ConnectToNSQ(nsqd_addr)
 	for _, addr := range lookupdlist {
 		log.Printf("lookupd addr %s", addr)
 		err := r.ConnectToLookupd(addr)
@@ -101,43 +111,10 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	confchan := make(chan *metrictools.RedisOP)
-	go metrictools.Redis(config_redis_pool, confchan)
-	go ScanTrigger(confchan, w, trigger_topic, nsqd_addr)
+	go msg_deliver.ScanTrigger()
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
 	r.Stop()
 	w.Stop()
-}
-
-func ScanTrigger(confchan chan *metrictools.RedisOP, w *nsq.Writer, topic string, addr string) {
-	ticker := time.Tick(time.Minute)
-	for {
-		now := time.Now().Unix()
-		v, err := metrictools.RedisDo(confchan, "KEYS", "trigger:*", nil)
-		if err != nil {
-			continue
-		}
-		if v != nil {
-			for _, value := range v.([]interface{}) {
-				last, err := metrictools.RedisDo(confchan,
-					"HGET", string(value.([]byte)), "lastmodify")
-				if err != nil {
-					continue
-				}
-				if last != nil {
-					d, _ := strconv.ParseInt(string(last.([]byte)), 10, 64)
-					if now-d < 61 {
-						continue
-					}
-				}
-				_, _, err = w.Publish(topic, value.([]byte))
-				if err != nil {
-					w.ConnectToNSQ(addr)
-				}
-			}
-		}
-		<-ticker
-	}
 }

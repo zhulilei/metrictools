@@ -69,27 +69,31 @@ func main() {
 		log.Fatal(err)
 	}
 
-	msg_deliver := &metrictools.MsgDeliver{
-		RedisPool:      redis_pool,
-		VerboseLogging: false,
+	rs := &metrictools.RedisService{
+		RedisPool: redis_pool,
+		RedisChan: make(chan *metrictools.RedisOP),
+	}
+	rs2 := &metrictools.RedisService{
+		RedisPool: config_redis_pool,
+		RedisChan: make(chan *metrictools.RedisOP),
 	}
 	r, err := nsq.NewReader(trigger_topic, trigger_channel)
 	if err != nil {
 		log.Fatal(err)
 	}
-	go metrictools.Redis(msg_deliver.RedisPool, msg_deliver.RedisChan)
+	go rs.Run()
+	go rs2.Run()
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	r.SetMaxInFlight(int(max))
 	w := nsq.NewWriter(0)
 	w.ConnectToNSQ(nsqd_addr)
 	tt := &TriggerTask{
-		writer:          w,
-		MsgDeliver:      msg_deliver,
-		notifyTopic:     notify_topic,
-		ConfigRedisPool: config_redis_pool,
-		ConfigChan:      make(chan *metrictools.RedisOP),
+		writer:        w,
+		dataservice:   rs,
+		configservice: rs2,
+		topic:         notify_topic,
 	}
-	go metrictools.Redis(tt.ConfigRedisPool, tt.ConfigChan)
+
 	for i := 0; i < int(max); i++ {
 		r.AddHandler(tt)
 	}

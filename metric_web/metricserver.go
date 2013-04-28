@@ -13,8 +13,13 @@ var (
 	conf_file = flag.String("conf", "metrictools.conf", "analyst config file")
 )
 
-var config_redis_pool *redis.Pool
-var data_redis_pool *redis.Pool
+type WebService struct {
+	dataservice       *metrictools.RedisService
+	configservice     *metrictools.RedisService
+	config_redis_pool *redis.Pool
+}
+
+var wb *WebService
 
 func main() {
 	flag.Parse()
@@ -40,7 +45,7 @@ func main() {
 		}
 		return c, err
 	}
-	config_redis_pool = redis.NewPool(config_redis_con, 3)
+	config_redis_pool := redis.NewPool(config_redis_con, 3)
 	defer config_redis_pool.Close()
 
 	data_redis_con := func() (redis.Conn, error) {
@@ -54,8 +59,22 @@ func main() {
 		}
 		return c, err
 	}
-	data_redis_pool = redis.NewPool(data_redis_con, 3)
+	data_redis_pool := redis.NewPool(data_redis_con, 3)
 	defer data_redis_pool.Close()
+
+	rs := &metrictools.RedisService{
+		RedisPool: data_redis_pool,
+		RedisChan: make(chan *metrictools.RedisOP),
+	}
+	rs2 := &metrictools.RedisService{
+		RedisPool: config_redis_pool,
+		RedisChan: make(chan *metrictools.RedisOP),
+	}
+	wb = &WebService{
+		dataservice:       rs,
+		configservice:     rs2,
+		config_redis_pool: config_redis_pool,
+	}
 	r := mux.NewRouter()
 	s := r.PathPrefix("/monitorapi/").Subrouter()
 

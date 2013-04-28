@@ -41,19 +41,19 @@ func main() {
 	if redis_pool.Get() == nil {
 		log.Fatal(err)
 	}
-	msg_deliver := metrictools.MsgDeliver{
-		RedisPool:      redis_pool,
-		RedisChan:      make(chan *metrictools.RedisOP),
-		VerboseLogging: false,
+	rs := &metrictools.RedisService{
+		RedisPool: redis_pool,
+		RedisChan: make(chan *metrictools.RedisOP),
 	}
+	dr := DataArchive{rs}
 	con_max, _ := strconv.Atoi(redis_count)
 	if con_max == 0 {
 		con_max = 1
 	}
 	for i := 0; i < con_max; i++ {
-		go metrictools.Redis(msg_deliver.RedisPool, msg_deliver.RedisChan)
+		go rs.Run()
 	}
-	go msg_deliver.CompressData()
+	go dr.CompressData()
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan

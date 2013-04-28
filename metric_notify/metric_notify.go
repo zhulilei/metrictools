@@ -46,14 +46,12 @@ func main() {
 	if redis_pool.Get() == nil {
 		log.Fatal(err)
 	}
-	msg_deliver := &metrictools.MsgDeliver{
-		RedisPool:      redis_pool,
-		VerboseLogging: false,
+	rs := &metrictools.RedisService{
+		RedisPool: redis_pool,
+		RedisChan: make(chan *metrictools.RedisOP),
 	}
-	nt := &Notify{
-		MsgDeliver: msg_deliver,
-	}
-	go metrictools.Redis(msg_deliver.RedisPool, msg_deliver.RedisChan)
+	nt := &Notify{rs}
+	go rs.Run()
 	r, err := nsq.NewReader(notify_topic, notify_channel)
 	if err != nil {
 		log.Fatal(err)

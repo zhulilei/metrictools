@@ -13,8 +13,7 @@ func ActionIndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	tg := mux.Vars(r)["t_name"]
 	var err error
-	redis_con := config_redis_pool.Get()
-	data, err := redis_con.Do("KEYS", "actions:"+tg+"*")
+	data, err := wb.configservice.Do("KEYS", "actions:"+tg+"*", nil)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -43,7 +42,7 @@ func ActionNewHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 	tg := mux.Vars(r)["t_name"]
-	redis_con := config_redis_pool.Get()
+	redis_con := wb.config_redis_pool.Get()
 	_, err = redis_con.Do("HMSET", "actions:"+tg+":"+action.Name,
 		"repeat", action.Repeat,
 		"uri", action.Uri)
@@ -59,8 +58,7 @@ func ActionNewHandler(w http.ResponseWriter, r *http.Request) {
 func ActionRemoveHandler(w http.ResponseWriter, r *http.Request) {
 	tg := mux.Vars(r)["t_name"]
 	name := mux.Vars(r)["name"]
-	redis_con := config_redis_pool.Get()
-	_, err := redis_con.Do("DEL", "actions:"+tg+":"+name)
+	_, err := wb.configservice.Do("DEL", "actions:"+tg+":"+name, nil)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))

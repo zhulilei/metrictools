@@ -4,6 +4,7 @@
 
 MAKEFLAGS = -s
 all:
+	cd metric_archive; go build
 	cd metric_processor; go build
 	cd metric_statistic; go build
 	cd metric_notify; go build
@@ -11,12 +12,14 @@ all:
 
 fmt:
 	go fmt
+	cd metric_archive; go fmt
 	cd metric_processor; go fmt
 	cd metric_statistic; go fmt
 	cd metric_notify; go fmt
 	cd metric_web; go fmt
 
 clean:
+	cd metric_archive; go clean
 	cd metric_processor; go clean
 	cd metric_statistic; go clean
 	cd metric_notify; go clean

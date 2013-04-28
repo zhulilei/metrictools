@@ -14,23 +14,20 @@ import (
 
 // add map to maintain current calculating exp
 type TriggerTask struct {
-	*metrictools.MsgDeliver
-	writer              *nsq.Writer
-	notifyTopic         string
-	triggerCollection   string
-	statisticCollection string
-	ConfigRedisPool     *redis.Pool
-	ConfigChan          chan *metrictools.RedisOP
+	dataservice   *metrictools.RedisService
+	configservice *metrictools.RedisService
+	writer        *nsq.Writer
+	topic         string
 }
 
 func (this *TriggerTask) HandleMessage(m *nsq.Message) error {
 	triggerChan := make(chan int)
 	name := string(m.Body)
-	interval, _ := redis.Int(metrictools.RedisDo(this.ConfigChan, "HGET", name, "interval"))
-	period, _ := redis.Int(metrictools.RedisDo(this.ConfigChan, "HGET", name, "period"))
-	ttype, _ := redis.Int(metrictools.RedisDo(this.ConfigChan, "HGET", name, "type"))
-	exp, _ := redis.String(metrictools.RedisDo(this.ConfigChan, "HGET", name, "exp"))
-	relation, _ := redis.Int(metrictools.RedisDo(this.ConfigChan, "HGET", name, "relation"))
+	interval, _ := redis.Int(this.configservice.Do("HGET", name, "interval"))
+	period, _ := redis.Int(this.configservice.Do("HGET", name, "period"))
+	ttype, _ := redis.Int(this.configservice.Do("HGET", name, "type"))
+	exp, _ := redis.String(this.configservice.Do("HGET", name, "exp"))
+	relation, _ := redis.Int(this.configservice.Do("HGET", name, "relation"))
 	n := strings.Split(name, ":")
 	trigger := metrictools.Trigger{
 		Name:        n[1],
@@ -50,8 +47,8 @@ func (this *TriggerTask) update_trigger(name string, triggerchan chan int) {
 	ticker := time.NewTicker(time.Second * 55)
 	for {
 		now := time.Now().Unix()
-		_, err := metrictools.RedisDo(this.ConfigChan, "HSET",
-			name, []interface{}{"lastmodify", now})
+		_, err := this.configservice.Do("HSET", name,
+			[]interface{}{"last", now})
 		if err != nil {
 			log.Println(err)
 			close(triggerchan)
@@ -75,7 +72,7 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger, triggerchan chan
 			return
 		}
 		t := time.Now().Unix()
-		_, err = metrictools.RedisDo(this.RedisChan, "ZADD", "statistic:"+trigger.Name, []interface{}{t, v})
+		_, err = this.dataservice.Do("ZADD", "statistic:"+trigger.Name, []interface{}{t, v})
 		if err != nil {
 			close(triggerchan)
 			return
@@ -93,7 +90,7 @@ func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 	k_v := make(map[string]interface{})
 	for _, item := range exp_list {
 		if len(item) > 0 {
-			v, err := metrictools.RedisDo(t.ConfigChan, "GET", item, nil)
+			v, err := t.configservice.Do("GET", item, nil)
 			if err != nil {
 				return 0, err
 			}
@@ -101,8 +98,7 @@ func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 			if v == nil {
 				d, err = strconv.ParseFloat(item, 64)
 			} else {
-				d, err = strconv.ParseFloat(
-					string(v.([]byte)), 64)
+				d, err = strconv.ParseFloat(string(v.([]byte)), 64)
 			}
 			if err == nil {
 				k_v[item] = d
@@ -121,7 +117,7 @@ func (this *TriggerTask) statistic(trigger metrictools.Trigger, triggerchan chan
 	for {
 		e := time.Now().Unix()
 		s := e - int64(trigger.Interval)
-		rst, err := metrictools.RedisDo(this.RedisChan, "ZRANGEBYSCORE",
+		rst, err := this.dataservice.Do("ZRANGEBYSCORE",
 			"statistic:"+trigger.Name, []interface{}{s, e})
 		if err != nil {
 			close(triggerchan)
@@ -134,22 +130,21 @@ func (this *TriggerTask) statistic(trigger metrictools.Trigger, triggerchan chan
 		}
 		var values []float64
 		for _, v := range md {
-			value, err := metrictools.GetValue(string(v.([]byte)))
+			value, err := this.dataservice.GetValue(string(v.([]byte)))
 			if err == nil {
 				values = append(values, value)
 			}
 		}
 		stat, value := check_value(trigger, values)
 
-		v, err := metrictools.RedisDo(this.ConfigChan, "HGET",
-			"trigger:"+trigger.Name, "stat")
+		v, err := this.configservice.Do("HGET", "trigger:"+trigger.Name, "stat")
 		if err == nil {
 			var state int
 			if v != nil {
 				state, _ = strconv.Atoi(string(v.([]byte)))
 			} else {
-				v, err = metrictools.RedisDo(this.ConfigChan,
-					"HSET", "trigger:"+trigger.Name,
+				v, err = this.configservice.Do("HSET",
+					"trigger:"+trigger.Name,
 					[]interface{}{"stat", stat})
 			}
 			if stat != state {
@@ -159,7 +154,7 @@ func (this *TriggerTask) statistic(trigger metrictools.Trigger, triggerchan chan
 					Value: value,
 				}
 				if body, err := json.Marshal(notify); err == nil {
-					_, _, _ = this.writer.Publish(this.notifyTopic, body)
+					_, _, _ = this.writer.Publish(this.topic, body)
 				} else {
 					log.Println("json nofity", err)
 				}
