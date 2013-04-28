@@ -10,7 +10,7 @@ func HostHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.WriteHeader(http.StatusOK)
 	host := mux.Vars(req)["name"]
-	redis_con := redis_pool.Get()
+	redis_con := data_redis_pool.Get()
 	var query []string
 	metric_list, err := redis_con.Do("KEYS", "archive:"+host+"*")
 	if err == nil {
@@ -30,7 +30,7 @@ func HostClearMetricHandler(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusMovedPermanently)
 
 	host := mux.Vars(req)["name"]
-	redis_con := redis_pool.Get()
+	redis_con := data_redis_pool.Get()
 	_, err := redis_con.Do("DEL", host)
 	if err != nil {
 		log.Println("failed to get set", err)

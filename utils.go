@@ -24,29 +24,26 @@ type Record struct {
 }
 
 type Trigger struct {
-	Expression  string    `bson:"e" json:"expression"`
-	TriggerType int       `bson:"t" json:"trigger_type"`
-	Period      int       `bson:"p" json:"period"`
-	Relation    int       `bson:"r" json:"relation"`
-	Interval    int       `bson:"i" json:"interval"`
-	Values      []float64 `bson:"v" json:"values"`
-	Insertable  bool      `bson:"i" json:"insert_able"`
-	Name        string    `bson:"n" json:"name"`
-	Production  string    `bson:"pd" json:"production"`
-	Stat        int       `bson:"st" json:"stat"`
-	UpdateTime  int64     `bson:"u" json:"update_time"`
+	Expression  string    `json:"expression"`
+	TriggerType int       `json:"trigger_type"`
+	Relation    int       `json:"relation"`
+	Interval    int       `json:"interval"`
+	Values      []float64 `json:"values"`
+	Name        string    `json:"name"`
+	Role        string    `json:"role"`
+	Stat        int       `json:"stat"`
 }
 
 type Notify struct {
-	Name  string  `bson:"n" json:"trigger_name"`
-	Level int     `bson:"l" json:"level"`
-	Value float64 `bson:"v" json:"value"`
+	Name  string  `json:"trigger_name"`
+	Level int     `json:"level"`
+	Value float64 `json:"value"`
 }
 
 type NotifyAction struct {
-	Name       string `bson:"n" json:"trigger_name"`
-	Repeat     int    `bson:"r" json:"repeat"`
-	Uri        string `bson:"uri" json:"uri"`
-	UpdateTime int64  `bson:"u" json:"update_time"`
-	Count      int    `bson:"c" json:"count"`
+	Name       string `json:"name"`
+	Repeat     int    `json:"repeat"`
+	Uri        string `json:"uri"`
+	UpdateTime int64  `json:"update_time"`
+	Count      int    `json:"count"`
 }

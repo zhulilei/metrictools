@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"github.com/gorilla/mux"
 	"io/ioutil"
-	"labix.org/v2/mgo/bson"
 	"log"
 	"net/http"
 )
@@ -13,17 +12,13 @@ import (
 func TriggerShowHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	name := mux.Vars(r)["name"]
-	var err error
-	session := db_session.Clone()
-	defer session.Close()
-	var tg metrictools.Trigger
-	err = session.DB(dbname).C(trigger_collection).
-		Find(bson.M{"n": name}).One(&tg)
+	redis_con := config_redis_pool.Get()
+	data, err := redis_con.Do("GET", "trigger:" + name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
-		body, _ := json.Marshal(tg)
+		body, _ := json.Marshal(data.([]byte))
 		w.WriteHeader(http.StatusOK)
 		w.Write(body)
 	}
@@ -33,7 +28,7 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Find Failed"))
+		w.Write([]byte("Failed to read request"))
 		log.Println(err)
 		return
 	}
@@ -41,15 +36,20 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 	var tg metrictools.Trigger
 	if err = json.Unmarshal(body, &tg); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Json error"))
+		w.Write([]byte("failed to parse json"))
 		return
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
-	session := db_session.Clone()
-	defer session.Close()
-	//tg.Name = genname(tg.Expression)
-	err = session.DB(dbname).C(trigger_collection).Insert(tg)
+	redis_con := config_redis_pool.Get()
+	_, err = redis_con.Do("HMSET", "trigger:" + tg.Name,
+		"exp", tg.Expression,
+		"type", tg.TriggerType,
+		"relation", tg.Relation,
+		"values", tg.Values,
+		"interval", tg.Interval,
+		"role", tg.Role,
+		"stat", tg.Stat)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
@@ -58,48 +58,14 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Add successful"))
 	}
 }
-func TriggerUpdateHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Find Failed"))
-		log.Println(err)
-		return
-	}
-	name := mux.Vars(r)["name"]
-	var tg metrictools.Trigger
-	if err = json.Unmarshal(body, &tg); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("json error"))
-		return
-	} else {
-		w.WriteHeader(http.StatusOK)
-	}
-	session := db_session.Clone()
-	defer session.Close()
-	err = session.DB(dbname).C(trigger_collection).
-		Update(bson.M{"n": name}, tg)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Find Failed"))
-	} else {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("update successful"))
-	}
-}
+
 func TriggerRemoveHandler(w http.ResponseWriter, r *http.Request) {
-	var err error
 	name := mux.Vars(r)["name"]
-	session := db_session.Clone()
-	defer session.Close()
-	err = session.DB(dbname).C(notify_collection).
-		Remove(bson.M{"n": name})
-	err = session.DB(dbname).C(trigger_collection).
-		Remove(bson.M{"n": name})
+	redis_con := config_redis_pool.Get()
+	_, err := redis_con.Do("DEL", "trigger:" + name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Find Failed"))
-		db_session.Refresh()
+		w.Write([]byte("Failed to delete trigger"))
 	} else {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("delete successful"))

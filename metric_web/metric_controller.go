@@ -9,7 +9,7 @@ import (
 
 func MetricHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	metrics := req.FormValue("metrics") // all
+	metrics := req.FormValue("metrics")
 	starttime := req.FormValue("starttime")
 	endtime := req.FormValue("endtime")
 	start := gettime(starttime)
@@ -19,10 +19,8 @@ func MetricHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	metric_list := strings.Split(metrics, ",")
-	session := db_session.Clone()
-	defer session.Close()
 	record_list := make(map[string][]interface{})
-	redis_con := redis_pool.Get()
+	redis_con := data_redis_pool.Get()
 	for _, v := range metric_list {
 		metric_data, err := redis_con.Do("ZRANGEBYSCORE",
 			"archive:"+v, start, end)
