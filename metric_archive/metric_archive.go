@@ -4,7 +4,6 @@ import (
 	metrictools "../"
 	"flag"
 	"github.com/garyburd/redigo/redis"
-	"labix.org/v2/mgo"
 	"log"
 	"os"
 	"os/signal"
@@ -22,24 +21,10 @@ func main() {
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	mongouri, _ := c.Global["mongodb"]
-	dbname, _ := c.Global["dbname"]
-	user, _ := c.Global["user"]
-	password, _ := c.Global["password"]
-	redis_count, _ := c.Global["redis_conn_count"]
-	redis_server, _ := c.Redis["server"]
-	redis_auth, _ := c.Redis["auth"]
+	redis_count, _ := c["redis_conn_count"]
+	redis_server, _ := c["data_redis_server"]
+	redis_auth, _ := c["data_redis_auth"]
 
-	db_session, err := mgo.Dial(mongouri)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if len(user) > 0 {
-		err = db_session.DB(dbname).Login(user, password)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
 	redis_con := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", redis_server)
 		if err != nil {
@@ -57,19 +42,16 @@ func main() {
 		log.Fatal(err)
 	}
 	msg_deliver := metrictools.MsgDeliver{
-		MSession:       db_session,
-		DBName:         dbname,
 		RedisPool:      redis_pool,
 		RedisChan:      make(chan *metrictools.RedisOP),
 		VerboseLogging: false,
 	}
-	defer db_session.Close()
 	con_max, _ := strconv.Atoi(redis_count)
 	if con_max == 0 {
 		con_max = 1
 	}
 	for i := 0; i < con_max; i++ {
-		go msg_deliver.Redis()
+		go metrictools.Redis(msg_deliver.RedisPool, msg_deliver.RedisChan)
 	}
 	go msg_deliver.CompressData()
 	termchan := make(chan os.Signal, 1)
