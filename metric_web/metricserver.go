@@ -66,10 +66,12 @@ func main() {
 		RedisPool: data_redis_pool,
 		RedisChan: make(chan *metrictools.RedisOP),
 	}
+	go rs.Run()
 	rs2 := &metrictools.RedisService{
 		RedisPool: config_redis_pool,
 		RedisChan: make(chan *metrictools.RedisOP),
 	}
+	go rs2.Run()
 	wb = &WebService{
 		dataservice:       rs,
 		configservice:     rs2,
