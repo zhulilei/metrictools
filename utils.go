@@ -28,6 +28,7 @@ type Trigger struct {
 	TriggerType int       `json:"trigger_type"`
 	Relation    int       `json:"relation"`
 	Interval    int       `json:"interval"`
+	Period      int       `json:"period"`
 	Values      []float64 `json:"values"`
 	Name        string    `json:"name"`
 	Role        string    `json:"role"`

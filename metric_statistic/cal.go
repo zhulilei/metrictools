@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"github.com/bitly/nsq/nsq"
 	"github.com/datastream/cal"
-	"labix.org/v2/mgo/bson"
+	"github.com/garyburd/redigo/redis"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -18,27 +19,39 @@ type TriggerTask struct {
 	notifyTopic         string
 	triggerCollection   string
 	statisticCollection string
+	ConfigRedisPool     *redis.Pool
+	ConfigChan          chan *metrictools.RedisOP
 }
 
 func (this *TriggerTask) HandleMessage(m *nsq.Message) error {
-	var trigger metrictools.Trigger
-	if err := json.Unmarshal(m.Body, &trigger); err == nil {
-		triggerChan := make(chan int)
-		go this.update_trigger(trigger.Expression, triggerChan)
-		go this.calculate(trigger, triggerChan)
-		go this.statistic(trigger, triggerChan)
+	triggerChan := make(chan int)
+	name := string(m.Body)
+	interval, _ := redis.Int(metrictools.RedisDo(this.ConfigChan, "HGET", name, "interval"))
+	period, _ := redis.Int(metrictools.RedisDo(this.ConfigChan, "HGET", name, "period"))
+	ttype, _ := redis.Int(metrictools.RedisDo(this.ConfigChan, "HGET", name, "type"))
+	exp, _ := redis.String(metrictools.RedisDo(this.ConfigChan, "HGET", name, "exp"))
+	relation, _ := redis.Int(metrictools.RedisDo(this.ConfigChan, "HGET", name, "relation"))
+	n := strings.Split(name, ":")
+	trigger := metrictools.Trigger{
+		Name:        n[1],
+		Interval:    interval,
+		Expression:  exp,
+		Period:      period,
+		TriggerType: ttype,
+		Relation:    relation,
 	}
+	go this.update_trigger(name, triggerChan)
+	go this.calculate(trigger, triggerChan)
+	go this.statistic(trigger, triggerChan)
 	return nil
 }
 
-func (this *TriggerTask) update_trigger(exp string, triggerchan chan int) {
-	session := this.MSession.Copy()
-	defer session.Close()
+func (this *TriggerTask) update_trigger(name string, triggerchan chan int) {
 	ticker := time.NewTicker(time.Second * 55)
 	for {
 		now := time.Now().Unix()
-		err := session.DB(this.DBName).C(this.triggerCollection).
-			Update(bson.M{"e": exp}, bson.M{"u": now})
+		_, err := metrictools.RedisDo(this.ConfigChan, "HSET",
+			name, []interface{}{"lastmodify", now})
 		if err != nil {
 			log.Println(err)
 			close(triggerchan)
@@ -54,8 +67,6 @@ func (this *TriggerTask) update_trigger(exp string, triggerchan chan int) {
 
 // calculate trigger.exp
 func (this *TriggerTask) calculate(trigger metrictools.Trigger, triggerchan chan int) {
-	session := this.MSession.Clone()
-	defer session.Close()
 	ticker := time.Tick(time.Minute * time.Duration(trigger.Interval))
 	for {
 		v, err := calculate_exp(this, trigger.Expression)
@@ -64,7 +75,7 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger, triggerchan chan
 			return
 		}
 		t := time.Now().Unix()
-		_, err = this.RedisDo("ZADD", "statistic:"+trigger.Name, []interface{}{t, v})
+		_, err = metrictools.RedisDo(this.RedisChan, "ZADD", "statistic:"+trigger.Name, []interface{}{t, v})
 		if err != nil {
 			close(triggerchan)
 			return
@@ -82,7 +93,7 @@ func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 	k_v := make(map[string]interface{})
 	for _, item := range exp_list {
 		if len(item) > 0 {
-			v, err := t.RedisDo("GET", item, nil)
+			v, err := metrictools.RedisDo(t.ConfigChan, "GET", item, nil)
 			if err != nil {
 				return 0, err
 			}
@@ -106,12 +117,11 @@ func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 
 //get statistic result
 func (this *TriggerTask) statistic(trigger metrictools.Trigger, triggerchan chan int) {
-	session := this.MSession.Clone()
 	ticker := time.Tick(time.Minute * time.Duration(trigger.Period))
 	for {
 		e := time.Now().Unix()
 		s := e - int64(trigger.Interval)
-		rst, err := this.RedisDo("ZRANGEBYSCORE",
+		rst, err := metrictools.RedisDo(this.RedisChan, "ZRANGEBYSCORE",
 			"statistic:"+trigger.Name, []interface{}{s, e})
 		if err != nil {
 			close(triggerchan)
@@ -130,11 +140,19 @@ func (this *TriggerTask) statistic(trigger metrictools.Trigger, triggerchan chan
 			}
 		}
 		stat, value := check_value(trigger, values)
-		var tg metrictools.Trigger
-		err = session.DB(this.DBName).C(this.triggerCollection).
-			Find(bson.M{"e": trigger.Expression}).One(&tg)
+
+		v, err := metrictools.RedisDo(this.ConfigChan, "HGET",
+			"trigger:"+trigger.Name, "stat")
 		if err == nil {
-			if tg.Stat != stat {
+			var state int
+			if v != nil {
+				state, _ = strconv.Atoi(string(v.([]byte)))
+			} else {
+				v, err = metrictools.RedisDo(this.ConfigChan,
+					"HSET", "trigger:"+trigger.Name,
+					[]interface{}{"stat", stat})
+			}
+			if stat != state {
 				notify := &metrictools.Notify{
 					Name:  trigger.Name,
 					Level: stat,

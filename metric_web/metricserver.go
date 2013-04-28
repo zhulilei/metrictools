@@ -85,7 +85,7 @@ func main() {
 
 	s.HandleFunc("/trigger/{t_name}/action", ActionNewHandler).
 		Methods("POST").Headers("Content-type", "application/json")
-	s.HandleFunc("/trigger/{t_name}/action",ActionIndexHandler).
+	s.HandleFunc("/trigger/{t_name}/action", ActionIndexHandler).
 		Methods("GET").Headers("Accept", "application/json")
 	s.HandleFunc("/trigger/{t_name}/action/{name}", ActionRemoveHandler).
 		Methods("DELETE")

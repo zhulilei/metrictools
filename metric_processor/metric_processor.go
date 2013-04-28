@@ -2,12 +2,9 @@ package main
 
 import (
 	metrictools "../"
-	"encoding/json"
 	"flag"
 	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
 	"log"
 	"os"
 	"os/signal"
@@ -27,31 +24,18 @@ func main() {
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	mongouri, _ := c.Global["mongodb"]
-	dbname, _ := c.Global["dbname"]
-	user, _ := c.Global["user"]
-	password, _ := c.Global["password"]
 	lookupd_addresses, _ := c.Global["lookupd_addresses"]
 	nsqd_addr, _ := c.Global["nsqd_addr"]
 	maxinflight, _ := c.Global["maxinflight"]
 	redis_count, _ := c.Global["redis_conn_count"]
 	metric_channel, _ := c.Metric["channel"]
 	metric_topic, _ := c.Metric["topic"]
-	trigger_collection, _ := c.Trigger["collection"]
 	trigger_topic, _ := c.Trigger["topic"]
 	redis_server, _ := c.Redis["server"]
 	redis_auth, _ := c.Redis["auth"]
+	config_redis_server, _ := c.Redis["config_server"]
+	config_redis_auth, _ := c.Redis["config_auth"]
 
-	db_session, err := mgo.Dial(mongouri)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if len(user) > 0 {
-		err = db_session.DB(dbname).Login(user, password)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
 	redis_con := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", redis_server)
 		if err != nil {
@@ -68,14 +52,29 @@ func main() {
 	if redis_pool.Get() == nil {
 		log.Fatal(err)
 	}
+
+	config_redis_con := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", config_redis_server)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := c.Do("AUTH", config_redis_auth); err != nil {
+			c.Close()
+			return nil, err
+		}
+		return c, err
+	}
+	config_redis_pool := redis.NewPool(config_redis_con, 3)
+	defer config_redis_pool.Close()
+	if config_redis_pool.Get() == nil {
+		log.Fatal(err)
+	}
+
 	msg_deliver := &metrictools.MsgDeliver{
-		MSession:       db_session,
-		DBName:         dbname,
 		RedisPool:      redis_pool,
 		RedisChan:      make(chan *metrictools.RedisOP),
 		VerboseLogging: false,
 	}
-	defer db_session.Close()
 	r, err := nsq.NewReader(metric_topic, metric_channel)
 	if err != nil {
 		log.Fatal(err)
@@ -85,7 +84,7 @@ func main() {
 		con_max = 1
 	}
 	for i := 0; i < con_max; i++ {
-		go msg_deliver.Redis()
+		go metrictools.Redis(msg_deliver.RedisPool, msg_deliver.RedisChan)
 	}
 	max, _ := strconv.ParseInt(maxinflight, 10, 32)
 	r.SetMaxInFlight(int(max))
@@ -102,7 +101,9 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go ScanTrigger(db_session, dbname, trigger_collection, w, trigger_topic, nsqd_addr)
+	confchan := make(chan *metrictools.RedisOP)
+	go metrictools.Redis(config_redis_pool, confchan)
+	go ScanTrigger(confchan, w, trigger_topic, nsqd_addr)
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
@@ -110,27 +111,31 @@ func main() {
 	w.Stop()
 }
 
-func ScanTrigger(msession *mgo.Session, dbname string, collection string, w *nsq.Writer, topic string, addr string) {
-	session := msession.Copy()
-	defer session.Close()
+func ScanTrigger(confchan chan *metrictools.RedisOP, w *nsq.Writer, topic string, addr string) {
 	ticker := time.Tick(time.Minute)
 	for {
 		now := time.Now().Unix()
-		var triggers []metrictools.Trigger
-		err := session.DB(dbname).C(collection).Find(bson.M{
-			"last": bson.M{"$lt": now - 120}}).All(&triggers)
-		if err == nil {
-			var trigger_bodys [][]byte
-			for i := range triggers {
-				body, err := json.Marshal(triggers[i])
-				if err == nil {
-					trigger_bodys = append(trigger_bodys,
-						body)
+		v, err := metrictools.RedisDo(confchan, "KEYS", "trigger:*", nil)
+		if err != nil {
+			continue
+		}
+		if v != nil {
+			for _, value := range v.([]interface{}) {
+				last, err := metrictools.RedisDo(confchan,
+					"HGET", string(value.([]byte)), "lastmodify")
+				if err != nil {
+					continue
 				}
-			}
-			_, _, err = w.MultiPublish(topic, trigger_bodys)
-			if err != nil {
-				w.ConnectToNSQ(addr)
+				if last != nil {
+					d, _ := strconv.ParseInt(string(last.([]byte)), 10, 64)
+					if now-d < 61 {
+						continue
+					}
+				}
+				_, _, err = w.Publish(topic, value.([]byte))
+				if err != nil {
+					w.ConnectToNSQ(addr)
+				}
 			}
 		}
 		<-ticker

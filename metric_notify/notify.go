@@ -3,44 +3,62 @@ package main
 import (
 	metrictools "../"
 	"encoding/json"
-	"github.com/datastream/nsq/nsq"
-	"labix.org/v2/mgo/bson"
+	"github.com/bitly/nsq/nsq"
+	"github.com/garyburd/redigo/redis"
 	"log"
+	"strconv"
 	"time"
 )
 
 type Notify struct {
 	*metrictools.MsgDeliver
-	Collecion string
 }
 
 func (this *Notify) HandleMessage(m *nsq.Message) error {
-	session := this.MSession.Clone()
-	defer session.Close()
 	var notify_msg metrictools.Notify
-	var all_notifyaction []metrictools.NotifyAction
 	var err error
 	if err = json.Unmarshal([]byte(m.Body), &notify_msg); err == nil {
-		err = session.DB(this.DBName).C(this.Collecion).
-			Find(bson.M{"n": notify_msg.Name}).
-			All(&all_notifyaction)
-		for _, na := range all_notifyaction {
+		v, err := metrictools.RedisDo(this.RedisChan, "KEYS",
+			"actions:"+notify_msg.Name+"*", nil)
+		if err != nil {
+			return err
+		}
+		for _, notifyaction := range v.([]interface{}) {
+			uri, _ := redis.String(
+				metrictools.RedisDo(this.RedisChan,
+					"HGET", string(notifyaction.([]byte)), "uri"))
+			rep, _ := redis.Int(
+				metrictools.RedisDo(this.RedisChan,
+					"HGET", string(notifyaction.([]byte)), "repeat"))
+			count, _ := redis.Int(
+				metrictools.RedisDo(this.RedisChan,
+					"HGET", string(notifyaction.([]byte)), "count"))
+			v, _ := metrictools.RedisDo(this.RedisChan,
+				"HGET", string(notifyaction.([]byte)), "last")
+			var last int64
+			if v != nil {
+				last, _ = strconv.ParseInt(string(v.([]byte)), 10, 64)
+			}
+			action := metrictools.NotifyAction{
+				Uri:        uri,
+				Repeat:     rep,
+				Count:      count,
+				UpdateTime: last,
+			}
 			now := time.Now().Unix()
-			if na.Repeat > 0 ||
-				(now-na.UpdateTime > 300 &&
-					na.Count < 3) {
+			if action.Repeat > 0 ||
+				(now-action.UpdateTime > 300 &&
+					action.Count < 3) {
 				var count int
-				if (now - na.UpdateTime) > 300 {
+				if (now - action.UpdateTime) > 300 {
 					count = 1
 				} else {
-					count = na.Count + 1
+					count = action.Count + 1
 				}
-				go send_notify(na, notify_msg)
-				session.DB(this.DBName).C(this.Collecion).
-					Update(bson.M{
-					"n":   na.Name,
-					"uri": na.Uri},
-					bson.M{"u": now, "c": count})
+				go send_notify(action, notify_msg)
+				metrictools.RedisDo(this.RedisChan,
+					"HSET", string(notifyaction.([]byte)),
+					[]interface{}{"last", count})
 			}
 		}
 	}

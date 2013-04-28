@@ -14,7 +14,7 @@ func ActionIndexHandler(w http.ResponseWriter, r *http.Request) {
 	tg := mux.Vars(r)["t_name"]
 	var err error
 	redis_con := config_redis_pool.Get()
-	data, err := redis_con.Do("KEYS", "actions:" + tg +"*")
+	data, err := redis_con.Do("KEYS", "actions:"+tg+"*")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -44,7 +44,7 @@ func ActionNewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	tg := mux.Vars(r)["t_name"]
 	redis_con := config_redis_pool.Get()
-	_, err = redis_con.Do("HMSET", "actions:" + tg + ":" + action.Name,
+	_, err = redis_con.Do("HMSET", "actions:"+tg+":"+action.Name,
 		"repeat", action.Repeat,
 		"uri", action.Uri)
 	if err != nil {
@@ -60,7 +60,7 @@ func ActionRemoveHandler(w http.ResponseWriter, r *http.Request) {
 	tg := mux.Vars(r)["t_name"]
 	name := mux.Vars(r)["name"]
 	redis_con := config_redis_pool.Get()
-	_, err := redis_con.Do("DEL", "actions:" + tg + ":" +name)
+	_, err := redis_con.Do("DEL", "actions:"+tg+":"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))

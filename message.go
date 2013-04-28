@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
-	"labix.org/v2/mgo"
 	"log"
 	"strconv"
 	"strings"
@@ -14,8 +13,6 @@ import (
 )
 
 type MsgDeliver struct {
-	MSession       *mgo.Session
-	DBName         string
 	RedisChan      chan *RedisOP
 	RedisPool      *redis.Pool
 	VerboseLogging bool
@@ -57,8 +54,6 @@ func (this *MsgDeliver) HandleMessage(m *nsq.Message) error {
 }
 
 func (this *MsgDeliver) PersistData(msgs []*Record) error {
-	session := this.MSession.Copy()
-	defer session.Close()
 	var err error
 	for _, msg := range msgs {
 		var new_value float64
@@ -74,19 +69,19 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		_, err = this.RedisDo("ZADD", "archive:"+msg.Key,
+		_, err = RedisDo(this.RedisChan, "ZADD", "archive:"+msg.Key,
 			[]interface{}{msg.Timestamp, new_value})
 		if err != nil {
 			log.Println(err)
 			break
 		}
 		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
-		_, err = this.RedisDo("SET", "raw:"+msg.Key, body)
+		_, err = RedisDo(this.RedisChan, "SET", "raw:"+msg.Key, body)
 		if err != nil {
 			log.Println("set raw", err)
 			break
 		}
-		_, err = this.RedisDo("SET", msg.Key, new_value)
+		_, err = RedisDo(this.RedisChan, "SET", msg.Key, new_value)
 		if err != nil {
 			log.Println("last data", err)
 			break
@@ -98,7 +93,7 @@ func (this *MsgDeliver) PersistData(msgs []*Record) error {
 func (this *MsgDeliver) CompressData() {
 	tick := time.Tick(time.Minute * 10)
 	for {
-		rst, err := this.RedisDo("KEYS", "archive:*", nil)
+		rst, err := RedisDo(this.RedisChan, "KEYS", "archive:*", nil)
 		if err == nil {
 			value_list := rst.([]interface{})
 			for _, value := range value_list {
@@ -112,7 +107,7 @@ func (this *MsgDeliver) CompressData() {
 
 func (this *MsgDeliver) remove_old(key []byte) {
 	lastweek := time.Now().Unix() - 60*24*3600
-	_, err := this.RedisDo("ZREMRANGEBYSCORE",
+	_, err := RedisDo(this.RedisChan, "ZREMRANGEBYSCORE",
 		string(key), []interface{}{0, lastweek})
 	if err != nil {
 		log.Println("last data", err)
@@ -133,7 +128,7 @@ func (this *MsgDeliver) do_compress(key []byte) {
 		} else {
 			interval = 300
 		}
-		rst, err := this.RedisDo("ZRANGEBYSCORE", string(key),
+		rst, err := RedisDo(this.RedisChan, "ZRANGEBYSCORE", string(key),
 			[]interface{}{current, current + interval})
 		if err == nil {
 			value_list := rst.([]interface{})
@@ -143,11 +138,11 @@ func (this *MsgDeliver) do_compress(key []byte) {
 				t, v, _ := GetTimestampValue(string(value.([]byte)))
 				sumvalue += v
 				sumtime += t
-				this.RedisDo("ZREM", string(key), value)
+				RedisDo(this.RedisChan, "ZREM", string(key), value)
 			}
 			size := len(value_list)
 			if size > 0 {
-				this.RedisDo("ZADD", string(key),
+				RedisDo(this.RedisChan, "ZADD", string(key),
 					[]interface{}{sumtime / int64(size), sumvalue / float64(size)})
 			}
 		}
@@ -155,7 +150,7 @@ func (this *MsgDeliver) do_compress(key []byte) {
 }
 
 func (this *MsgDeliver) GetSetSize(key string) int64 {
-	rst, err := this.RedisDo("ZCARD", key, nil)
+	rst, err := RedisDo(this.RedisChan, "ZCARD", key, nil)
 	var count int64
 	if err == nil {
 		v, ok := rst.(int64)
@@ -168,14 +163,14 @@ func (this *MsgDeliver) GetSetSize(key string) int64 {
 	return count
 }
 
-func (this *MsgDeliver) RedisDo(action string, key string, value interface{}) (interface{}, error) {
+func RedisDo(redisChan chan *RedisOP, action string, key string, value interface{}) (interface{}, error) {
 	op := &RedisOP{
 		Action: action,
 		Key:    key,
 		Value:  value,
 		Done:   make(chan int),
 	}
-	this.RedisChan <- op
+	redisChan <- op
 	<-op.Done
 	return op.Result, op.Err
 }
@@ -208,18 +203,22 @@ func GetTimestampValue(key string) (int64, float64, error) {
 	return t, v, err
 }
 
-func (this *MsgDeliver) Redis() {
-	redis_con := this.RedisPool.Get()
+func Redis(redis_pool *redis.Pool, redisChan chan *RedisOP) {
+	redis_con := redis_pool.Get()
 	for {
-		op := <-this.RedisChan
+		op := <-redisChan
 		switch op.Action {
 		case "ZCARD":
 			fallthrough
 		case "KEYS":
 			fallthrough
+		case "HMGETALL":
+			fallthrough
 		case "GET":
 			op.Result, op.Err = redis_con.Do(op.Action,
 				op.Key)
+		case "HGET":
+			fallthrough
 		case "ZREM":
 			op.Result, op.Err = redis_con.Do(op.Action,
 				op.Key, op.Value)
@@ -233,6 +232,8 @@ func (this *MsgDeliver) Redis() {
 			body := fmt.Sprintf("%d:%.2f", v[0], v[1])
 			op.Result, op.Err = redis_con.Do(op.Action,
 				op.Key, v[0], body)
+		case "HSET":
+			fallthrough
 		case "ZRANGE":
 			fallthrough
 		case "ZRANGEBYSCORE":
@@ -250,14 +251,14 @@ func (this *MsgDeliver) Redis() {
 				op.Key, op.Value)
 		}
 		if op.Err != nil {
-			redis_con = this.RedisPool.Get()
+			redis_con = redis_pool.Get()
 		}
 		op.Done <- 1
 	}
 }
 
 func (this *MsgDeliver) getRate(msg *Record) (float64, error) {
-	rst, err := this.RedisDo("GET", "raw:"+msg.Key, nil)
+	rst, err := RedisDo(this.RedisChan, "GET", "raw:"+msg.Key, nil)
 	if err != nil {
 		return 0, err
 	}
