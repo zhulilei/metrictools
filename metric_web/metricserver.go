@@ -22,11 +22,11 @@ func main() {
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	config_redis_server, _ := c.Redis["config_server"]
-	config_redis_auth, _ := c.Redis["config_auth"]
-	data_redis_server, _ := c.Redis["data_server"]
-	data_redis_auth, _ := c.Redis["data_auth"]
-	bind, _ := c.Web["bind"]
+	config_redis_server, _ := c["config_redis_server"]
+	config_redis_auth, _ := c["config_redis_auth"]
+	data_redis_server, _ := c["data_redis_server"]
+	data_redis_auth, _ := c["data_redis_auth"]
+	bind, _ := c["web_bind"]
 
 	// redis
 	config_redis_con := func() (redis.Conn, error) {

@@ -24,17 +24,17 @@ func main() {
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	lookupd_addresses, _ := c.Global["lookupd_addresses"]
-	nsqd_addr, _ := c.Global["nsqd_addr"]
-	maxinflight, _ := c.Global["maxinflight"]
-	redis_count, _ := c.Global["redis_conn_count"]
-	metric_channel, _ := c.Metric["channel"]
-	metric_topic, _ := c.Metric["topic"]
-	trigger_topic, _ := c.Trigger["topic"]
-	redis_server, _ := c.Redis["server"]
-	redis_auth, _ := c.Redis["auth"]
-	config_redis_server, _ := c.Redis["config_server"]
-	config_redis_auth, _ := c.Redis["config_auth"]
+	lookupd_addresses, _ := c["lookupd_addresses"]
+	nsqd_addr, _ := c["nsqd_addr"]
+	maxinflight, _ := c["maxinflight"]
+	redis_count, _ := c["redis_conn_count"]
+	metric_channel, _ := c["metric_channel"]
+	metric_topic, _ := c["metric_topic"]
+	trigger_topic, _ := c["trigger_topic"]
+	redis_server, _ := c["data_redis_server"]
+	redis_auth, _ := c["data_redis_auth"]
+	config_redis_server, _ := c["config_redis_server"]
+	config_redis_auth, _ := c["config_redis_auth"]
 
 	redis_con := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", redis_server)
