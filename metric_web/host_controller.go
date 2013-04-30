@@ -58,7 +58,7 @@ func HostListMetricHandler(w http.ResponseWriter, r *http.Request) {
 		m_list, _ := metric_list.([]interface{})
 		for i := range m_list {
 			v1, _ := m_list[i].([]byte)
-			query = append(query, string(v1[8:]))
+			query = append(query, v1)
 		}
 	} else {
 		log.Println("failed to get set", err)
