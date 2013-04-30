@@ -84,11 +84,11 @@ func main() {
 		Methods("GET").
 		Headers("Accept", "application/json")
 
-	s.HandleFunc("/mertic", MetricCreateHandler).
+	s.HandleFunc("/metric", MetricCreateHandler).
 		Methods("POST").
 		Headers("Content-type", "application/json")
 
-	s.HandleFunc("/mertic/{name}", MetricDeleteHandler).
+	s.HandleFunc("/metric/{name}", MetricDeleteHandler).
 		Methods("DELETE")
 
 	s.HandleFunc("/host/{name}", HostHandler).
@@ -98,11 +98,11 @@ func main() {
 	s.HandleFunc("/host/{name}", HostClearMetricHandler).
 		Methods("DELETE")
 
-	s.HandleFunc("/host/{host}/mertic", HostListMetricHandler).
+	s.HandleFunc("/host/{host}/metric", HostListMetricHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
 
-	s.HandleFunc("/host/{host}/mertic/{name}", HostDeleteMetricHandler).
+	s.HandleFunc("/host/{host}/metric/{name}", HostDeleteMetricHandler).
 		Methods("DELETE")
 
 	s.HandleFunc("/statistic/{name}", StatisticHandler).
