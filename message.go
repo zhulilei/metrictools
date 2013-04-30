@@ -81,6 +81,8 @@ func (this *RedisService) Run() {
 				op.Key)
 		case "HGET":
 			fallthrough
+		case "SREM":
+			fallthrough
 		case "ZREM":
 			op.Result, op.Err = redis_con.Do(op.Action,
 				op.Key, op.Value)
