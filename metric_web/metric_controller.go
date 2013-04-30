@@ -1,17 +1,20 @@
 package main
 
 import (
+	"encoding/json"
+	"github.com/gorilla/mux"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
-func MetricHandler(w http.ResponseWriter, req *http.Request) {
+func MetricHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	metrics := req.FormValue("metrics")
-	starttime := req.FormValue("starttime")
-	endtime := req.FormValue("endtime")
+	metrics := r.FormValue("metrics")
+	starttime := r.FormValue("starttime")
+	endtime := r.FormValue("endtime")
 	start := gettime(starttime)
 	end := gettime(endtime)
 	if !checktime(start, end) {
@@ -46,4 +49,36 @@ func MetricHandler(w http.ResponseWriter, req *http.Request) {
 		record_list[v] = kv
 	}
 	w.Write(gen_json(record_list))
+}
+
+func MetricCreateHandler(w http.ResponseWriter, r *http.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Failed to read request"))
+		log.Println(err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	var metrics []string
+	if err = json.Unmarshal(body, &metrics); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("failed to parse json"))
+		return
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+	for _, metric := range metrics {
+		wb.configservice.Do("SET", metric, 1)
+	}
+}
+
+func MetricDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
+	w.WriteHeader(http.StatusOK)
+	metric := mux.Vars(r)["name"]
+	wb.dataservice.Do("DEL", "raw:"+metric, nil)
+	wb.dataservice.Do("DEL", "archive:"+metric, nil)
+	wb.dataservice.Do("DEL", metric, nil)
+	wb.configservice.Do("DEL", metric, nil)
 }

@@ -84,11 +84,25 @@ func main() {
 		Methods("GET").
 		Headers("Accept", "application/json")
 
+	s.HandleFunc("/mertic", MetricCreateHandler).
+		Methods("POST").
+		Headers("Content-type", "application/json")
+
+	s.HandleFunc("/mertic/{name}", MetricDeleteHandler).
+		Methods("DELETE")
+
 	s.HandleFunc("/host/{name}", HostHandler).
 		Methods("GET").
 		Headers("Accept", "application/json")
 
-	s.HandleFunc("/host/{name}/mertic", HostClearMetricHandler).
+	s.HandleFunc("/host/{name}", HostClearMetricHandler).
+		Methods("DELETE")
+
+	s.HandleFunc("/host/{host}/mertic", HostListMetricHandler).
+		Methods("GET").
+		Headers("Accept", "application/json")
+
+	s.HandleFunc("/host/{host}/mertic/{name}", HostDeleteMetricHandler).
 		Methods("DELETE")
 
 	s.HandleFunc("/statistic/{name}", StatisticHandler).
