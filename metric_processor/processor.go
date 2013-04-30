@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bitly/nsq/nsq"
-	"github.com/garyburd/redigo/redis"
 	"log"
 	"strconv"
 	"time"
@@ -57,12 +56,8 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		stat, _ := redis.Int(this.configservice.Do("GET", msg.Key, nil))
-		if stat == 1 {
-			_, err = this.dataservice.Do("ZADD",
-				"archive:"+msg.Key,
-				[]interface{}{msg.Timestamp, new_value})
-		}
+		_, err = this.dataservice.Do("ZADD",
+			"archive:"+msg.Key, []interface{}{msg.Timestamp, new_value})
 		if err != nil {
 			log.Println(err)
 			break

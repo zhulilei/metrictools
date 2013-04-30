@@ -60,7 +60,7 @@ func MetricCreateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	var metrics []string
+	var metrics map[string]int
 	if err = json.Unmarshal(body, &metrics); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("failed to parse json"))
@@ -68,8 +68,8 @@ func MetricCreateHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
-	for _, metric := range metrics {
-		wb.configservice.Do("SET", metric, 1)
+	for metric, value := range metrics {
+		wb.configservice.Do("SET", metric, value)
 	}
 }
 

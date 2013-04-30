@@ -2,18 +2,20 @@ package main
 
 import (
 	metrictools "../"
+	"github.com/garyburd/redigo/redis"
 	"log"
 	"time"
 )
 
 type DataArchive struct {
-	*metrictools.RedisService
+	dataservice   *metrictools.RedisService
+	configservice *metrictools.RedisService
 }
 
 func (this *DataArchive) CompressData() {
 	tick := time.Tick(time.Minute * 10)
 	for {
-		rst, err := this.Do("KEYS", "archive:*", nil)
+		rst, err := this.dataservice.Do("KEYS", "archive:*", nil)
 		if err == nil {
 			value_list := rst.([]interface{})
 			for _, value := range value_list {
@@ -26,9 +28,18 @@ func (this *DataArchive) CompressData() {
 }
 
 func (this *DataArchive) remove_old(key []byte) {
-	lastweek := time.Now().Unix() - 60*24*3600
-	_, err := this.Do("ZREMRANGEBYSCORE",
-		string(key), []interface{}{0, lastweek})
+	stat, _ := redis.Int(this.configservice.Do("GET", string(key), nil))
+	var last int64
+	if stat > 0 {
+		last = time.Now().Unix() - int64(stat)*24*3600
+	} else {
+		last = time.Now().Unix() - 300
+	}
+	if stat == -1 {
+		last = time.Now().Unix() - 60*24*3600
+	}
+	_, err := this.dataservice.Do("ZREMRANGEBYSCORE",
+		string(key), []interface{}{0, last})
 	if err != nil {
 		log.Println("last data", err)
 	}
@@ -48,21 +59,21 @@ func (this *DataArchive) do_compress(key []byte) {
 		} else {
 			interval = 300
 		}
-		rst, err := this.Do("ZRANGEBYSCORE", string(key),
+		rst, err := this.dataservice.Do("ZRANGEBYSCORE", string(key),
 			[]interface{}{current, current + interval})
 		if err == nil {
 			value_list := rst.([]interface{})
 			sumvalue := float64(0)
 			sumtime := int64(0)
 			for _, value := range value_list {
-				t, v, _ := this.GetTimestampValue(string(value.([]byte)))
+				t, v, _ := this.dataservice.GetTimestampValue(string(value.([]byte)))
 				sumvalue += v
 				sumtime += t
-				this.Do("ZREM", string(key), value)
+				this.dataservice.Do("ZREM", string(key), value)
 			}
 			size := len(value_list)
 			if size > 0 {
-				this.Do("ZADD", string(key),
+				this.dataservice.Do("ZADD", string(key),
 					[]interface{}{sumtime / int64(size), sumvalue / float64(size)})
 			}
 		}
