@@ -69,7 +69,10 @@ func MetricCreateHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 	for metric, value := range metrics {
-		wb.configservice.Do("SET", "setting:"+metric, value)
+		v, _ := wb.dataservice.Do("GET", "archive:"+metric, nil)
+		if v != nil {
+			wb.configservice.Do("SET", "setting:"+metric, value)
+		}
 	}
 }
 
