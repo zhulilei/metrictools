@@ -53,7 +53,7 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 	redis_con := wb.config_redis_pool.Get()
 	_, err = redis_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
-		"type", tg.TriggerType,
+		"persist", tg.Persist,
 		"relation", tg.Relation,
 		"warning", tg.WValue,
 		"error", tg.EValue,

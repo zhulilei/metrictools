@@ -3,13 +3,8 @@ package metrictools
 import "labix.org/v2/mgo/bson"
 
 const (
-	AVG     = 1
-	SUM     = 2
-	MAX     = 3
-	MIN     = 4
-	EXP     = 5
-	LESS    = 6
-	GREATER = 7
+	LESS    = 1
+	GREATER = 2
 )
 
 type Record struct {
@@ -24,16 +19,16 @@ type Record struct {
 }
 
 type Trigger struct {
-	Expression  string  `json:"expression"`
-	TriggerType int     `json:"trigger_type"`
-	Relation    int     `json:"relation"`
-	Interval    int     `json:"interval"`
-	Period      int     `json:"period"`
-	WValue      float64 `json:"warning"`
-	EValue      float64 `json:"error"`
-	Name        string  `json:"name"`
-	Role        string  `json:"role"`
-	Stat        int     `json:"stat"`
+	Expression string  `json:"expression"`
+	Persist    bool    `json:"persist"`
+	Relation   int     `json:"relation"`
+	Interval   int     `json:"interval"`
+	Period     int     `json:"period"`
+	WValue     float64 `json:"warning"`
+	EValue     float64 `json:"error"`
+	Name       string  `json:"name"`
+	Role       string  `json:"role"`
+	Stat       int     `json:"stat"`
 }
 
 type Notify struct {
