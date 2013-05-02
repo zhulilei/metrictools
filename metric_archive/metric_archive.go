@@ -24,7 +24,7 @@ func main() {
 		log.Fatal("config parse error", err)
 	}
 	lookupd_addresses, _ := c["lookupd_addresses"]
-	maxInFlight, _ := c["archiveMaxInFlight"]
+	maxInFlight, _ := c["archivemaxinflight"]
 	redis_count, _ := c["redis_conn_count"]
 	redis_server, _ := c["data_redis_server"]
 	redis_auth, _ := c["data_redis_auth"]
