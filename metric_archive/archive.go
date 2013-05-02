@@ -24,13 +24,14 @@ func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 	if stat == -1 {
 		last = time.Now().Unix() - 60*24*3600
 	}
-	metric := "archive:"+string(m.Body)
+	metric := "archive:" + string(m.Body)
 	_, err := this.dataservice.Do("ZREMRANGEBYSCORE",
 		metric, []interface{}{0, last})
 	if err != nil {
 		log.Println("last data", err)
 		return err
 	}
+	this.configservice.Do("SET", "archivetime:"+string(m.Body), time.Now().Unix())
 	go this.do_compress(metric)
 	return nil
 }

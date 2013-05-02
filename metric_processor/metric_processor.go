@@ -30,6 +30,7 @@ func main() {
 	metric_channel, _ := c["metric_channel"]
 	metric_topic, _ := c["metric_topic"]
 	trigger_topic, _ := c["trigger_topic"]
+	archive_topic, _ := c["archive_topic"]
 	redis_server, _ := c["data_redis_server"]
 	redis_auth, _ := c["data_redis_auth"]
 	config_redis_server, _ := c["config_redis_server"]
@@ -91,7 +92,8 @@ func main() {
 		dataservice:   rs,
 		configservice: rs2,
 		writer:        w,
-		topic:         trigger_topic,
+		trigger_topic: trigger_topic,
+		archive_topic: archive_topic,
 		nsqd_addr:     nsqd_addr,
 	}
 	max, _ := strconv.ParseInt(maxinflight, 10, 32)

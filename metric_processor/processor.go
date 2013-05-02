@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bitly/nsq/nsq"
+	"github.com/garyburd/redigo/redis"
 	"log"
 	"strconv"
 	"time"
@@ -14,7 +15,8 @@ type MsgDeliver struct {
 	dataservice   *metrictools.RedisService
 	configservice *metrictools.RedisService
 	writer        *nsq.Writer
-	topic         string
+	trigger_topic string
+	archive_topic string
 	nsqd_addr     string
 }
 
@@ -62,6 +64,10 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 			log.Println(err)
 			break
 		}
+		t, _ := redis.Float64(this.configservice.Do("GET", "archivetime:"+msg.Key, nil))
+		if time.Now().Unix()-int64(t) > 300 {
+			this.writer.Publish(this.archive_topic, []byte(msg.Key))
+		}
 		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
 		_, err = this.dataservice.Do("SET", "raw:"+msg.Key, body)
 		if err != nil {
@@ -89,8 +95,7 @@ func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
 	var value float64
 	t, v, err := metrictools.GetTimestampValue(string(rst.([]byte)))
 	if err == nil {
-		value = (msg.Value - v) /
-			float64(msg.Timestamp-t)
+		value = (msg.Value - v) / float64(msg.Timestamp-t)
 	} else {
 		value = msg.Value
 	}
@@ -120,7 +125,7 @@ func (this *MsgDeliver) ScanTrigger() {
 						continue
 					}
 				}
-				_, _, err = this.writer.Publish(this.topic, value.([]byte))
+				_, _, err = this.writer.Publish(this.trigger_topic, value.([]byte))
 				if err != nil {
 					this.writer.ConnectToNSQ(this.nsqd_addr)
 				}
