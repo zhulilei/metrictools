@@ -23,17 +23,17 @@ type RedisOP struct {
 	Done   chan int
 }
 
-func (this *RedisService) GetTimestamp(key string) (int64, error) {
-	t, _, err := this.GetTimestampValue(key)
+func GetTimestamp(key string) (int64, error) {
+	t, _, err := GetTimestampValue(key)
 	return t, err
 }
 
-func (this *RedisService) GetValue(key string) (float64, error) {
-	_, v, err := this.GetTimestampValue(key)
+func GetValue(key string) (float64, error) {
+	_, v, err := GetTimestampValue(key)
 	return v, err
 }
 
-func (this *RedisService) GetTimestampValue(key string) (int64, float64, error) {
+func GetTimestampValue(key string) (int64, float64, error) {
 	body := string(key)
 	kv := strings.Split(body, ":")
 	var t int64

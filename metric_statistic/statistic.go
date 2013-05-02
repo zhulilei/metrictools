@@ -130,7 +130,7 @@ func (this *TriggerTask) statistic(trigger metrictools.Trigger, triggerchan chan
 		}
 		var values []float64
 		for _, v := range md {
-			value, err := this.dataservice.GetValue(string(v.([]byte)))
+			value, err := metrictools.GetValue(string(v.([]byte)))
 			if err == nil {
 				values = append(values, value)
 			}

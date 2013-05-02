@@ -69,7 +69,7 @@ func MetricCreateHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 	for metric, value := range metrics {
-		wb.configservice.Do("SET", metric, value)
+		wb.configservice.Do("SET", "setting:"+metric, value)
 	}
 }
 
@@ -80,5 +80,5 @@ func MetricDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	wb.dataservice.Do("DEL", "raw:"+metric, nil)
 	wb.dataservice.Do("DEL", "archive:"+metric, nil)
 	wb.dataservice.Do("DEL", metric, nil)
-	wb.configservice.Do("DEL", metric, nil)
+	wb.configservice.Do("DEL", "setting:"+metric, nil)
 }

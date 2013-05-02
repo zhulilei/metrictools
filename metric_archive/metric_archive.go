@@ -3,11 +3,13 @@ package main
 import (
 	metrictools "../"
 	"flag"
+	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -21,11 +23,15 @@ func main() {
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
+	lookupd_addresses, _ := c["lookupd_addresses"]
+	maxInFlight, _ := c["archiveMaxInFlight"]
 	redis_count, _ := c["redis_conn_count"]
 	redis_server, _ := c["data_redis_server"]
 	redis_auth, _ := c["data_redis_auth"]
 	config_redis_server, _ := c["config_redis_server"]
 	config_redis_auth, _ := c["config_redis_auth"]
+	archive_channel, _ := c["archive_channel"]
+	archive_topic, _ := c["archive_topic"]
 
 	redis_con := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", redis_server)
@@ -70,9 +76,26 @@ func main() {
 		RedisChan: make(chan *metrictools.RedisOP),
 	}
 	go rs2.Run()
-	dr := DataArchive{
+	dr := &DataArchive{
 		dataservice:   rs,
 		configservice: rs2,
+	}
+	r, err := nsq.NewReader(archive_topic, archive_channel)
+	if err != nil {
+		log.Fatal(err)
+	}
+	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
+	r.SetMaxInFlight(int(max))
+	for i := 0; i < int(max); i++ {
+		r.AddHandler(dr)
+	}
+	lookupdlist := strings.Split(lookupd_addresses, ",")
+	for _, addr := range lookupdlist {
+		log.Printf("lookupd addr %s", addr)
+		err := r.ConnectToLookupd(addr)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	con_max, _ := strconv.Atoi(redis_count)
 	if con_max == 0 {
@@ -81,7 +104,6 @@ func main() {
 	for i := 0; i < con_max; i++ {
 		go rs.Run()
 	}
-	go dr.CompressData()
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan

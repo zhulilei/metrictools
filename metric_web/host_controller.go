@@ -38,7 +38,7 @@ func HostClearMetricHandler(w http.ResponseWriter, r *http.Request) {
 			wb.dataservice.Do("DEL", string(v1), nil)
 			wb.dataservice.Do("DEL", "raw:"+string(v1), nil)
 			wb.dataservice.Do("DEL", "archive:"+string(v1), nil)
-			wb.configservice.Do("DEL", string(v1), nil)
+			wb.configservice.Do("DEL", "setting:"+string(v1), nil)
 		}
 	}
 	_, err = wb.configservice.Do("DEL", host, nil)
@@ -76,5 +76,5 @@ func HostDeleteMetricHandler(w http.ResponseWriter, r *http.Request) {
 	wb.dataservice.Do("DEL", "raw:"+metric, nil)
 	wb.dataservice.Do("DEL", "archive:"+metric, nil)
 	wb.dataservice.Do("DEL", metric, nil)
-	wb.configservice.Do("DEL", metric, nil)
+	wb.configservice.Do("DEL", "setting:"+metric, nil)
 }

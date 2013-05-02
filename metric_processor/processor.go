@@ -87,7 +87,7 @@ func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
 		return msg.Value, nil
 	}
 	var value float64
-	t, v, err := this.dataservice.GetTimestampValue(string(rst.([]byte)))
+	t, v, err := metrictools.GetTimestampValue(string(rst.([]byte)))
 	if err == nil {
 		value = (msg.Value - v) /
 			float64(msg.Timestamp-t)
