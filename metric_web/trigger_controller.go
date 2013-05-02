@@ -40,12 +40,23 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
+	if tg.EValue > tg.WValue && tg.Relation == metrictools.LESS {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("bad error/warning setting"))
+		return
+	}
+	if tg.EValue < tg.WValue && tg.Relation == metrictools.GREATER {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("bad error/warning setting"))
+		return
+	}
 	redis_con := wb.config_redis_pool.Get()
 	_, err = redis_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
 		"type", tg.TriggerType,
 		"relation", tg.Relation,
-		"values", tg.Values,
+		"warning", tg.WValue,
+		"error", tg.EValue,
 		"interval", tg.Interval,
 		"role", tg.Role,
 		"period", tg.Period,

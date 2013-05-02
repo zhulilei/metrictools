@@ -28,6 +28,8 @@ func (this *TriggerTask) HandleMessage(m *nsq.Message) error {
 	ttype, _ := redis.Int(this.configservice.Do("HGET", name, "type"))
 	exp, _ := redis.String(this.configservice.Do("HGET", name, "exp"))
 	relation, _ := redis.Int(this.configservice.Do("HGET", name, "relation"))
+	w, _ := redis.Float64(this.configservice.Do("HGET", name, "warning"))
+	e, _ := redis.Float64(this.configservice.Do("HGET", name, "error"))
 	n := strings.Split(name, ":")
 	trigger := metrictools.Trigger{
 		Name:        n[1],
@@ -35,6 +37,8 @@ func (this *TriggerTask) HandleMessage(m *nsq.Message) error {
 		Expression:  exp,
 		Period:      period,
 		TriggerType: ttype,
+		WValue:      w,
+		EValue:      e,
 		Relation:    relation,
 	}
 	go this.update_trigger(name, triggerChan)
@@ -237,25 +241,22 @@ func Min_value(r []float64) float64 {
 
 // return trigger's stat, 0 is ok, 1 is warning, 2 is error
 func Judge_value(S metrictools.Trigger, value float64) int {
-	if len(S.Values) != 2 {
-		return 0
-	}
 	switch S.Relation {
 	case metrictools.LESS:
 		{
-			if value < S.Values[1] {
+			if value < S.EValue {
 				return 2
 			}
-			if value < S.Values[0] {
+			if value < S.WValue {
 				return 1
 			}
 		}
 	case metrictools.GREATER:
 		{
-			if value > S.Values[1] {
+			if value > S.EValue {
 				return 2
 			}
-			if value > S.Values[0] {
+			if value > S.WValue {
 				return 1
 			}
 		}

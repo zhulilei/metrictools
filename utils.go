@@ -24,15 +24,16 @@ type Record struct {
 }
 
 type Trigger struct {
-	Expression  string    `json:"expression"`
-	TriggerType int       `json:"trigger_type"`
-	Relation    int       `json:"relation"`
-	Interval    int       `json:"interval"`
-	Period      int       `json:"period"`
-	Values      []float64 `json:"values"`
-	Name        string    `json:"name"`
-	Role        string    `json:"role"`
-	Stat        int       `json:"stat"`
+	Expression  string  `json:"expression"`
+	TriggerType int     `json:"trigger_type"`
+	Relation    int     `json:"relation"`
+	Interval    int     `json:"interval"`
+	Period      int     `json:"period"`
+	WValue      float64 `json:"warning"`
+	EValue      float64 `json:"error"`
+	Name        string  `json:"name"`
+	Role        string  `json:"role"`
+	Stat        int     `json:"stat"`
 }
 
 type Notify struct {
