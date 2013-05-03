@@ -1,21 +1,18 @@
 package metrictools
 
-import "labix.org/v2/mgo/bson"
-
 const (
 	LESS    = 1
 	GREATER = 2
 )
 
 type Record struct {
-	Id        bson.ObjectId `bson:"_id,omitempty" json:"-"`
-	Key       string        `bson:"k" json:"key"`
-	Value     float64       `bson:"v" json:"value"`
-	Timestamp int64         `bson:"t", json:"timestamp"`
-	Host      string        `bson:"-" json:"host"`
-	TTL       int           `bson:"-" json:"-"`
-	DSType    string        `bson:"-" json:"-"`
-	Interval  float64       `bson:"-" json:"-"`
+	Key       string
+	Value     float64
+	Timestamp int64
+	Host      string
+	TTL       int
+	DSType    string
+	Interval  float64
 }
 
 type Trigger struct {

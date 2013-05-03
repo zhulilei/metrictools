@@ -94,7 +94,7 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger, triggerchan chan
 }
 
 func (this *TriggerTask) check_stat(trigger metrictools.Trigger, v float64) {
-	stat := Judge_value(trigger, v)
+	newstate := Judge_value(trigger, v)
 	s, err := this.configservice.Do("HGET", "trigger:"+trigger.Name, "stat")
 	if err == nil {
 		var state int
@@ -103,12 +103,12 @@ func (this *TriggerTask) check_stat(trigger metrictools.Trigger, v float64) {
 		} else {
 			s, err = this.configservice.Do("HSET",
 				"trigger:"+trigger.Name,
-				[]interface{}{"stat", stat})
+				[]interface{}{"stat", newstate})
 		}
-		if stat != s {
+		if state != newstate {
 			notify := &metrictools.Notify{
 				Name:  trigger.Name,
-				Level: stat,
+				Level: newstate,
 				Value: v,
 			}
 			if body, err := json.Marshal(notify); err == nil {
