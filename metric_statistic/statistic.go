@@ -105,7 +105,7 @@ func (this *TriggerTask) check_stat(trigger metrictools.Trigger, v float64) {
 				"trigger:"+trigger.Name,
 				[]interface{}{"stat", stat})
 		}
-		if stat != state {
+		if stat != s {
 			notify := &metrictools.Notify{
 				Name:  trigger.Name,
 				Level: stat,
