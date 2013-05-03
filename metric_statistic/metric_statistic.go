@@ -92,6 +92,7 @@ func main() {
 		dataservice:   rs,
 		configservice: rs2,
 		topic:         notify_topic,
+		nsqd_address:  nsqd_addr,
 	}
 
 	for i := 0; i < int(max); i++ {

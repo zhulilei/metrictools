@@ -17,6 +17,7 @@ type TriggerTask struct {
 	dataservice   *metrictools.RedisService
 	configservice *metrictools.RedisService
 	writer        *nsq.Writer
+	nsqd_address  string
 	topic         string
 }
 
@@ -75,7 +76,7 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger, triggerchan chan
 			return
 		}
 
-		go this.check_stat(trigger, v)
+		go this.check_level(trigger, v)
 		t := time.Now().Unix()
 		if trigger.Persist {
 			_, err = this.dataservice.Do("ZADD",
@@ -93,26 +94,28 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger, triggerchan chan
 	}
 }
 
-func (this *TriggerTask) check_stat(trigger metrictools.Trigger, v float64) {
-	newstate := Judge_value(trigger, v)
-	s, err := this.configservice.Do("HGET", "trigger:"+trigger.Name, "stat")
+func (this *TriggerTask) check_level(trigger metrictools.Trigger, v float64) {
+	newlevel := Judge_value(trigger, v)
+	l, err := this.configservice.Do("HGET", "trigger:"+trigger.Name, "level")
 	if err == nil {
-		var state int
-		if s != nil {
-			state, _ = strconv.Atoi(string(s.([]byte)))
+		var level int
+		if l != nil {
+			level, _ = strconv.Atoi(string(l.([]byte)))
 		} else {
-			s, err = this.configservice.Do("HSET",
-				"trigger:"+trigger.Name,
-				[]interface{}{"stat", newstate})
+			this.configservice.Do("HSET", "trigger:"+trigger.Name,
+				[]interface{}{"level", newlevel})
 		}
-		if state != newstate {
+		if level != newlevel {
 			notify := &metrictools.Notify{
 				Name:  trigger.Name,
-				Level: newstate,
+				Level: newlevel,
 				Value: v,
 			}
 			if body, err := json.Marshal(notify); err == nil {
-				_, _, _ = this.writer.Publish(this.topic, body)
+				_, _, err := this.writer.Publish(this.topic, body)
+				if err != nil {
+					this.writer.ConnectToNSQ(this.nsqd_address)
+				}
 			} else {
 				log.Println("json nofity", err)
 			}
