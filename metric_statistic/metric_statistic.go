@@ -47,10 +47,6 @@ func main() {
 	}
 	redis_pool := redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
-	if redis_pool.Get() == nil {
-		log.Fatal(err)
-	}
-
 	// redis
 	config_redis_con := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", config_redis_server)
@@ -65,32 +61,18 @@ func main() {
 	}
 	config_redis_pool := redis.NewPool(config_redis_con, 3)
 	defer config_redis_pool.Close()
-	if config_redis_pool.Get() == nil {
-		log.Fatal(err)
-	}
-
-	rs := &metrictools.RedisService{
-		RedisPool: redis_pool,
-		RedisChan: make(chan *metrictools.RedisOP),
-	}
-	rs2 := &metrictools.RedisService{
-		RedisPool: config_redis_pool,
-		RedisChan: make(chan *metrictools.RedisOP),
-	}
 	r, err := nsq.NewReader(trigger_topic, trigger_channel)
 	if err != nil {
 		log.Fatal(err)
 	}
-	go rs.Run()
-	go rs2.Run()
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	r.SetMaxInFlight(int(max))
 	w := nsq.NewWriter(0)
 	w.ConnectToNSQ(nsqd_addr)
 	tt := &TriggerTask{
 		writer:        w,
-		dataservice:   rs,
-		configservice: rs2,
+		dataservice:   redis_pool,
+		configservice: config_redis_pool,
 		topic:         notify_topic,
 		nsqd_address:  nsqd_addr,
 	}

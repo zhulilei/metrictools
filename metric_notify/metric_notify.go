@@ -43,9 +43,6 @@ func main() {
 	}
 	redis_pool := redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
-	if redis_pool.Get() == nil {
-		log.Fatal(err)
-	}
 	nt := &Notify{redis_pool}
 	r, err := nsq.NewReader(notify_topic, notify_channel)
 	if err != nil {
