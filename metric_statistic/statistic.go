@@ -108,8 +108,7 @@ func (this *TriggerTask) check_level(trigger metrictools.Trigger, v float64) {
 		if l != nil {
 			level, _ = strconv.Atoi(string(l.([]byte)))
 		} else {
-			config_con.Do("HSET", "trigger:"+trigger.Name,
-				[]interface{}{"level", newlevel})
+			config_con.Do("HSET", "trigger:"+trigger.Name, "level", newlevel)
 		}
 		if level != newlevel {
 			notify := &metrictools.Notify{
@@ -135,7 +134,7 @@ func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 	defer config_con.Close()
 	for _, item := range exp_list {
 		if len(item) > 0 {
-			v, err := config_con.Do("GET", item, nil)
+			v, err := config_con.Do("GET", item)
 			if err != nil {
 				return 0, err
 			}

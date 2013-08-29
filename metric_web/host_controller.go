@@ -12,7 +12,9 @@ func HostHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	host := mux.Vars(r)["name"]
 	var query []string
-	metric_list, err := wb.dataservice.Do("KEYS", "archive:"+host+"*", nil)
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	metric_list, err := data_con.Do("KEYS", "archive:"+host+"*")
 	if err == nil {
 		m_list, _ := metric_list.([]interface{})
 		for i := range m_list {
@@ -30,18 +32,22 @@ func HostClearMetricHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusMovedPermanently)
 
 	host := mux.Vars(r)["name"]
-	metric_list, err := wb.configservice.Do("SMEMBERS", host, nil)
+	config_con := configservice.Get()
+	defer config_con.Close()
+	metric_list, err := config_con.Do("SMEMBERS", host)
 	if err == nil {
 		m_list, _ := metric_list.([]interface{})
+		data_con := dataservice.Get()
+		defer data_con.Close()
 		for i := range m_list {
 			v1, _ := m_list[i].([]byte)
-			wb.dataservice.Do("DEL", string(v1), nil)
-			wb.dataservice.Do("DEL", "raw:"+string(v1), nil)
-			wb.dataservice.Do("DEL", "archive:"+string(v1), nil)
-			wb.configservice.Do("DEL", "setting:"+string(v1), nil)
+			data_con.Do("DEL", string(v1))
+			data_con.Do("DEL", "raw:"+string(v1))
+			data_con.Do("DEL", "archive:"+string(v1))
+			data_con.Do("DEL", "setting:"+string(v1))
 		}
 	}
-	_, err = wb.configservice.Do("DEL", host, nil)
+	_, err = config_con.Do("DEL", host)
 	if err != nil {
 		log.Println("failed to get set", err)
 	}
@@ -53,7 +59,9 @@ func HostListMetricHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	host := mux.Vars(r)["host"]
 	var query []string
-	metric_list, err := wb.configservice.Do("SMEMBERS", host, nil)
+	config_con := configservice.Get()
+	defer config_con.Close()
+	metric_list, err := config_con.Do("SMEMBERS", host)
 	if err == nil {
 		m_list, _ := metric_list.([]interface{})
 		for i := range m_list {
@@ -72,9 +80,13 @@ func HostDeleteMetricHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	host := mux.Vars(r)["host"]
 	metric := mux.Vars(r)["name"]
-	wb.configservice.Do("SREM", host, metric)
-	wb.dataservice.Do("DEL", "raw:"+metric, nil)
-	wb.dataservice.Do("DEL", "archive:"+metric, nil)
-	wb.dataservice.Do("DEL", metric, nil)
-	wb.configservice.Do("DEL", "setting:"+metric, nil)
+	config_con := configservice.Get()
+	defer config_con.Close()
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	config_con.Do("SREM", host, metric)
+	data_con.Do("DEL", "raw:"+metric)
+	data_con.Do("DEL", "archive:"+metric)
+	data_con.Do("DEL", metric)
+	config_con.Do("DEL", "setting:"+metric)
 }

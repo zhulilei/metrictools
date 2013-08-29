@@ -23,9 +23,10 @@ func MetricHandler(w http.ResponseWriter, r *http.Request) {
 
 	metric_list := strings.Split(metrics, ",")
 	record_list := make(map[string][]interface{})
+	data_con := dataservice.Get()
+	defer data_con.Close()
 	for _, v := range metric_list {
-		metric_data, err := wb.dataservice.Do("ZRANGEBYSCORE",
-			"archive:"+v, []interface{}{start, end})
+		metric_data, err := data_con.Do("ZRANGEBYSCORE", "archive:"+v, start, end)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -68,10 +69,14 @@ func MetricCreateHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
+	config_con := configservice.Get()
+	defer config_con.Close()
+	data_con := dataservice.Get()
+	defer data_con.Close()
 	for metric, value := range metrics {
-		v, _ := wb.dataservice.Do("GET", "archive:"+metric, nil)
+		v, _ := data_con.Do("GET", "archive:"+metric)
 		if v != nil {
-			wb.configservice.Do("SET", "setting:"+metric, value)
+			config_con.Do("SET", "setting:"+metric, value)
 		}
 	}
 }
@@ -80,8 +85,12 @@ func MetricDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
 	w.WriteHeader(http.StatusOK)
 	metric := mux.Vars(r)["name"]
-	wb.dataservice.Do("DEL", "raw:"+metric, nil)
-	wb.dataservice.Do("DEL", "archive:"+metric, nil)
-	wb.dataservice.Do("DEL", metric, nil)
-	wb.configservice.Do("DEL", "setting:"+metric, nil)
+	config_con := configservice.Get()
+	defer config_con.Close()
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	data_con.Do("DEL", "raw:"+metric)
+	data_con.Do("DEL", "archive:"+metric)
+	data_con.Do("DEL", metric)
+	config_con.Do("DEL", "setting:"+metric)
 }

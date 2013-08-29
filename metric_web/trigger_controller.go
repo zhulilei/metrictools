@@ -12,7 +12,9 @@ import (
 func TriggerShowHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	name := mux.Vars(r)["name"]
-	data, err := wb.configservice.Do("GET", "trigger:"+name, nil)
+	config_con := configservice.Get()
+	defer config_con.Close()
+	data, err := config_con.Do("GET", "trigger:"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -50,8 +52,9 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("bad error/warning setting"))
 		return
 	}
-	redis_con := wb.config_redis_pool.Get()
-	_, err = redis_con.Do("HMSET", "trigger:"+tg.Name,
+	config_con := configservice.Get()
+	defer config_con.Close()
+	_, err = config_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
 		"persist", tg.Persist,
 		"relation", tg.Relation,
@@ -72,7 +75,9 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 
 func TriggerRemoveHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	_, err := wb.configservice.Do("DEL", "trigger:"+name, nil)
+	config_con := configservice.Get()
+	defer config_con.Close()
+	_, err := config_con.Do("DEL", "trigger:"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))

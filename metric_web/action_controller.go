@@ -13,7 +13,11 @@ func ActionIndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	tg := mux.Vars(r)["t_name"]
 	var err error
-	data, err := wb.configservice.Do("KEYS", "actions:"+tg+"*", nil)
+	config_con := configservice.Get()
+	defer config_con.Close()
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	data, err := config_con.Do("KEYS", "actions:"+tg+"*")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -42,10 +46,10 @@ func ActionNewHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 	tg := mux.Vars(r)["t_name"]
-	redis_con := wb.config_redis_pool.Get()
-	_, err = redis_con.Do("HMSET", "actions:"+tg+":"+action.Name,
-		"repeat", action.Repeat,
-		"uri", action.Uri)
+	config_con := configservice.Get()
+	defer config_con.Close()
+	_, err = config_con.Do("HMSET", "actions:"+tg+":"+action.Name,
+		"repeat", action.Repeat, "uri", action.Uri)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
@@ -58,7 +62,9 @@ func ActionNewHandler(w http.ResponseWriter, r *http.Request) {
 func ActionRemoveHandler(w http.ResponseWriter, r *http.Request) {
 	tg := mux.Vars(r)["t_name"]
 	name := mux.Vars(r)["name"]
-	_, err := wb.configservice.Do("DEL", "actions:"+tg+":"+name, nil)
+	config_con := configservice.Get()
+	defer config_con.Close()
+	_, err := config_con.Do("DEL", "actions:"+tg+":"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))

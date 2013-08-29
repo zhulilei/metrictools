@@ -44,6 +44,10 @@ func (this *MsgDeliver) HandleMessage(m *nsq.Message) error {
 
 func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 	var err error
+	data_con := this.dataservice.Get()
+	defer data_con.Close()
+	config_con := this.configservice.Get()
+	defer config_con.Close()
 	for _, msg := range msgs {
 		var new_value float64
 		if msg.DSType == "counter" || msg.DSType == "derive" {
@@ -58,16 +62,12 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		data_con := this.dataservice.Get()
-		defer data_con.Close()
 		_, err := data_con.Do("ZADD", "archive:"+msg.Key,
 			msg.Timestamp, new_value)
 		if err != nil {
 			log.Println(err)
 			break
 		}
-		config_con := this.configservice.Get()
-		defer config_con.Close()
 		t, _ := redis.Float64(config_con.Do("GET", "archivetime:"+msg.Key))
 		if time.Now().Unix()-int64(t) > 600 {
 			this.writer.Publish(this.archive_topic, []byte(msg.Key))
@@ -113,10 +113,10 @@ func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
 
 func (this *MsgDeliver) ScanTrigger() {
 	ticker := time.Tick(time.Minute)
+	config_con := this.configservice.Get()
+	defer config_con.Close()
 	for {
 		now := time.Now().Unix()
-		config_con := this.configservice.Get()
-		defer config_con.Close()
 		v, err := config_con.Do("KEYS", "trigger:*")
 		if err != nil {
 			continue

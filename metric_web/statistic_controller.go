@@ -20,8 +20,9 @@ func StatisticHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	record_list := make(map[string][]interface{})
 
-	metric_data, err := wb.dataservice.Do("ZRANGEBYSCORE",
-		"archive:"+name, []interface{}{start, end})
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	metric_data, err := data_con.Do("ZRANGEBYSCORE", "archive:"+name, start, end)
 	if err != nil {
 		log.Println(err)
 		return
