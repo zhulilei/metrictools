@@ -26,7 +26,6 @@ func main() {
 	lookupd_addresses, _ := c["lookupd_addresses"]
 	nsqd_addr, _ := c["nsqd_addr"]
 	maxinflight, _ := c["maxinflight"]
-	redis_count, _ := c["redis_conn_count"]
 	metric_channel, _ := c["metric_channel"]
 	metric_topic, _ := c["metric_topic"]
 	trigger_topic, _ := c["trigger_topic"]
@@ -49,9 +48,6 @@ func main() {
 	}
 	redis_pool := redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
-	if redis_pool.Get() == nil {
-		log.Fatal(err)
-	}
 
 	config_redis_con := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", config_redis_server)
@@ -66,31 +62,12 @@ func main() {
 	}
 	config_redis_pool := redis.NewPool(config_redis_con, 3)
 	defer config_redis_pool.Close()
-	if config_redis_pool.Get() == nil {
-		log.Fatal(err)
-	}
 
-	rs := &metrictools.RedisService{
-		RedisPool: redis_pool,
-		RedisChan: make(chan *metrictools.RedisOP),
-	}
-	rs2 := &metrictools.RedisService{
-		RedisPool: config_redis_pool,
-		RedisChan: make(chan *metrictools.RedisOP),
-	}
-	go rs2.Run()
-	con_max, _ := strconv.Atoi(redis_count)
-	if con_max == 0 {
-		con_max = 1
-	}
-	for i := 0; i < con_max; i++ {
-		go rs.Run()
-	}
 	w := nsq.NewWriter(0)
 	w.ConnectToNSQ(nsqd_addr)
 	msg_deliver := &MsgDeliver{
-		dataservice:   rs,
-		configservice: rs2,
+		dataservice:   redis_pool,
+		configservice: config_redis_pool,
 		writer:        w,
 		trigger_topic: trigger_topic,
 		archive_topic: archive_topic,

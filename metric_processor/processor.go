@@ -12,8 +12,8 @@ import (
 )
 
 type MsgDeliver struct {
-	dataservice   *metrictools.RedisService
-	configservice *metrictools.RedisService
+	dataservice   *redis.Pool
+	configservice *redis.Pool
 	writer        *nsq.Writer
 	trigger_topic string
 	archive_topic string
@@ -58,34 +58,40 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		_, err = this.dataservice.Do("ZADD", "archive:"+msg.Key,
-			[]interface{}{msg.Timestamp, new_value})
+		redis_con := this.dataservice.Get()
+		defer redis_con.Close()
+		_, err := redis_con.Do("ZADD", "archive:"+msg.Key,
+			msg.Timestamp, new_value)
 		if err != nil {
 			log.Println(err)
 			break
 		}
-		t, _ := redis.Float64(this.configservice.Do("GET", "archivetime:"+msg.Key, nil))
+		redis_con2 := this.configservice.Get()
+		defer redis_con2.Close()
+		t, _ := redis.Float64(redis_con2.Do("GET", "archivetime:"+msg.Key))
 		if time.Now().Unix()-int64(t) > 600 {
 			this.writer.Publish(this.archive_topic, []byte(msg.Key))
 		}
 		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
-		_, err = this.dataservice.Do("SET", "raw:"+msg.Key, body)
+		_, err = redis_con.Do("SET", "raw:"+msg.Key, body)
 		if err != nil {
 			log.Println("set raw", err)
 			break
 		}
-		_, err = this.dataservice.Do("SET", msg.Key, new_value)
+		_, err = redis_con.Do("SET", msg.Key, new_value)
 		if err != nil {
 			log.Println("last data", err)
 			break
 		}
-		_, err = this.configservice.Do("SADD", msg.Host, msg.Key)
+		_, err = redis_con2.Do("SADD", msg.Host, msg.Key)
 	}
 	return err
 }
 
 func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
-	rst, err := this.dataservice.Do("GET", "raw:"+msg.Key, nil)
+	redis_con := this.dataservice.Get()
+	defer redis_con.Close()
+	rst, err := redis_con.Do("GET", "raw:"+msg.Key)
 	if err != nil {
 		return 0, err
 	}
@@ -93,7 +99,7 @@ func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
 		return msg.Value, nil
 	}
 	var value float64
-	t, v, err := metrictools.GetTimestampValue(string(rst.([]byte)))
+	t, v, err := metrictools.GetTimestampAndValue(string(rst.([]byte)))
 	if err == nil {
 		value = (msg.Value - v) / float64(msg.Timestamp-t)
 	} else {
@@ -109,13 +115,15 @@ func (this *MsgDeliver) ScanTrigger() {
 	ticker := time.Tick(time.Minute)
 	for {
 		now := time.Now().Unix()
-		v, err := this.configservice.Do("KEYS", "trigger:*", nil)
+		redis_con := this.configservice.Get()
+		defer redis_con.Close()
+		v, err := redis_con.Do("KEYS", "trigger:*")
 		if err != nil {
 			continue
 		}
 		if v != nil {
 			for _, value := range v.([]interface{}) {
-				last, err := this.configservice.Do("HGET", string(value.([]byte)), "last")
+				last, err := redis_con.Do("HGET", string(value.([]byte)), "last")
 				if err != nil {
 					continue
 				}

@@ -1,5 +1,11 @@
 package metrictools
 
+import (
+	"errors"
+	"strconv"
+	"strings"
+)
+
 const (
 	LESS    = 1
 	GREATER = 2
@@ -40,4 +46,19 @@ type NotifyAction struct {
 	Uri        string `json:"uri"`
 	UpdateTime int64  `json:"update_time"`
 	Count      int    `json:"count"`
+}
+
+func GetTimestampAndValue(key string) (int64, float64, error) {
+	body := string(key)
+	kv := strings.Split(body, ":")
+	var t int64
+	var v float64
+	var err error
+	if len(kv) == 2 {
+		t, err = strconv.ParseInt(kv[0], 10, 64)
+		v, err = strconv.ParseFloat(kv[1], 64)
+	} else {
+		err = errors.New("wrong data")
+	}
+	return t, v, err
 }
