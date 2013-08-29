@@ -27,15 +27,15 @@ func main() {
 	maxInFlight, _ := c["MaxInFlight"]
 	notify_channel, _ := c["notify_channel"]
 	notify_topic, _ := c["notify_topic"]
-	redis_server, _ := c["config_redis_server"]
-	redis_auth, _ := c["config_redis_auth"]
+	config_redis_server, _ := c["config_redis_server"]
+	config_redis_auth, _ := c["config_redis_auth"]
 
 	redis_con := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", redis_server)
+		c, err := redis.Dial("tcp", config_redis_server)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := c.Do("AUTH", redis_auth); err != nil {
+		if _, err := c.Do("AUTH", config_redis_auth); err != nil {
 			c.Close()
 			return nil, err
 		}
@@ -46,12 +46,7 @@ func main() {
 	if redis_pool.Get() == nil {
 		log.Fatal(err)
 	}
-	rs := &metrictools.RedisService{
-		RedisPool: redis_pool,
-		RedisChan: make(chan *metrictools.RedisOP),
-	}
-	nt := &Notify{rs}
-	go rs.Run()
+	nt := &Notify{redis_pool}
 	r, err := nsq.NewReader(notify_topic, notify_channel)
 	if err != nil {
 		log.Fatal(err)

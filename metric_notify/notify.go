@@ -11,25 +11,27 @@ import (
 )
 
 type Notify struct {
-	*metrictools.RedisService
+	*redis.Pool
 }
 
 func (this *Notify) HandleMessage(m *nsq.Message) error {
 	var notify_msg metrictools.Notify
 	var err error
+	config_con := this.Get()
+	defer config_con.Close()
 	if err = json.Unmarshal([]byte(m.Body), &notify_msg); err == nil {
-		v, err := this.Do("KEYS", "actions:"+notify_msg.Name+"*", nil)
+		v, err := config_con.Do("KEYS", "actions:"+notify_msg.Name+"*")
 		if err != nil {
 			return err
 		}
 		for _, notifyaction := range v.([]interface{}) {
 			uri, _ := redis.String(
-				this.Do("HGET", string(notifyaction.([]byte)), "uri"))
+				config_con.Do("HGET", string(notifyaction.([]byte)), "uri"))
 			rep, _ := redis.Int(
-				this.Do("HGET", string(notifyaction.([]byte)), "repeat"))
+				config_con.Do("HGET", string(notifyaction.([]byte)), "repeat"))
 			count, _ := redis.Int(
-				this.Do("HGET", string(notifyaction.([]byte)), "count"))
-			v, _ := this.Do("HGET", string(notifyaction.([]byte)), "last")
+				config_con.Do("HGET", string(notifyaction.([]byte)), "count"))
+			v, _ := config_con.Do("HGET", string(notifyaction.([]byte)), "last")
 			var last int64
 			if v != nil {
 				last, _ = strconv.ParseInt(string(v.([]byte)), 10, 64)
@@ -51,8 +53,7 @@ func (this *Notify) HandleMessage(m *nsq.Message) error {
 					count = action.Count + 1
 				}
 				go send_notify(action, notify_msg)
-				this.Do("HSET", string(notifyaction.([]byte)),
-					[]interface{}{"last", count})
+				config_con.Do("HSET", string(notifyaction.([]byte)), "last", count)
 			}
 		}
 	}
