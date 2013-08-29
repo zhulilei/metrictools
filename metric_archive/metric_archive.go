@@ -25,7 +25,6 @@ func main() {
 	}
 	lookupd_addresses, _ := c["lookupd_addresses"]
 	maxInFlight, _ := c["archivemaxinflight"]
-	redis_count, _ := c["redis_conn_count"]
 	redis_server, _ := c["data_redis_server"]
 	redis_auth, _ := c["data_redis_auth"]
 	config_redis_server, _ := c["config_redis_server"]
@@ -63,22 +62,10 @@ func main() {
 	}
 	config_redis_pool := redis.NewPool(config_redis_con, 3)
 	defer config_redis_pool.Close()
-	if config_redis_pool.Get() == nil {
-		log.Fatal(err)
-	}
 
-	rs := &metrictools.RedisService{
-		RedisPool: redis_pool,
-		RedisChan: make(chan *metrictools.RedisOP),
-	}
-	rs2 := &metrictools.RedisService{
-		RedisPool: config_redis_pool,
-		RedisChan: make(chan *metrictools.RedisOP),
-	}
-	go rs2.Run()
 	dr := &DataArchive{
-		dataservice:   rs,
-		configservice: rs2,
+		dataservice:   redis_pool,
+		configservice: config_redis_pool,
 	}
 	r, err := nsq.NewReader(archive_topic, archive_channel)
 	if err != nil {
@@ -96,13 +83,6 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-	}
-	con_max, _ := strconv.Atoi(redis_count)
-	if con_max == 0 {
-		con_max = 1
-	}
-	for i := 0; i < con_max; i++ {
-		go rs.Run()
 	}
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)

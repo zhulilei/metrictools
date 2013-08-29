@@ -9,12 +9,14 @@ import (
 )
 
 type DataArchive struct {
-	dataservice   *metrictools.RedisService
-	configservice *metrictools.RedisService
+	dataservice   *redis.Pool
+	configservice *redis.Pool
 }
 
 func (this *DataArchive) HandleMessage(m *nsq.Message) error {
-	stat, _ := redis.Int(this.configservice.Do("GET", "setting:"+string(m.Body), nil))
+	config_con := this.configservice.Get()
+	defer config_con.Close()
+	stat, _ := redis.Int(config_con.Do("GET", "setting:"+string(m.Body)))
 	var last int64
 	current := time.Now().Unix()
 	if stat > 0 {
@@ -26,13 +28,14 @@ func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 		last = current - 60*24*3600
 	}
 	metric := "archive:" + string(m.Body)
-	_, err := this.dataservice.Do("ZREMRANGEBYSCORE",
-		metric, []interface{}{0, last})
+	data_con := this.dataservice.Get()
+	defer data_con.Close()
+	_, err := data_con.Do("ZREMRANGEBYSCORE", metric, 0, last)
 	if err != nil {
 		log.Println("last data", err)
 		return err
 	}
-	this.configservice.Do("SET", "archivetime:"+string(m.Body), time.Now().Unix())
+	config_con.Do("SET", "archivetime:"+string(m.Body), time.Now().Unix())
 	if stat != 0 {
 		go this.do_compress(metric)
 	}
@@ -40,7 +43,9 @@ func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 }
 
 func (this *DataArchive) do_compress(key string) {
-	t, err := redis.Float64(this.configservice.Do("GET", "compresstime:"+key, nil))
+	config_con := this.configservice.Get()
+	defer config_con.Close()
+	t, err := redis.Float64(config_con.Do("GET", "compresstime:"+key, nil))
 	if err != nil {
 		return
 	}
@@ -57,27 +62,27 @@ func (this *DataArchive) do_compress(key string) {
 		} else {
 			interval = 300
 		}
-		rst, err := this.dataservice.Do("ZRANGEBYSCORE", key,
-			[]interface{}{current, current + interval})
+		data_con := this.dataservice.Get()
+		defer data_con.Close()
+		rst, err := data_con.Do("ZRANGEBYSCORE", key, current, current + interval)
 		if err == nil {
 			value_list := rst.([]interface{})
 			sumvalue := float64(0)
 			sumtime := int64(0)
 			for _, value := range value_list {
-				t, v, _ := metrictools.GetTimestampValue(string(value.([]byte)))
+				t, v, _ := metrictools.GetTimestampAndValue(string(value.([]byte)))
 				sumvalue += v
 				sumtime += t
 			}
 			size := len(value_list)
 			if size > 0 {
-				_, err = this.dataservice.Do("ZADD", key,
-					[]interface{}{sumtime / int64(size), sumvalue / float64(size)})
+				_, err = data_con.Do("ZADD", key, sumtime / int64(size), sumvalue / float64(size))
 				if err != nil {
 					break
 				}
 			}
 			for _, value := range value_list {
-				_, err = this.dataservice.Do("ZREM", key, value)
+				_, err = data_con.Do("ZREM", key, value)
 				if err != nil {
 					break
 				}
@@ -91,5 +96,5 @@ func (this *DataArchive) do_compress(key string) {
 			time.Sleep(time.Second)
 		}
 	}
-	this.configservice.Do("SET", "compresstime:"+key, current)
+	config_con.Do("SET", "compresstime:"+key, current)
 }

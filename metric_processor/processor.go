@@ -58,40 +58,40 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		redis_con := this.dataservice.Get()
-		defer redis_con.Close()
-		_, err := redis_con.Do("ZADD", "archive:"+msg.Key,
+		data_con := this.dataservice.Get()
+		defer data_con.Close()
+		_, err := data_con.Do("ZADD", "archive:"+msg.Key,
 			msg.Timestamp, new_value)
 		if err != nil {
 			log.Println(err)
 			break
 		}
-		redis_con2 := this.configservice.Get()
-		defer redis_con2.Close()
-		t, _ := redis.Float64(redis_con2.Do("GET", "archivetime:"+msg.Key))
+		config_con := this.configservice.Get()
+		defer config_con.Close()
+		t, _ := redis.Float64(config_con.Do("GET", "archivetime:"+msg.Key))
 		if time.Now().Unix()-int64(t) > 600 {
 			this.writer.Publish(this.archive_topic, []byte(msg.Key))
 		}
 		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
-		_, err = redis_con.Do("SET", "raw:"+msg.Key, body)
+		_, err = data_con.Do("SET", "raw:"+msg.Key, body)
 		if err != nil {
 			log.Println("set raw", err)
 			break
 		}
-		_, err = redis_con.Do("SET", msg.Key, new_value)
+		_, err = data_con.Do("SET", msg.Key, new_value)
 		if err != nil {
 			log.Println("last data", err)
 			break
 		}
-		_, err = redis_con2.Do("SADD", msg.Host, msg.Key)
+		_, err = config_con.Do("SADD", msg.Host, msg.Key)
 	}
 	return err
 }
 
 func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
-	redis_con := this.dataservice.Get()
-	defer redis_con.Close()
-	rst, err := redis_con.Do("GET", "raw:"+msg.Key)
+	data_con := this.dataservice.Get()
+	defer data_con.Close()
+	rst, err := data_con.Do("GET", "raw:"+msg.Key)
 	if err != nil {
 		return 0, err
 	}
@@ -115,15 +115,15 @@ func (this *MsgDeliver) ScanTrigger() {
 	ticker := time.Tick(time.Minute)
 	for {
 		now := time.Now().Unix()
-		redis_con := this.configservice.Get()
-		defer redis_con.Close()
-		v, err := redis_con.Do("KEYS", "trigger:*")
+		config_con := this.configservice.Get()
+		defer config_con.Close()
+		v, err := config_con.Do("KEYS", "trigger:*")
 		if err != nil {
 			continue
 		}
 		if v != nil {
 			for _, value := range v.([]interface{}) {
-				last, err := redis_con.Do("HGET", string(value.([]byte)), "last")
+				last, err := config_con.Do("HGET", string(value.([]byte)), "last")
 				if err != nil {
 					continue
 				}
