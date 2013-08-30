@@ -6,7 +6,6 @@ import (
 	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
-	"strconv"
 	"time"
 )
 
@@ -20,22 +19,18 @@ func (this *Notify) HandleMessage(m *nsq.Message) error {
 	config_con := this.Get()
 	defer config_con.Close()
 	if err = json.Unmarshal([]byte(m.Body), &notify_msg); err == nil {
-		v, err := config_con.Do("KEYS", "actions:"+notify_msg.Name+"*")
+		keys, err := redis.Strings(config_con.Do("KEYS", "actions:"+notify_msg.Name+"*"))
 		if err != nil {
 			return err
 		}
-		for _, notifyaction := range v.([]interface{}) {
+		for _, v := range keys {
 			uri, _ := redis.String(
-				config_con.Do("HGET", string(notifyaction.([]byte)), "uri"))
+				config_con.Do("HGET", v, "uri"))
 			rep, _ := redis.Int(
-				config_con.Do("HGET", string(notifyaction.([]byte)), "repeat"))
+				config_con.Do("HGET", v, "repeat"))
 			count, _ := redis.Int(
-				config_con.Do("HGET", string(notifyaction.([]byte)), "count"))
-			v, _ := config_con.Do("HGET", string(notifyaction.([]byte)), "last")
-			var last int64
-			if v != nil {
-				last, _ = strconv.ParseInt(string(v.([]byte)), 10, 64)
-			}
+				config_con.Do("HGET", v, "count"))
+			last, _ := redis.Int64(config_con.Do("HGET", v, "last"))
 			action := metrictools.NotifyAction{
 				Uri:        uri,
 				Repeat:     rep,
@@ -53,7 +48,7 @@ func (this *Notify) HandleMessage(m *nsq.Message) error {
 					count = action.Count + 1
 				}
 				go send_notify(action, notify_msg)
-				config_con.Do("HSET", string(notifyaction.([]byte)), "last", count)
+				config_con.Do("HSET", v, "last", count)
 			}
 		}
 	}

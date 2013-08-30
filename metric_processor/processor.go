@@ -7,7 +7,6 @@ import (
 	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
-	"strconv"
 	"time"
 )
 
@@ -91,15 +90,12 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	rst, err := data_con.Do("GET", "raw:"+msg.Key)
+	rst, err := redis.String(data_con.Do("GET", "raw:"+msg.Key))
 	if err != nil {
 		return 0, err
 	}
-	if rst == nil {
-		return msg.Value, nil
-	}
 	var value float64
-	t, v, err := metrictools.GetTimestampAndValue(string(rst.([]byte)))
+	t, v, err := metrictools.GetTimestampAndValue(rst)
 	if err == nil {
 		value = (msg.Value - v) / float64(msg.Timestamp-t)
 	} else {
@@ -116,27 +112,22 @@ func (this *MsgDeliver) ScanTrigger() {
 	config_con := this.configservice.Get()
 	defer config_con.Close()
 	for {
-		now := time.Now().Unix()
-		v, err := config_con.Do("KEYS", "trigger:*")
+		keys, err := redis.Strings(config_con.Do("KEYS", "trigger:*"))
 		if err != nil {
 			continue
 		}
-		if v != nil {
-			for _, value := range v.([]interface{}) {
-				last, err := config_con.Do("HGET", string(value.([]byte)), "last")
-				if err != nil {
-					continue
-				}
-				if last != nil {
-					d, _ := strconv.ParseInt(string(last.([]byte)), 10, 64)
-					if now-d < 61 {
-						continue
-					}
-				}
-				_, _, err = this.writer.Publish(this.trigger_topic, value.([]byte))
-				if err != nil {
-					this.writer.ConnectToNSQ(this.nsqd_addr)
-				}
+		for _, v := range keys {
+			last, err := redis.Int64(config_con.Do("HGET", v, "last"))
+			if err != nil {
+				continue
+			}
+			now := time.Now().Unix()
+			if now-last < 61 {
+				continue
+			}
+			_, _, err = this.writer.Publish(this.trigger_topic, []byte(v))
+			if err != nil {
+				this.writer.ConnectToNSQ(this.nsqd_addr)
 			}
 		}
 		<-ticker

@@ -3,6 +3,7 @@ package main
 import (
 	metrictools "../"
 	"encoding/json"
+	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"io/ioutil"
 	"log"
@@ -14,14 +15,13 @@ func TriggerShowHandler(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	config_con := configservice.Get()
 	defer config_con.Close()
-	data, err := config_con.Do("GET", "trigger:"+name)
+	data, err := redis.String(config_con.Do("GET", "trigger:"+name))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
-		body, _ := json.Marshal(data.([]byte))
 		w.WriteHeader(http.StatusOK)
-		w.Write(body)
+		w.Write([]byte(data))
 	}
 }
 
