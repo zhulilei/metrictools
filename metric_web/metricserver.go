@@ -40,7 +40,7 @@ func main() {
 		}
 		return c, err
 	}
-	configservice := redis.NewPool(config_redis_con, 3)
+	configservice = redis.NewPool(config_redis_con, 3)
 	defer configservice.Close()
 
 	data_redis_con := func() (redis.Conn, error) {
@@ -54,7 +54,7 @@ func main() {
 		}
 		return c, err
 	}
-	dataservice := redis.NewPool(data_redis_con, 3)
+	dataservice = redis.NewPool(data_redis_con, 3)
 	defer dataservice.Close()
 
 	r := mux.NewRouter()
