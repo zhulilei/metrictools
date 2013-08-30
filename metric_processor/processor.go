@@ -126,9 +126,6 @@ func (this *MsgDeliver) ScanTrigger() {
 				continue
 			}
 			_, _, err = this.writer.Publish(this.trigger_topic, []byte(v))
-			if err != nil {
-				this.writer.ConnectToNSQ(this.nsqd_addr)
-			}
 		}
 		<-ticker
 	}

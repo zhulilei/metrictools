@@ -117,13 +117,9 @@ func (this *TriggerTask) check_level(trigger metrictools.Trigger, v float64) {
 				Value: v,
 			}
 			if body, err := json.Marshal(notify); err == nil {
-				_, _, err := this.writer.Publish(this.topic, body)
-				if err != nil {
-					this.writer.ConnectToNSQ(this.nsqd_address)
-				}
-			} else {
-				log.Println("json nofity", err)
+				_, _, err = this.writer.Publish(this.topic, body)
 			}
+			log.Println("json nofity", err)
 		}
 	}
 }

@@ -67,8 +67,7 @@ func main() {
 	}
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	r.SetMaxInFlight(int(max))
-	w := nsq.NewWriter(0)
-	w.ConnectToNSQ(nsqd_addr)
+	w := nsq.NewWriter(nsqd_addr)
 	tt := &TriggerTask{
 		writer:        w,
 		dataservice:   redis_pool,

@@ -63,8 +63,7 @@ func main() {
 	config_redis_pool := redis.NewPool(config_redis_con, 3)
 	defer config_redis_pool.Close()
 
-	w := nsq.NewWriter(0)
-	w.ConnectToNSQ(nsqd_addr)
+	w := nsq.NewWriter(nsqd_addr)
 	msg_deliver := &MsgDeliver{
 		dataservice:   redis_pool,
 		configservice: config_redis_pool,
