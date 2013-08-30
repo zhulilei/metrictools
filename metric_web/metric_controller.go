@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"io/ioutil"
 	"log"
@@ -26,19 +27,14 @@ func MetricHandler(w http.ResponseWriter, r *http.Request) {
 	data_con := dataservice.Get()
 	defer data_con.Close()
 	for _, v := range metric_list {
-		metric_data, err := data_con.Do("ZRANGEBYSCORE", "archive:"+v, start, end)
+		metric_data, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+v, start, end))
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		md, ok := metric_data.([]interface{})
-		if !ok {
-			log.Println("not []interface{}")
-			return
-		}
 		var kv []interface{}
-		for _, item := range md {
-			t_v := strings.Split(string(item.([]byte)), ":")
+		for _, item := range metric_data {
+			t_v := strings.Split(item, ":")
 			if len(t_v) != 2 {
 				log.Println("error redis data")
 				continue

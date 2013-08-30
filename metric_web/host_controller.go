@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -14,12 +15,10 @@ func HostHandler(w http.ResponseWriter, r *http.Request) {
 	var query []string
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	metric_list, err := data_con.Do("KEYS", "archive:"+host+"*")
+	metric_list, err := redis.Strings(data_con.Do("KEYS", "archive:"+host+"*"))
 	if err == nil {
-		m_list, _ := metric_list.([]interface{})
-		for i := range m_list {
-			v1, _ := m_list[i].([]byte)
-			query = append(query, string(v1[8:]))
+		for _, v := range metric_list {
+			query = append(query, v)
 		}
 	} else {
 		log.Println("failed to get set", err)
@@ -34,17 +33,15 @@ func HostClearMetricHandler(w http.ResponseWriter, r *http.Request) {
 	host := mux.Vars(r)["name"]
 	config_con := configservice.Get()
 	defer config_con.Close()
-	metric_list, err := config_con.Do("SMEMBERS", host)
+	metric_list, err := redis.Strings(config_con.Do("SMEMBERS", host))
 	if err == nil {
-		m_list, _ := metric_list.([]interface{})
 		data_con := dataservice.Get()
 		defer data_con.Close()
-		for i := range m_list {
-			v1, _ := m_list[i].([]byte)
-			data_con.Do("DEL", string(v1))
-			data_con.Do("DEL", "raw:"+string(v1))
-			data_con.Do("DEL", "archive:"+string(v1))
-			data_con.Do("DEL", "setting:"+string(v1))
+		for _, v := range metric_list {
+			data_con.Do("DEL", v)
+			data_con.Do("DEL", "raw:"+v)
+			data_con.Do("DEL", "archive:"+v)
+			data_con.Do("DEL", "setting:"+v)
 		}
 	}
 	_, err = config_con.Do("DEL", host)
@@ -61,12 +58,10 @@ func HostListMetricHandler(w http.ResponseWriter, r *http.Request) {
 	var query []string
 	config_con := configservice.Get()
 	defer config_con.Close()
-	metric_list, err := config_con.Do("SMEMBERS", host)
+	metric_list, err := redis.Strings(config_con.Do("SMEMBERS", host))
 	if err == nil {
-		m_list, _ := metric_list.([]interface{})
-		for i := range m_list {
-			v1, _ := m_list[i].([]byte)
-			query = append(query, string(v1))
+		for _, v := range metric_list {
+			query = append(query, v)
 		}
 	} else {
 		log.Println("failed to get set", err)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -22,19 +23,14 @@ func StatisticHandler(w http.ResponseWriter, r *http.Request) {
 
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	metric_data, err := data_con.Do("ZRANGEBYSCORE", "archive:"+name, start, end)
+	metric_data, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+name, start, end))
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	md, ok := metric_data.([]interface{})
-	if !ok {
-		log.Println("not []interface{}")
-		return
-	}
 	var kv []interface{}
-	for _, v := range md {
-		t_v := strings.Split(string(v.([]byte)), ":")
+	for _, v := range metric_data {
+		t_v := strings.Split(v, ":")
 		if len(t_v) != 2 {
 			log.Println("error redis data")
 			continue
