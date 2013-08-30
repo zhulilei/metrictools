@@ -18,7 +18,7 @@ func HostHandler(w http.ResponseWriter, r *http.Request) {
 	metric_list, err := redis.Strings(data_con.Do("KEYS", "archive:"+host+"*"))
 	if err == nil {
 		for _, v := range metric_list {
-			query = append(query, v)
+			query = append(query, v[8:])
 		}
 	} else {
 		log.Println("failed to get set", err)
