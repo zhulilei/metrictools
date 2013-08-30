@@ -3,6 +3,7 @@ package main
 import (
 	metrictools "../"
 	"encoding/json"
+	"fmt"
 	"github.com/bitly/nsq/nsq"
 	"github.com/datastream/cal"
 	"github.com/garyburd/redigo/redis"
@@ -84,7 +85,8 @@ func (this *TriggerTask) calculate(trigger metrictools.Trigger, triggerchan chan
 		go this.check_level(trigger, v)
 		t := time.Now().Unix()
 		if trigger.Persist {
-			_, err = data_con.Do("ZADD", "archive:"+trigger.Name, t, v)
+			body := fmt.Sprintf("%d:%.2f", t, v)
+			_, err = data_con.Do("ZADD", "archive:"+trigger.Name, t, body)
 		}
 		if err != nil {
 			close(triggerchan)

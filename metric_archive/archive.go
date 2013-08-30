@@ -2,6 +2,7 @@ package main
 
 import (
 	metrictools "../"
+	"fmt"
 	"github.com/bitly/nsq/nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
@@ -76,7 +77,8 @@ func (this *DataArchive) do_compress(key string) {
 			}
 			size := len(value_list)
 			if size > 0 {
-				_, err = data_con.Do("ZADD", key, sumtime/int64(size), sumvalue/float64(size))
+				body := fmt.Sprintf("%d:%.2f", sumtime/int64(size), sumvalue/float64(size))
+				_, err = data_con.Do("ZADD", key, sumtime/int64(size), body)
 				if err != nil {
 					break
 				}

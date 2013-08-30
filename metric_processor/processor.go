@@ -61,8 +61,8 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 			log.Println("fail to get new value", err)
 			return err
 		}
-		_, err := data_con.Do("ZADD", "archive:"+msg.Key,
-			msg.Timestamp, new_value)
+		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, new_value)
+		_, err := data_con.Do("ZADD", "archive:"+msg.Key, msg.Timestamp, body)
 		if err != nil {
 			log.Println(err)
 			break
@@ -71,7 +71,7 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 		if time.Now().Unix()-int64(t) > 600 {
 			this.writer.Publish(this.archive_topic, []byte(msg.Key))
 		}
-		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
+		body = fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
 		_, err = data_con.Do("SET", "raw:"+msg.Key, body)
 		if err != nil {
 			log.Println("set raw", err)
