@@ -4,23 +4,23 @@
 
 MAKEFLAGS = -s
 all:
-	cd metric_archive; go build
-	cd metric_processor; go build
-	cd metric_statistic; go build
-	cd metric_notify; go build
-	cd metric_web; go build
+	cd metricarchive; go build
+	cd metricprocessor; go build
+	cd metricstatistic; go build
+	cd metricnotify; go build
+	cd metricweb; go build
 
 fmt:
 	go fmt
-	cd metric_archive; go fmt
-	cd metric_processor; go fmt
-	cd metric_statistic; go fmt
-	cd metric_notify; go fmt
-	cd metric_web; go fmt
+	cd metricarchive; go fmt
+	cd metricprocessor; go fmt
+	cd metricstatistic; go fmt
+	cd metricnotify; go fmt
+	cd metricweb; go fmt
 
 clean:
-	cd metric_archive; go clean
-	cd metric_processor; go clean
-	cd metric_statistic; go clean
-	cd metric_notify; go clean
-	cd metric_web; go clean
+	cd metricarchive; go clean
+	cd metricprocessor; go clean
+	cd metricstatistic; go clean
+	cd metricnotify; go clean
+	cd metricweb; go clean

@@ -132,7 +132,7 @@ func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 	defer config_con.Close()
 	for _, item := range exp_list {
 		if len(item) > 0 {
-			v, err := config_con.Do("GET", item)
+			v, err := config_con.Do("HGET", item, "real")
 			if err != nil {
 				return 0, err
 			}

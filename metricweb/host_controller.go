@@ -39,7 +39,6 @@ func HostClearMetricHandler(w http.ResponseWriter, r *http.Request) {
 		defer data_con.Close()
 		for _, v := range metric_list {
 			data_con.Do("DEL", v)
-			data_con.Do("DEL", "raw:"+v)
 			data_con.Do("DEL", "archive:"+v)
 			data_con.Do("DEL", "setting:"+v)
 		}
@@ -80,7 +79,6 @@ func HostDeleteMetricHandler(w http.ResponseWriter, r *http.Request) {
 	data_con := dataservice.Get()
 	defer data_con.Close()
 	config_con.Do("SREM", host, metric)
-	data_con.Do("DEL", "raw:"+metric)
 	data_con.Do("DEL", "archive:"+metric)
 	data_con.Do("DEL", metric)
 	config_con.Do("DEL", "setting:"+metric)

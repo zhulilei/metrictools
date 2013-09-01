@@ -85,7 +85,6 @@ func MetricDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	defer config_con.Close()
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	data_con.Do("DEL", "raw:"+metric)
 	data_con.Do("DEL", "archive:"+metric)
 	data_con.Do("DEL", metric)
 	config_con.Do("DEL", "setting:"+metric)

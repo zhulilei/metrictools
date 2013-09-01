@@ -46,7 +46,7 @@ func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 func (this *DataArchive) do_compress(key string) {
 	config_con := this.configservice.Get()
 	defer config_con.Close()
-	t, err := redis.Float64(config_con.Do("GET", "compresstime:"+key))
+	t, err := redis.Float64(config_con.Do("HGET", key, "compresstime"))
 	if err != nil {
 		return
 	}
@@ -98,5 +98,5 @@ func (this *DataArchive) do_compress(key string) {
 			time.Sleep(time.Second)
 		}
 	}
-	config_con.Do("SET", "compresstime:"+key, current)
+	config_con.Do("HSET", key, "compresstime", current)
 }

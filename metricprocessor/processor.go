@@ -67,17 +67,17 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 			log.Println(err)
 			break
 		}
-		t, _ := redis.Float64(config_con.Do("GET", "archivetime:"+msg.Key))
+		t, _ := redis.Float64(config_con.Do("HGET", msg.Key, "archivetime"))
 		if time.Now().Unix()-int64(t) > 600 {
 			this.writer.Publish(this.archive_topic, []byte(msg.Key))
 		}
 		body = fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
-		_, err = data_con.Do("SET", "raw:"+msg.Key, body)
+		_, err = data_con.Do("HSET", msg.Key, "raw", body)
 		if err != nil {
 			log.Println("set raw", err)
 			break
 		}
-		_, err = data_con.Do("SET", msg.Key, new_value)
+		_, err = data_con.Do("HSET", msg.Key, "real" ,new_value)
 		if err != nil {
 			log.Println("last data", err)
 			break
@@ -90,7 +90,7 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	rst, err := redis.String(data_con.Do("GET", "raw:"+msg.Key))
+	rst, err := redis.String(data_con.Do("HGET", msg.Key, "raw"))
 	if err != nil {
 		return 0, err
 	}
