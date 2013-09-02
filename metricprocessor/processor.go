@@ -54,32 +54,39 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 		} else {
 			new_value = msg.Value
 		}
-		if err != nil && err.Error() == "ignore" {
-			continue
-		}
 		if err != nil {
-			log.Println("fail to get new value", err)
-			return err
+			if err.Error() == "ignore" {
+				continue
+			}
+			if err != redis.ErrNil {
+				log.Println("fail to get new value", err)
+				break
+			}
 		}
 		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, new_value)
-		_, err := data_con.Do("ZADD", "archive:"+msg.Key, msg.Timestamp, body)
+		_, err = data_con.Do("ZADD", "archive:"+msg.Key, msg.Timestamp, body)
 		if err != nil {
 			log.Println(err)
 			break
 		}
-		t, _ := redis.Float64(config_con.Do("HGET", msg.Key, "archivetime"))
+		var t float64
+		t, err = redis.Float64(data_con.Do("HGET", msg.Key, "archivetime"))
+		if err != nil && err != redis.ErrNil {
+			log.Println("fail to get archivetime", err)
+			break
+		}
 		if time.Now().Unix()-int64(t) > 600 {
 			this.writer.Publish(this.archive_topic, []byte(msg.Key))
 		}
 		body = fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
 		_, err = data_con.Do("HSET", msg.Key, "raw", body)
 		if err != nil {
-			log.Println("set raw", err)
+			log.Println("set raw data", err)
 			break
 		}
-		_, err = data_con.Do("HSET", msg.Key, "real" ,new_value)
+		_, err = data_con.Do("HSET", msg.Key, "real", new_value)
 		if err != nil {
-			log.Println("last data", err)
+			log.Println("set real data", err)
 			break
 		}
 		_, err = config_con.Do("SADD", msg.Host, msg.Key)

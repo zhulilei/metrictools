@@ -36,7 +36,7 @@ func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 		log.Println("last data", err)
 		return err
 	}
-	config_con.Do("SET", "archivetime:"+string(m.Body), time.Now().Unix())
+	data_con.Do("HSET", string(m.Body), "archivetime", time.Now().Unix())
 	if stat != 0 {
 		go this.do_compress(metric)
 	}
@@ -44,18 +44,17 @@ func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 }
 
 func (this *DataArchive) do_compress(key string) {
-	config_con := this.configservice.Get()
-	defer config_con.Close()
-	t, err := redis.Float64(config_con.Do("HGET", key, "compresstime"))
-	if err != nil {
+	data_con := this.dataservice.Get()
+	defer data_con.Close()
+	t, err := redis.Float64(data_con.Do("HGET", key, "compresstime"))
+	if err != nil && err != redis.ErrNil {
+		log.Println("compress time error", err)
 		return
 	}
 	current := int64(t)
 	last_d := time.Now().Unix() - 24*3600
 	last_2d := time.Now().Unix() - 2*24*3600
 	var interval int64
-	data_con := this.dataservice.Get()
-	defer data_con.Close()
 	for {
 		if current > last_d {
 			break
@@ -98,5 +97,5 @@ func (this *DataArchive) do_compress(key string) {
 			time.Sleep(time.Second)
 		}
 	}
-	config_con.Do("HSET", key, "compresstime", current)
+	data_con.Do("HSET", key, "compresstime", current)
 }
