@@ -47,7 +47,7 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	defer config_con.Close()
 	_, err := redis.String(config_con.Do("HGET", "trigger:"+tg.Name, "exp"))
 	if err == nil {
-		w.WriteHeader(http.StatusConflict)
+		w.WriteHeader(http.StatusNotAcceptable)
 		w.Write([]byte(tg.Name + " exists"))
 		return
 	}
