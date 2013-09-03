@@ -87,8 +87,6 @@ func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 
 func MetricDelete(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
-	config_con := configservice.Get()
-	defer config_con.Close()
 	data_con := dataservice.Get()
 	defer data_con.Close()
 	_, err := data_con.Do("DEL", "archive:"+metric)

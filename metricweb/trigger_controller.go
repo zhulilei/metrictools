@@ -45,7 +45,13 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	config_con := configservice.Get()
 	defer config_con.Close()
-	_, err := config_con.Do("HMSET", "trigger:"+tg.Name,
+	_, err := redis.String(config_con.Do("HGET", "trigger:"+tg.Name, "exp"))
+	if err == nil {
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte(tg.Name + " exists"))
+		return
+	}
+	_, err = config_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
 		"persist", tg.Persist,
 		"relation", tg.Relation,
@@ -68,7 +74,14 @@ func TriggerDelete(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	config_con := configservice.Get()
 	defer config_con.Close()
-	_, err := config_con.Do("DEL", "trigger:"+name)
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	_, err := config_con.Do("DEL", "archive:"+name)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = config_con.Do("DEL", "trigger:"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))
