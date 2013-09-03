@@ -74,7 +74,6 @@ func HostDelete(w http.ResponseWriter, r *http.Request) {
 
 func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	w.WriteHeader(http.StatusOK)
 	host := mux.Vars(r)["host"]
 	data_con := dataservice.Get()
 	defer data_con.Close()
