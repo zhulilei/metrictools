@@ -73,6 +73,7 @@ func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&items); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
+		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	data_con := dataservice.Get()

@@ -34,7 +34,6 @@ func HostShow(w http.ResponseWriter, r *http.Request) {
 	_, err := redis.Strings(data_con.Do("SMEMBERS", host))
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
-		w.WriteHeader(http.StatusOK)
 		query := make(map[string]interface{})
 		query["name"] = host
 		query["metric"] = "/host/" + host + "/metric"
