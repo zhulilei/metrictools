@@ -15,9 +15,9 @@ type DataArchive struct {
 }
 
 func (this *DataArchive) HandleMessage(m *nsq.Message) error {
-	config_con := this.configservice.Get()
-	defer config_con.Close()
-	stat, _ := redis.Int(config_con.Do("GET", "setting:"+string(m.Body)))
+	data_con := this.dataservice.Get()
+	defer data_con.Close()
+	stat, _ := redis.Int(data_con.Do("HGET", string(m.Body), "ttl"))
 	var last int64
 	current := time.Now().Unix()
 	if stat > 0 {
@@ -29,11 +29,9 @@ func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 		last = current - 60*24*3600
 	}
 	metric := "archive:" + string(m.Body)
-	data_con := this.dataservice.Get()
-	defer data_con.Close()
 	_, err := data_con.Do("ZREMRANGEBYSCORE", metric, 0, last)
 	if err != nil {
-		log.Println("last data", err)
+		log.Println("failed to remove old data", metric, err)
 		return err
 	}
 	data_con.Do("HSET", string(m.Body), "archivetime", time.Now().Unix())
@@ -48,7 +46,7 @@ func (this *DataArchive) do_compress(key string) {
 	defer data_con.Close()
 	t, err := redis.Float64(data_con.Do("HGET", key, "compresstime"))
 	if err != nil && err != redis.ErrNil {
-		log.Println("compress time error", err)
+		log.Println("failed to get compress time", err)
 		return
 	}
 	current := int64(t)

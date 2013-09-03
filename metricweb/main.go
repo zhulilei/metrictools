@@ -60,49 +60,53 @@ func main() {
 	r := mux.NewRouter()
 	s := r.PathPrefix("/monitorapi/").Subrouter()
 
-	s.HandleFunc("/metric", MetricHandler).
-		Methods("GET").
-		Headers("Accept", "application/json")
+	s.HandleFunc("/metric", MetricIndex).
+		Methods("GET")
 
-	s.HandleFunc("/metric", MetricCreateHandler).
+	s.HandleFunc("/metric", MetricCreate).
 		Methods("POST").
-		Headers("Content-type", "application/json")
+		Headers("Content-Type", "application/json")
 
-	s.HandleFunc("/metric/{name}", MetricDeleteHandler).
+	s.HandleFunc("/metric/{name}", MetricUpdate).
+		Methods("PATCH").
+		Headers("Content-Type", "application/json")
+
+	s.HandleFunc("/metric/{name}", MetricDelete).
 		Methods("DELETE")
 
-	s.HandleFunc("/host/{name}", HostHandler).
+	s.HandleFunc("/host", HostIndex).
+		Methods("GET").
+		Headers("Accept", "application/json")
+	s.HandleFunc("/host/{name}", HostShow).
+		Methods("GET").
+		Headers("Accept", "application/json")
+	s.HandleFunc("/host/{name}", HostDelete).
+		Methods("DELETE")
+
+	s.HandleFunc("/host/{host}/metric", HostMetricIndex).
+		Methods("GET").
+		Headers("Accept", "application/json")
+	s.HandleFunc("/host/{host}/metric/{name}", HostMetricDelete).
+		Methods("DELETE")
+
+	s.HandleFunc("/statistic/{name}", StatisticShow).
 		Methods("GET").
 		Headers("Accept", "application/json")
 
-	s.HandleFunc("/host/{name}", HostClearMetricHandler).
-		Methods("DELETE")
-
-	s.HandleFunc("/host/{host}/metric", HostListMetricHandler).
-		Methods("GET").
-		Headers("Accept", "application/json")
-
-	s.HandleFunc("/host/{host}/metric/{name}", HostDeleteMetricHandler).
-		Methods("DELETE")
-
-	s.HandleFunc("/statistic/{name}", StatisticHandler).
-		Methods("GET").
-		Headers("Accept", "application/json")
-
-	s.HandleFunc("/trigger", TriggerNewHandler).
+	s.HandleFunc("/trigger", TriggerCreate).
 		Methods("POST").
-		Headers("Content-type", "application/json")
-	s.HandleFunc("/trigger/{name}", TriggerShowHandler).
+		Headers("Content-Type", "application/json")
+	s.HandleFunc("/trigger/{name}", TriggerShow).
 		Methods("GET").
 		Headers("Accept", "application/json")
-	s.HandleFunc("/trigger/{name}", TriggerRemoveHandler).
+	s.HandleFunc("/trigger/{name}", TriggerDelete).
 		Methods("DELETE")
 
-	s.HandleFunc("/trigger/{t_name}/action", ActionNewHandler).
-		Methods("POST").Headers("Content-type", "application/json")
-	s.HandleFunc("/trigger/{t_name}/action", ActionIndexHandler).
+	s.HandleFunc("/trigger/{t_name}/action", ActionCreate).
+		Methods("POST").Headers("Content-Type", "application/json")
+	s.HandleFunc("/trigger/{t_name}/action", ActionIndex).
 		Methods("GET").Headers("Accept", "application/json")
-	s.HandleFunc("/trigger/{t_name}/action/{name}", ActionRemoveHandler).
+	s.HandleFunc("/trigger/{t_name}/action/{name}", ActionDelete).
 		Methods("DELETE")
 
 	http.Handle("/", r)

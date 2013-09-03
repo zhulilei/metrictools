@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
-func MetricHandler(w http.ResponseWriter, r *http.Request) {
+func MetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	metrics := r.FormValue("metrics")
 	starttime := r.FormValue("starttime")
@@ -48,44 +47,59 @@ func MetricHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(gen_json(record_list))
 }
 
-func MetricCreateHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Failed to read request"))
+func MetricCreate(w http.ResponseWriter, r *http.Request) {
+	var items map[string]int
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&items); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	var metrics map[string]int
-	if err = json.Unmarshal(body, &metrics); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("failed to parse json"))
-		return
-	} else {
-		w.WriteHeader(http.StatusOK)
-	}
-	config_con := configservice.Get()
-	defer config_con.Close()
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	for metric, value := range metrics {
-		v, _ := data_con.Do("GET", "archive:"+metric)
+	for metric, value := range items {
+		v, _ := data_con.Do("GET", metric)
 		if v != nil {
-			config_con.Do("SET", "setting:"+metric, value)
+			data_con.Do("HSET", metric, "ttl", value)
 		}
 	}
 }
 
-func MetricDeleteHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	w.WriteHeader(http.StatusOK)
+func MetricUpdate(w http.ResponseWriter, r *http.Request) {
+	metric := mux.Vars(r)["name"]
+	var items map[string]int
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&items); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+	}
+	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	v, _ := data_con.Do("GET", metric)
+	if v != nil {
+		data_con.Do("HSET", metric, "ttl", items["ttl"])
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+func MetricDelete(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
 	config_con := configservice.Get()
 	defer config_con.Close()
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	data_con.Do("DEL", "archive:"+metric)
-	data_con.Do("DEL", metric)
-	config_con.Do("DEL", "setting:"+metric)
+	_, err := data_con.Do("DEL", "archive:"+metric)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = data_con.Do("DEL", metric)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

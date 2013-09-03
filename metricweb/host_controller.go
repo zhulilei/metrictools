@@ -8,78 +8,96 @@ import (
 	"net/http"
 )
 
-func HostHandler(w http.ResponseWriter, r *http.Request) {
+func HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	w.WriteHeader(http.StatusOK)
-	host := mux.Vars(r)["name"]
-	var query []string
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	metric_list, err := redis.Strings(data_con.Do("KEYS", "archive:"+host+"*"))
-	if err == nil {
-		for _, v := range metric_list {
-			query = append(query, v[8:])
-		}
-	} else {
-		log.Println("failed to get set", err)
-	}
-	w.Write(json_host_metric(query, host))
+	r.ParseForm()
 }
 
-func HostClearMetricHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	w.WriteHeader(http.StatusMovedPermanently)
+func HostShow(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	host := mux.Vars(r)["name"]
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	_, err := redis.Strings(data_con.Do("SMEMBERS", host))
+	if err == nil {
+		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusOK)
+		query := make(map[string]interface{})
+		query["name"] = host
+		query["metric"] = "/host/" + host + "/metric"
+		body, _ := json.Marshal(query)
+		w.Write(body)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+		log.Println("failed to get set", err)
+	}
+}
 
+func HostDelete(w http.ResponseWriter, r *http.Request) {
 	host := mux.Vars(r)["name"]
 	config_con := configservice.Get()
 	defer config_con.Close()
-	metric_list, err := redis.Strings(config_con.Do("SMEMBERS", host))
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	metric_list, err := redis.Strings(data_con.Do("SMEMBERS", host))
 	if err == nil {
-		data_con := dataservice.Get()
-		defer data_con.Close()
 		for _, v := range metric_list {
-			data_con.Do("DEL", v)
-			data_con.Do("DEL", "archive:"+v)
-			data_con.Do("DEL", "setting:"+v)
+			_, err = data_con.Do("DEL", v)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			_, err = data_con.Do("DEL", "archive:"+v)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+		_, err = data_con.Do("DEL", host)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 	}
-	_, err = config_con.Do("DEL", host)
-	if err != nil {
-		log.Println("failed to get set", err)
-	}
-	w.Header().Set("Location", r.Referer())
+	w.WriteHeader(http.StatusOK)
 }
 
-func HostListMetricHandler(w http.ResponseWriter, r *http.Request) {
+func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.WriteHeader(http.StatusOK)
 	host := mux.Vars(r)["host"]
-	var query []string
 	config_con := configservice.Get()
 	defer config_con.Close()
-	metric_list, err := redis.Strings(config_con.Do("SMEMBERS", host))
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	metric_list, err := redis.Strings(data_con.Do("SMEMBERS", host))
 	if err == nil {
-		for _, v := range metric_list {
-			query = append(query, v)
-		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(json_host_metric(metric_list, host))
 	} else {
-		log.Println("failed to get set", err)
+		w.WriteHeader(http.StatusNotFound)
 	}
-	body, _ := json.Marshal(query)
-	w.Write(body)
 }
 
-func HostDeleteMetricHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
+func HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	host := mux.Vars(r)["host"]
 	metric := mux.Vars(r)["name"]
-	config_con := configservice.Get()
-	defer config_con.Close()
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	config_con.Do("SREM", host, metric)
-	data_con.Do("DEL", "archive:"+metric)
-	data_con.Do("DEL", metric)
-	config_con.Do("DEL", "setting:"+metric)
+	_, err := data_con.Do("SREM", host, metric)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = data_con.Do("DEL", "archive:"+metric)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = data_con.Do("DEL", metric)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }

@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
-	"io/ioutil"
 	"log"
 	"net/http"
 )
 
-func TriggerShowHandler(w http.ResponseWriter, r *http.Request) {
+func TriggerShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	name := mux.Vars(r)["name"]
 	config_con := configservice.Get()
@@ -25,23 +24,15 @@ func TriggerShowHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Failed to read request"))
+func TriggerCreate(w http.ResponseWriter, r *http.Request) {
+	var tg metrictools.Trigger
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&tg); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	var tg metrictools.Trigger
-	if err = json.Unmarshal(body, &tg); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("failed to parse json"))
-		return
-	} else {
-		w.WriteHeader(http.StatusOK)
-	}
 	if tg.EValue > tg.WValue && tg.Relation == metrictools.LESS {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("bad error/warning setting"))
@@ -54,7 +45,7 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	config_con := configservice.Get()
 	defer config_con.Close()
-	_, err = config_con.Do("HMSET", "trigger:"+tg.Name,
+	_, err := config_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
 		"persist", tg.Persist,
 		"relation", tg.Relation,
@@ -73,7 +64,7 @@ func TriggerNewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func TriggerRemoveHandler(w http.ResponseWriter, r *http.Request) {
+func TriggerDelete(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	config_con := configservice.Get()
 	defer config_con.Close()

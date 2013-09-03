@@ -4,12 +4,11 @@ import (
 	metrictools "../"
 	"encoding/json"
 	"github.com/gorilla/mux"
-	"io/ioutil"
 	"log"
 	"net/http"
 )
 
-func ActionIndexHandler(w http.ResponseWriter, r *http.Request) {
+func ActionIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	tg := mux.Vars(r)["t_name"]
 	var err error
@@ -28,27 +27,19 @@ func ActionIndexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ActionNewHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Find Failed"))
+func ActionCreate(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	var action metrictools.NotifyAction
+	if err := json.NewDecoder(r.Body).Decode(&action); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	var action metrictools.NotifyAction
-	if err = json.Unmarshal(body, &action); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Json error"))
-		return
-	} else {
-		w.WriteHeader(http.StatusOK)
-	}
 	tg := mux.Vars(r)["t_name"]
 	config_con := configservice.Get()
 	defer config_con.Close()
-	_, err = config_con.Do("HMSET", "actions:"+tg+":"+action.Name,
+	_, err := config_con.Do("HMSET", "actions:"+tg+":"+action.Name,
 		"repeat", action.Repeat, "uri", action.Uri)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -59,7 +50,7 @@ func ActionNewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ActionRemoveHandler(w http.ResponseWriter, r *http.Request) {
+func ActionDelete(w http.ResponseWriter, r *http.Request) {
 	tg := mux.Vars(r)["t_name"]
 	name := mux.Vars(r)["name"]
 	config_con := configservice.Get()

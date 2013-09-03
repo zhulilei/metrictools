@@ -22,16 +22,16 @@ type Record struct {
 }
 
 type Trigger struct {
-	Expression string  `json:"expression"`
-	Persist    bool    `json:"persist"`
-	Relation   int     `json:"relation"`
-	Interval   int     `json:"interval"`
-	Period     int     `json:"period"`
-	WValue     float64 `json:"warning"`
-	EValue     float64 `json:"error"`
-	Name       string  `json:"name"`
-	Role       string  `json:"role"`
-	Stat       int     `json:"stat"`
+	Expression string  `json:"expression", redis:"exp"`
+	Persist    bool    `json:"persist", redis:"persist"`
+	Relation   int     `json:"relation", redis:"relation"`
+	Interval   int     `json:"interval", redis:"interval"`
+	Period     int     `json:"period", redis:"period"`
+	WValue     float64 `json:"warning", redis:"warning"`
+	EValue     float64 `json:"error", redis:"error"`
+	Name       string  `json:"name", redis:"-"`
+	Role       string  `json:"role", redis:"role"`
+	Stat       int     `json:"stat", redis:"stat"`
 }
 
 type Notify struct {
@@ -41,11 +41,11 @@ type Notify struct {
 }
 
 type NotifyAction struct {
-	Name       string `json:"name"`
-	Repeat     int    `json:"repeat"`
-	Uri        string `json:"uri"`
-	UpdateTime int64  `json:"update_time"`
-	Count      int    `json:"count"`
+	Name       string `json:"name", redis:"-"`
+	Repeat     int    `json:"repeat", redis:"repeat"`
+	Uri        string `json:"uri", redis:"uri"`
+	UpdateTime int64  `json:"update_time", redis:"update_time"`
+	Count      int    `json:"count", redis:"count"`
 }
 
 func GetTimestampAndValue(key string) (int64, float64, error) {

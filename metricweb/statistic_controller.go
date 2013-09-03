@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func StatisticHandler(w http.ResponseWriter, r *http.Request) {
+func StatisticShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
 	name := mux.Vars(r)["name"]
 	starttime := r.FormValue("start")
