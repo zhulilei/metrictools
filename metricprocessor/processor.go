@@ -45,8 +45,6 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 	var err error
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	config_con := this.configservice.Get()
-	defer config_con.Close()
 	for _, msg := range msgs {
 		var new_value float64
 		if msg.DSType == "counter" || msg.DSType == "derive" {
@@ -89,7 +87,7 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 			log.Println("set real data", err)
 			break
 		}
-		_, err = config_con.Do("SADD", msg.Host, msg.Key)
+		_, err = data_con.Do("SADD", msg.Host, msg.Key)
 	}
 	return err
 }
