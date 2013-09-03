@@ -10,7 +10,20 @@ import (
 
 func HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	r.ParseForm()
+	data_con := dataservice.Get()
+	defer data_con.Close()
+	hosts, _ := redis.Strings(data_con.Do("KEYS", "*"))
+	var rst []interface{}
+	for _, host := range hosts {
+		if host[:8] != "archive:" {
+			query := make(map[string]interface{})
+			query["name"] = host
+			query["metric"] = "/host/" + host + "/metric"
+			rst = append(rst, query)
+		}
+	}
+	body, _ := json.Marshal(rst)
+	w.Write(body)
 }
 
 func HostShow(w http.ResponseWriter, r *http.Request) {
