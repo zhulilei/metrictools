@@ -22,12 +22,11 @@ first part is metric, second is data's ttl day.
 
     DELETE /metric/{name}
 
-
-## Get host's archived metrics list
+## Get host info
 
     GET /host/{name}
 
-## Delete host's metric info
+## Delete host
 
     DELETE /host/{name}
 
@@ -36,7 +35,7 @@ first part is metric, second is data's ttl day.
 
     GET /host/{host}/metric
 
-## Delete hosts's metric
+## Delete metric and remove metric from host
 
     DELETE /host/{host}/metric/{name}
 
