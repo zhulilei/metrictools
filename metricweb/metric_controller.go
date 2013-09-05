@@ -12,6 +12,8 @@ import (
 
 func MetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 	metrics := r.FormValue("metrics")
 	starttime := r.FormValue("starttime")
 	endtime := r.FormValue("endtime")
@@ -56,6 +58,8 @@ func MetricCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 	data_con := dataservice.Get()
 	defer data_con.Close()
 	for metric, value := range items {
@@ -76,6 +80,8 @@ func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "PATCH, DELETE")
 	data_con := dataservice.Get()
 	defer data_con.Close()
 	v, _ := data_con.Do("GET", metric)
@@ -87,6 +93,8 @@ func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func MetricDelete(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "PATCH, DELETE")
 	metric := mux.Vars(r)["name"]
 	data_con := dataservice.Get()
 	defer data_con.Close()

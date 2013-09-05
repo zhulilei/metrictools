@@ -11,6 +11,8 @@ import (
 
 func HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	data_con := dataservice.Get()
 	defer data_con.Close()
 	hosts, _ := redis.Strings(data_con.Do("KEYS", "*"))
@@ -29,6 +31,8 @@ func HostIndex(w http.ResponseWriter, r *http.Request) {
 
 func HostShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := mux.Vars(r)["name"]
 	data_con := dataservice.Get()
 	defer data_con.Close()
@@ -47,6 +51,8 @@ func HostShow(w http.ResponseWriter, r *http.Request) {
 }
 
 func HostDelete(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := mux.Vars(r)["name"]
 	data_con := dataservice.Get()
 	defer data_con.Close()
@@ -75,6 +81,8 @@ func HostDelete(w http.ResponseWriter, r *http.Request) {
 
 func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	host := mux.Vars(r)["host"]
 	data_con := dataservice.Get()
 	defer data_con.Close()
@@ -101,7 +109,8 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func HostMetricDelete(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "DELETE")
 	host := mux.Vars(r)["host"]
 	metric := mux.Vars(r)["name"]
 	data_con := dataservice.Get()
@@ -121,4 +130,5 @@ func HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(http.StatusOK)
 }
