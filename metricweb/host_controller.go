@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"sort"
 )
 
 func HostIndex(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +81,20 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	metric_list, err := redis.Strings(data_con.Do("SMEMBERS", host))
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
-		w.Write(json_host_metric(metric_list, host))
+		var rst []interface{}
+		sort.Strings(metric_list)
+		for _, v := range metric_list {
+			item := make(map[string]string)
+			item["type"] = get_pluginname(v)
+			item["metric"] = v
+			item["host"] = host
+			rst = append(rst, item)
+		}
+		if body, err := json.Marshal(rst); err == nil {
+			w.Write(body)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
