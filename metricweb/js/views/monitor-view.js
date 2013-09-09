@@ -18,7 +18,8 @@ var app = app || {};
             this.listenTo(app.hostmetrics, 'reset', this.hostmetricsShow);
             this.listenTo(app.metrics, 'add', this.metricsShow);
             this.listenTo(app.metrics, 'remove', this.metricsShow);
-            this.render()
+            this.render();
+            $('.search-query').quicksearch('ul li');
         },
 
         render: function() {
