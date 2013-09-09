@@ -8,7 +8,7 @@ all:
 	cd metricprocessor; go build
 	cd metricstatistic; go build
 	cd metricnotify; go build
-	cd metricweb; go build
+	cd metricwebservice; go build
 
 fmt:
 	go fmt
@@ -16,11 +16,11 @@ fmt:
 	cd metricprocessor; go fmt
 	cd metricstatistic; go fmt
 	cd metricnotify; go fmt
-	cd metricweb; go fmt
+	cd metricwebservice; go fmt
 
 clean:
 	cd metricarchive; go clean
 	cd metricprocessor; go clean
 	cd metricstatistic; go clean
 	cd metricnotify; go clean
-	cd metricweb; go clean
+	cd metricwebservice; go clean
