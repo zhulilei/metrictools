@@ -19,7 +19,6 @@ var app = app || {};
             this.listenTo(app.metrics, 'add', this.metricsShow);
             this.listenTo(app.metrics, 'remove', this.metricsShow);
             this.render();
-            $('.search-query').quicksearch('ul li');
         },
 
         render: function() {

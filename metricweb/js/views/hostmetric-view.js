@@ -11,6 +11,7 @@ var app = app || {};
         },
         initialize: function () {
             this.listenTo(app.metrics, 'add', this.metricsShow);
+            $('.search-query').quicksearch('ul li');
         },
         render: function() {
             this.$el.html(this.template(this.model.toJSON()));
