@@ -58,7 +58,7 @@ func main() {
 	defer dataservice.Close()
 
 	r := mux.NewRouter()
-	s := r.PathPrefix("/monitorapi/").Subrouter()
+	s := r.PathPrefix("/api/v1").Subrouter()
 
 	s.HandleFunc("/metric", MetricIndex).
 		Methods("GET")

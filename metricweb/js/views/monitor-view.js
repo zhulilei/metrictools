@@ -59,7 +59,7 @@ var app = app || {};
             });
             if (metric_list.length > 0) {
                 this.$('#graph').show();
-                d3.json('http://172.17.3.188:4321/monitorapi/metric?metrics=' + metric_list, function(data) {
+                d3.json('/api/v1/metric?metrics=' + metric_list, function(data) {
                     nv.addGraph(function() {
                         var chart = nv.models.lineChart()
                             .x(function(d) { return d[0] })

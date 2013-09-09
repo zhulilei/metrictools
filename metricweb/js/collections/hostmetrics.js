@@ -6,7 +6,7 @@ var app = app || {};
 
     var HostMetrics = Backbone.Collection.extend({
         model: app.HostMetric,
-        url_api: 'http://172.17.3.188:4321/monitorapi/host/',
+        url_api: '/api/v1/host/',
     });
     app.hostmetrics = new HostMetrics();
 })();
