@@ -9,7 +9,8 @@ var app = app || {};
         events: {
             'keypress #search-host': 'searchHost',
             'click .metrics': 'metricsShow',
-            'click #resetmetrics': 'metricClear',
+            'click #resetmetrics': 'metricsClear',
+            'click #refreshmetrics': 'metricsShow',
         },
 
         initialize: function () {
@@ -44,7 +45,7 @@ var app = app || {};
             this.$('#metric_list').html('');
             app.hostmetrics.each(this.oneHostMetric, this);
         },
-        metricClear: function () {
+        metricsClear: function () {
             app.metrics.reset();
             this.$('#graph').hide();
         },
