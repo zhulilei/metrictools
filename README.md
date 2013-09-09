@@ -4,24 +4,27 @@
 It's a distributed system monitor toolset.
 
 ## Tools
-### metric_processor
+### metricprocessor
 metric_processor read metric data from mq, then write mongodb and redis.
 It will scan `trigger` records in mongodb and dispatch task via rabbitmq.
 
 A `trigger` may looks like `10min.cpu.free.hostA/10min.memory.free.hostA`.
 
-### metric_statistic
+### metricstatistic
 metric_statistic read `trigger` from mq, then calculate it.
 metric_statistic can read/write calculate result in redis.
 
-### metric_notify
+### metricnotify
 metric_notify read notify from mq, then query notify's action in mongodb.
 
-### metric_web
+### metricwebservice
 It's a web api to access metric data in redis.
 The json data can be processed by [nvd3.js](http://nvd3.org).
 
-### metric_archive
+### metricweb
+base on backbone.js
+
+### metricarchive
 delete old data, remove dup data
 
 ## Require
@@ -58,3 +61,4 @@ collectd's command format will need addition type.db to genrate record.
 ## Todo
 
 1. support data compress
+2. try to port etsy/skyline
