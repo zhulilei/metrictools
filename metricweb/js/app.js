@@ -4,8 +4,9 @@ var app = app || {};
 var ENTER_KEY = 13;
 
 $(function () {
-        'use strict';
+    'use strict';
 
-        // kick things off by creating the `App`
-        new app.MonitorView();
+    // kick things off by creating the `App`
+    new app.MonitorView();
+    $('.search-query').quicksearch('ul li');
 });
