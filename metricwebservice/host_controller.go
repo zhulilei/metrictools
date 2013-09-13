@@ -95,6 +95,9 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 		for _, v := range metric_list {
 			state, _ := redis.Bool(data_con.Do("HGET", v, "stat"))
 			ttl, _ := redis.Int(data_con.Do("HGET", v, "ttl"))
+			if ttl == 0 {
+				ttl = 3600
+			}
 			item := metrictools.MetricAttribute{
 				State:      state,
 				TTL:        ttl,
