@@ -1,6 +1,7 @@
 package main
 
 import (
+	metrictools "../"
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
@@ -92,10 +93,15 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 		var rst []interface{}
 		sort.Strings(metric_list)
 		for _, v := range metric_list {
-			item := make(map[string]string)
-			item["type"] = get_pluginname(v)
-			item["metric"] = v
-			item["host"] = host
+			state, _ := redis.Bool(data_con.Do("HGET", v, "stat"))
+			ttl, _ := redis.Int(data_con.Do("HGET", v, "ttl"))
+			item := metrictools.MetricAttribute{
+				State:      state,
+				TTL:        ttl,
+				MetricType: get_pluginname(v),
+				Name:       v,
+				Host:       host,
+			}
 			rst = append(rst, item)
 		}
 		if body, err := json.Marshal(rst); err == nil {

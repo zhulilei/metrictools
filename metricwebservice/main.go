@@ -86,6 +86,9 @@ func main() {
 	s.HandleFunc("/host/{host}/metric", HostMetricIndex).
 		Methods("GET").
 		Headers("Accept", "application/json")
+	s.HandleFunc("/host/{host}/metric", MetricUpdate).
+		Methods("PATCH").
+		Headers("Content-Type", "application/json")
 	s.HandleFunc("/host/{host}/metric/{name}", HostMetricDelete).
 		Methods("DELETE")
 

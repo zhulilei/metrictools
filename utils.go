@@ -48,6 +48,14 @@ type NotifyAction struct {
 	Count      int    `json:"count", redis:"count"`
 }
 
+type MetricAttribute struct {
+	State      bool   `json:"state"`
+	TTL        int    `json:"ttl"`
+	MetricType string `json:"metric_type"`
+	Name       string `json:"metric_name"`
+	Host       string `json:"host_name"`
+}
+
 func GetTimestampAndValue(key string) (int64, float64, error) {
 	body := string(key)
 	kv := strings.Split(body, ":")

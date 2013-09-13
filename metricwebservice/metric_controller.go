@@ -1,6 +1,7 @@
 package main
 
 import (
+	metrictools "../"
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
@@ -72,9 +73,9 @@ func MetricCreate(w http.ResponseWriter, r *http.Request) {
 
 func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
-	var items map[string]int
+	var item metrictools.MetricAttribute
 	defer r.Body.Close()
-	if err := json.NewDecoder(r.Body).Decode(&items); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
@@ -86,7 +87,7 @@ func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	defer data_con.Close()
 	v, _ := data_con.Do("GET", metric)
 	if v != nil {
-		data_con.Do("HSET", metric, "ttl", items["ttl"])
+		data_con.Do("HMSET", metric, "ttl", item.TTL, "state", item.State)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
