@@ -22,7 +22,8 @@ It's a web api to access metric data in redis.
 The json data can be processed by [nvd3.js](http://nvd3.org).
 
 ### metricweb
-base on backbone.js
+
+move to github.com/datastream/metricweb
 
 ### metricarchive
 delete old data, remove dup data
