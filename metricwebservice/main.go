@@ -61,11 +61,16 @@ func main() {
 	s := r.PathPrefix("/api/v1").Subrouter()
 
 	s.HandleFunc("/metric", MetricIndex).
-		Methods("GET")
+		Methods("GET").
+		Headers("Accept", "application/json")
 
 	s.HandleFunc("/metric", MetricCreate).
 		Methods("POST").
 		Headers("Content-Type", "application/json")
+
+	s.HandleFunc("/metric/{name}", MetricShow).
+		Methods("GET").
+		Headers("Accept", "application/json")
 
 	s.HandleFunc("/metric/{name}", MetricUpdate).
 		Methods("PATCH").
