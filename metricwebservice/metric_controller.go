@@ -25,10 +25,11 @@ func MetricIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	metric_list := strings.Split(metrics, ",")
 	sort.Strings(metric_list)
-	record_list := make(map[string]interface{})
+	var record_list []interface{}
 	data_con := dataservice.Get()
 	defer data_con.Close()
 	for i, v := range metric_list {
+		record := make(map[string]interface{})
 		if i != 0 && metric_list[i-1] == v {
 			continue
 		}
@@ -37,8 +38,9 @@ func MetricIndex(w http.ResponseWriter, r *http.Request) {
 			log.Println(err)
 			continue
 		}
-		record_list["name"] = v
-		record_list["values"] = metrictools.GenerateTimeseries(metric_data)
+		record["name"] = v
+		record["values"] = metrictools.GenerateTimeseries(metric_data)
+		record_list = append(record_list, record)
 	}
 	rst := make(map[string]interface{})
 	rst["metrics"] = record_list
