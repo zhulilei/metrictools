@@ -77,8 +77,7 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 		if time.Now().Unix()-int64(t) > 600 {
 			this.writer.Publish(this.archive_topic, []byte(metric_name))
 		}
-		record = fmt.Sprintf("%d:%.2f", metric.Timestamp, metric.Value)
-		_, err = data_con.Do("HMSET", metric_name, "value", record, "rate_value", new_value, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
+		_, err = data_con.Do("HMSET", metric_name, "value", metric.Value, "timestamp", metric.Timestamp, "rate_value", new_value, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
 		if err != nil {
 			log.Println("hmset", metric_name, err)
 			break
@@ -92,12 +91,14 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 func (this *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, error) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	rst, err := redis.String(data_con.Do("HGET", metric.Host + "_" + metric.GetMetricName(), "value"))
+	rst, err := redis.Values(data_con.Do("HMGET", metric.Host + "_" + metric.GetMetricName(), "value", "timestamp"))
 	if err != nil {
 		return 0, err
 	}
 	var value float64
-	t, v, err := metrictools.GetTimestampAndValue(rst)
+	var t int64
+	var v float64
+	_, err = redis.Scan(rst, &v, &t)
 	if err == nil {
 		value = (metric.Value - v) / float64(metric.Timestamp-t)
 	} else {

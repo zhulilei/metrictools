@@ -98,6 +98,9 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+			if m == nil {
+				continue
+			}
 			var item metrictools.MetricData
 			err = redis.ScanStruct(m, item)
 			if err != nil {

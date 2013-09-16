@@ -16,7 +16,7 @@ type MetricData struct {
 	Value          float64 `json:"value", redis:"value"`
 	DataSetType    string  `json:"dstype", redis:"dstype"`
 	DataSetName    string  `json:"dsname", redis:"dsname"`
-	Timestamp      int64   `json:"timestamp", redis:"-"`
+	Timestamp      int64   `json:"timestamp", redis:"timestamp"`
 	Interval       float64 `json:"interval", redis:"interval"`
 	Host           string  `json:"host", redis:"host"`
 	Plugin         string  `json:"plugin", redis:"plugin"`
@@ -54,7 +54,7 @@ type NotifyAction struct {
 }
 
 func (this *MetricData) GetMetricName() string {
-	metric_name := strconv.Itoa(int(this.Interval)) + "_" + this.Plugin
+	metric_name := this.Plugin
 	if len(this.PluginInstance) > 0 {
 		metric_name += "_" + this.PluginInstance
 	}
