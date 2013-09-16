@@ -22,7 +22,7 @@ func HostIndex(w http.ResponseWriter, r *http.Request) {
 		if host[:8] != "archive:" {
 			query := make(map[string]interface{})
 			query["name"] = host
-			query["metric"] = "/host/" + host + "/metric"
+			query["metric"] = "/host/" + host
 			rst = append(rst, query)
 		}
 	}
@@ -99,14 +99,27 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			var item []metrictools.MetricData
+			var item metrictools.MetricData
 			err = redis.ScanStruct(m, item)
 			if err != nil {
 				log.Println("failed to hmgetall")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			rst = append(rst, item)
+			metric := make(map[string]interface{})
+			name := item.GetMetricName()
+			metric["name"] = name
+			metric["host"] = item.Host
+			metric["plugin"] = item.Plugin
+			metric["plugin_instance"] = item.PluginInstance
+			metric["type"] = item.Type
+			metric["type_instance"] = item.TypeInstance
+			metric["interval"] = item.Interval
+			metric["dsname"] = item.DataSetName
+			metric["dstype"] = item.DataSetType
+			metric["ttl"] = item.TTL
+			metric["url"] = "/api/v1/metric/" + name
+			rst = append(rst, name)
 		}
 		if body, err := json.Marshal(rst); err == nil {
 			w.Write(body)

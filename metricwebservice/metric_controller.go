@@ -40,6 +40,7 @@ func MetricIndex(w http.ResponseWriter, r *http.Request) {
 		record_list["name"] = v
 		record_list["values"] = metrictools.GenerateTimeseries(metric_data)
 	}
+	record_list["url"] = "/api/v1/metric?metrics=" + metrics
 	if body, err := json.Marshal(record_list); err == nil {
 		w.Write(body)
 	} else {
