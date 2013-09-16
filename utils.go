@@ -63,7 +63,7 @@ func (this *MetricData) GetMetricName() string {
 			metric_name += "_" + this.PluginInstance
 		}
 	}
-	if len(this.Type) > 0 {
+	if len(this.Type) > 0 && this.Type != this.Plugin {
 		metric_name += "." + this.Type
 	}
 	if len(this.TypeInstance) > 0 {
