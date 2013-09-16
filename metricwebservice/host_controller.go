@@ -104,7 +104,7 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 			var item metrictools.MetricData
 			err = redis.ScanStruct(m, item)
 			if err != nil {
-				log.Println("failed to scanstruct")
+				log.Println("failed to scanstruct", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
