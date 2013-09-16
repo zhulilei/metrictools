@@ -91,7 +91,7 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 func (this *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, error) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	rst, err := redis.Values(data_con.Do("HMGET", metric.Host + "_" + metric.GetMetricName(), "value", "timestamp"))
+	rst, err := redis.Values(data_con.Do("HMGET", metric.Host+"_"+metric.GetMetricName(), "value", "timestamp"))
 	if err != nil {
 		return 0, err
 	}
