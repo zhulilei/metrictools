@@ -92,14 +92,14 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 		var rst []interface{}
 		sort.Strings(metric_list)
 		for _, v := range metric_list {
-			m, err := redis.Values(data_con.Do("HMGET", v, "dstype", "dsname", "interval", "host", "plugin", "plugin_instance", "type", "type_instance"))
+			m, err := redis.Values(data_con.Do("HMGET", v, "dstype", "dsname", "interval", "host", "plugin", "plugin_instance", "type", "type_instance", "ttl"))
 			if err != nil {
 				log.Println("failed to hgetall", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			var item metrictools.MetricData
-			_, err = redis.Scan(m, &item.DataSetType, &item.DataSetName, &item.Interval, &item.Host, &item.Plugin, &item.PluginInstance, &item.Type, &item.TypeInstance)
+			_, err = redis.Scan(m, &item.DataSetType, &item.DataSetName, &item.Interval, &item.Host, &item.Plugin, &item.PluginInstance, &item.Type, &item.TypeInstance, &item.TTL)
 			if err != nil {
 				log.Println("failed to scanstruct", err)
 				w.WriteHeader(http.StatusInternalServerError)
