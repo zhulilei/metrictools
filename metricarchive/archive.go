@@ -36,7 +36,7 @@ func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 	}
 	data_con.Do("HSET", string(m.Body), "archivetime", time.Now().Unix())
 	if stat != 0 {
-		go this.do_compress(metric)
+		go this.do_compress(string(m.Body))
 	}
 	return nil
 }
@@ -49,6 +49,7 @@ func (this *DataArchive) do_compress(key string) {
 		log.Println("failed to get compress time", err)
 		return
 	}
+	metric := "archive:" + key
 	current := int64(t)
 	last_d := time.Now().Unix() - 24*3600
 	last_2d := time.Now().Unix() - 2*24*3600
@@ -62,7 +63,7 @@ func (this *DataArchive) do_compress(key string) {
 		} else {
 			interval = 300
 		}
-		rst, err := data_con.Do("ZRANGEBYSCORE", key, current, current+interval)
+		rst, err := data_con.Do("ZRANGEBYSCORE", metric, current, current+interval)
 		if err == nil {
 			value_list := rst.([]interface{})
 			sumvalue := float64(0)
@@ -75,13 +76,13 @@ func (this *DataArchive) do_compress(key string) {
 			size := len(value_list)
 			if size > 0 {
 				body := fmt.Sprintf("%d:%.2f", sumtime/int64(size), sumvalue/float64(size))
-				_, err = data_con.Do("ZADD", key, sumtime/int64(size), body)
+				_, err = data_con.Do("ZADD", metric, sumtime/int64(size), body)
 				if err != nil {
 					break
 				}
 			}
 			for _, value := range value_list {
-				_, err = data_con.Do("ZREM", key, value)
+				_, err = data_con.Do("ZREM", metric, value)
 				if err != nil {
 					break
 				}
