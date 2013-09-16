@@ -118,7 +118,7 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 			metric["dstype"] = item.DataSetType
 			metric["ttl"] = item.TTL
 			metric["url"] = "/api/v1/metric/" + name
-			rst = append(rst, name)
+			rst = append(rst, metric)
 		}
 		if body, err := json.Marshal(rst); err == nil {
 			w.Write(body)
