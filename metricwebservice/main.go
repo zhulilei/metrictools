@@ -61,16 +61,14 @@ func main() {
 	s := r.PathPrefix("/api/v1").Subrouter()
 
 	s.HandleFunc("/metric", MetricIndex).
-		Methods("GET").
-		Headers("Accept", "application/json")
+		Methods("GET")
 
 	s.HandleFunc("/metric", MetricCreate).
 		Methods("POST").
 		Headers("Content-Type", "application/json")
 
 	s.HandleFunc("/metric/{name}", MetricShow).
-		Methods("GET").
-		Headers("Accept", "application/json")
+		Methods("GET")
 
 	s.HandleFunc("/metric/{name}", MetricUpdate).
 		Methods("PATCH").
@@ -80,17 +78,14 @@ func main() {
 		Methods("DELETE")
 
 	s.HandleFunc("/host", HostIndex).
-		Methods("GET").
-		Headers("Accept", "application/json")
+		Methods("GET")
 	s.HandleFunc("/host/{name}", HostShow).
-		Methods("GET").
-		Headers("Accept", "application/json")
+		Methods("GET")
 	s.HandleFunc("/host/{name}", HostDelete).
 		Methods("DELETE")
 
 	s.HandleFunc("/host/{host}/metric", HostMetricIndex).
-		Methods("GET").
-		Headers("Accept", "application/json")
+		Methods("GET")
 	s.HandleFunc("/host/{host}/metric", MetricUpdate).
 		Methods("PATCH").
 		Headers("Content-Type", "application/json")
@@ -98,22 +93,20 @@ func main() {
 		Methods("DELETE")
 
 	s.HandleFunc("/statistic/{name}", StatisticShow).
-		Methods("GET").
-		Headers("Accept", "application/json")
+		Methods("GET")
 
 	s.HandleFunc("/trigger", TriggerCreate).
 		Methods("POST").
 		Headers("Content-Type", "application/json")
 	s.HandleFunc("/trigger/{name}", TriggerShow).
-		Methods("GET").
-		Headers("Accept", "application/json")
+		Methods("GET")
 	s.HandleFunc("/trigger/{name}", TriggerDelete).
 		Methods("DELETE")
 
 	s.HandleFunc("/trigger/{t_name}/action", ActionCreate).
 		Methods("POST").Headers("Content-Type", "application/json")
 	s.HandleFunc("/trigger/{t_name}/action", ActionIndex).
-		Methods("GET").Headers("Accept", "application/json")
+		Methods("GET")
 	s.HandleFunc("/trigger/{t_name}/action/{name}", ActionDelete).
 		Methods("DELETE")
 
