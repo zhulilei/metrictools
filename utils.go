@@ -3,6 +3,7 @@ package metrictools
 import (
 	"errors"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -56,13 +57,21 @@ type NotifyAction struct {
 func (this *MetricData) GetMetricName() string {
 	metric_name := this.Plugin
 	if len(this.PluginInstance) > 0 {
-		metric_name += "_" + this.PluginInstance
+		if matched, _ := regexp.MatchString(`^\d+$`, this.PluginInstance); matched {
+			metric_name += this.PluginInstance
+		} else {
+			metric_name += "_" + this.PluginInstance
+		}
 	}
 	if len(this.Type) > 0 {
 		metric_name += "." + this.Type
 	}
 	if len(this.TypeInstance) > 0 {
-		metric_name += "_" + this.TypeInstance
+		if matched, _ := regexp.MatchString(`^\d+$`, this.TypeInstance); matched {
+			metric_name += this.TypeInstance
+		} else {
+			metric_name += "_" + this.TypeInstance
+		}
 	}
 	if this.DataSetName != "value" {
 		metric_name += "." + this.DataSetName
