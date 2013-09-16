@@ -107,7 +107,7 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			metric := make(map[string]interface{})
-			name := item.GetMetricName()
+			name := item.Host + "_" + item.GetMetricName()
 			metric["name"] = name
 			metric["host"] = item.Host
 			metric["plugin"] = item.Plugin

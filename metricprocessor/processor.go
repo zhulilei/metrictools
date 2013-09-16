@@ -62,7 +62,7 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 			}
 		}
 		record := fmt.Sprintf("%d:%.2f", metric.Timestamp, new_value)
-		metric_name := metric.GetMetricName()
+		metric_name := metric.Host + "_" + metric.GetMetricName()
 		_, err = data_con.Do("ZADD", "archive:"+metric_name, metric.Timestamp, record)
 		if err != nil {
 			log.Println(err)
@@ -92,7 +92,7 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 func (this *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, error) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	rst, err := redis.String(data_con.Do("HGET", metric.GetMetricName(), "value"))
+	rst, err := redis.String(data_con.Do("HGET", metric.Host + "_" + metric.GetMetricName(), "value"))
 	if err != nil {
 		return 0, err
 	}
