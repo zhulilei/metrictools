@@ -16,14 +16,14 @@ type MetricData struct {
 	Value          float64 `json:"value", redis:"value"`
 	DataSetType    string  `json:"dstype", redis:"dstype"`
 	DataSetName    string  `json:"dsname", redis:"dsname"`
-	Timestamp      int64   `json:"timestamp", redis:"timestamp"`
+	Timestamp      int64   `json:"timestamp", redis:"-"`
 	Interval       float64 `json:"interval", redis:"interval"`
 	Host           string  `json:"host", redis:"host"`
 	Plugin         string  `json:"plugin", redis:"plugin"`
 	PluginInstance string  `json:"plugin_instance", redis:"plugin_instance"`
 	Type           string  `json:"type" redis:"type"`
 	TypeInstance   string  `json:"type_instance", redis:"type_instance"`
-	TTL            int     `json:"ttl"`
+	TTL            int     `json:"ttl", redis:"ttl"`
 }
 
 type Trigger struct {

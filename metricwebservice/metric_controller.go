@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
-	"strconv"
+	"sort"
 	"strings"
 )
 
@@ -23,31 +23,28 @@ func MetricIndex(w http.ResponseWriter, r *http.Request) {
 	if !checktime(start, end) {
 		start = end - 3600*3
 	}
-
 	metric_list := strings.Split(metrics, ",")
-	record_list := make(map[string][]interface{})
+	sort.Strings(metric_list)
+	record_list := make(map[string]interface{})
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	for _, v := range metric_list {
+	for i, v := range metric_list {
+		if i != 0 && metric_list[i-1] == v {
+			continue
+		}
 		metric_data, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+v, start, end))
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		var kv []interface{}
-		for _, item := range metric_data {
-			t_v := strings.Split(item, ":")
-			if len(t_v) != 2 {
-				log.Println("error redis data")
-				continue
-			}
-			t, _ := strconv.ParseInt(t_v[0], 10, 64)
-			value, _ := strconv.ParseFloat(t_v[1], 64)
-			kv = append(kv, []interface{}{t, value})
-		}
-		record_list[v] = kv
+		record_list["name"] = v
+		record_list["values"] = metrictools.GenerateTimeseries(metric_data)
 	}
-	w.Write(gen_json(record_list))
+	if body, err := json.Marshal(record_list); err == nil {
+		w.Write(body)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 func MetricCreate(w http.ResponseWriter, r *http.Request) {
@@ -92,20 +89,9 @@ func MetricShow(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	var kv []interface{}
-	for _, item := range metric_data {
-		t_v := strings.Split(item, ":")
-		if len(t_v) != 2 {
-			log.Println("error redis data")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		t, _ := strconv.ParseInt(t_v[0], 10, 64)
-		value, _ := strconv.ParseFloat(t_v[1], 64)
-		kv = append(kv, []interface{}{t, value})
-	}
-	record_list["key"] = metric
-	record_list["values"] = kv
+	record_list["name"] = metric
+	record_list["url"] = "/api/v1/metric/" + metric
+	record_list["records"] = metrictools.GenerateTimeseries(metric_data)
 	if body, err := json.Marshal(record_list); err == nil {
 		w.Write(body)
 	} else {
@@ -115,7 +101,7 @@ func MetricShow(w http.ResponseWriter, r *http.Request) {
 
 func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
-	var item metrictools.MetricAttribute
+	var item metrictools.MetricData
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -129,7 +115,7 @@ func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	defer data_con.Close()
 	v, _ := data_con.Do("GET", metric)
 	if v != nil {
-		data_con.Do("HMSET", metric, "ttl", item.TTL, "state", item.State)
+		data_con.Do("HMSET", metric, "ttl", item.TTL)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}

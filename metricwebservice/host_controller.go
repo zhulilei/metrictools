@@ -93,17 +93,18 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 		var rst []interface{}
 		sort.Strings(metric_list)
 		for _, v := range metric_list {
-			state, _ := redis.Bool(data_con.Do("HGET", v, "stat"))
-			ttl, _ := redis.Int(data_con.Do("HGET", v, "ttl"))
-			if ttl == 0 {
-				ttl = 3600
+			m, err := redis.Values(data_con.Do("HMGETALL", v))
+			if err != nil {
+				log.Println("failed to hmgetall")
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
-			item := metrictools.MetricAttribute{
-				State:      state,
-				TTL:        ttl,
-				MetricType: get_pluginname(v),
-				Name:       v,
-				Host:       host,
+			var item []metrictools.MetricData
+			err = redis.ScanStruct(m, item)
+			if err != nil {
+				log.Println("failed to hmgetall")
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 			rst = append(rst, item)
 		}

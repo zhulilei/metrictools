@@ -78,11 +78,12 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 			this.writer.Publish(this.archive_topic, []byte(metric_name))
 		}
 		record = fmt.Sprintf("%d:%.2f", metric.Timestamp, metric.Value)
-		_, err = data_con.Do("HMSET", metric_name, "value", record, "rate_value", new_value, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
+		_, err = data_con.Do("HMSET", metric_name, "value", record, "rate_value", new_value, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
 		if err != nil {
 			log.Println("hmset", metric_name, err)
 			break
 		}
+		_, err = data_con.Do("HSETNX", metric_name, "ttl", metric.TTL)
 		_, err = data_con.Do("SADD", metric.Host, metric_name)
 	}
 	return err
