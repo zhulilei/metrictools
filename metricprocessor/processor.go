@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-type MsgDeliver struct {
+type MetricDeliver struct {
 	dataservice   *redis.Pool
 	configservice *redis.Pool
 	writer        *nsq.Writer
@@ -19,7 +19,7 @@ type MsgDeliver struct {
 	nsqd_addr     string
 }
 
-func (this *MsgDeliver) HandleMessage(m *nsq.Message) error {
+func (this *MetricDeliver) HandleMessage(m *nsq.Message) error {
 	var err error
 	var c []metrictools.CollectdJSON
 	if err = json.Unmarshal(m.Body, &c); err != nil {
@@ -27,30 +27,30 @@ func (this *MsgDeliver) HandleMessage(m *nsq.Message) error {
 		return nil
 	}
 	for _, v := range c {
-		if len(v.Values) != len(v.DSNames) {
+		if len(v.Values) != len(v.DataSetNames) {
 			continue
 		}
-		if len(v.Values) != len(v.DSTypes) {
+		if len(v.Values) != len(v.DataSetTypes) {
 			continue
 		}
-		msgs := v.ToRecord()
-		if err := this.PersistData(msgs); err != nil {
+		metrics := v.GenerateMetricData()
+		if err := this.PersistData(metrics); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
+func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error {
 	var err error
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	for _, msg := range msgs {
+	for _, metric := range metrics {
 		var new_value float64
-		if msg.DSType == "counter" || msg.DSType == "derive" {
-			new_value, err = this.getRate(msg)
+		if metric.DataSetType == "counter" || metric.DataSetType == "derive" {
+			new_value, err = this.getRate(metric)
 		} else {
-			new_value = msg.Value
+			new_value = metric.Value
 		}
 		if err != nil {
 			if err.Error() == "ignore" {
@@ -61,50 +61,46 @@ func (this *MsgDeliver) PersistData(msgs []*metrictools.Record) error {
 				break
 			}
 		}
-		body := fmt.Sprintf("%d:%.2f", msg.Timestamp, new_value)
-		_, err = data_con.Do("ZADD", "archive:"+msg.Key, msg.Timestamp, body)
+		record := fmt.Sprintf("%d:%.2f", metric.Timestamp, new_value)
+		metric_name := metric.GetMetricName()
+		_, err = data_con.Do("ZADD", "archive:"+metric_name, metric.Timestamp, record)
 		if err != nil {
 			log.Println(err)
 			break
 		}
 		var t float64
-		t, err = redis.Float64(data_con.Do("HGET", msg.Key, "archivetime"))
+		t, err = redis.Float64(data_con.Do("HGET", metric_name, "archivetime"))
 		if err != nil && err != redis.ErrNil {
 			log.Println("fail to get archivetime", err)
 			break
 		}
 		if time.Now().Unix()-int64(t) > 600 {
-			this.writer.Publish(this.archive_topic, []byte(msg.Key))
+			this.writer.Publish(this.archive_topic, []byte(metric_name))
 		}
-		body = fmt.Sprintf("%d:%.2f", msg.Timestamp, msg.Value)
-		_, err = data_con.Do("HSET", msg.Key, "raw", body)
+		record = fmt.Sprintf("%d:%.2f", metric.Timestamp, metric.Value)
+		_, err = data_con.Do("HMSET", metric_name, "value", record, "rate_value", new_value, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
 		if err != nil {
-			log.Println("set raw data", err)
+			log.Println("hmset", metric_name, err)
 			break
 		}
-		_, err = data_con.Do("HSET", msg.Key, "real", new_value)
-		if err != nil {
-			log.Println("set real data", err)
-			break
-		}
-		_, err = data_con.Do("SADD", msg.Host, msg.Key)
+		_, err = data_con.Do("SADD", metric.Host, metric_name)
 	}
 	return err
 }
 
-func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
+func (this *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, error) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	rst, err := redis.String(data_con.Do("HGET", msg.Key, "raw"))
+	rst, err := redis.String(data_con.Do("HGET", metric.GetMetricName(), "value"))
 	if err != nil {
 		return 0, err
 	}
 	var value float64
 	t, v, err := metrictools.GetTimestampAndValue(rst)
 	if err == nil {
-		value = (msg.Value - v) / float64(msg.Timestamp-t)
+		value = (metric.Value - v) / float64(metric.Timestamp-t)
 	} else {
-		value = msg.Value
+		value = metric.Value
 	}
 	if value < 0 {
 		value = 0
@@ -112,7 +108,7 @@ func (this *MsgDeliver) getRate(msg *metrictools.Record) (float64, error) {
 	return value, nil
 }
 
-func (this *MsgDeliver) ScanTrigger() {
+func (this *MetricDeliver) ScanTrigger() {
 	ticker := time.Tick(time.Minute)
 	config_con := this.configservice.Get()
 	defer config_con.Close()

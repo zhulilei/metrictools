@@ -64,7 +64,7 @@ func main() {
 	defer config_redis_pool.Close()
 
 	w := nsq.NewWriter(nsqd_addr)
-	msg_deliver := &MsgDeliver{
+	metric_deliver := &MetricDeliver{
 		dataservice:   redis_pool,
 		configservice: config_redis_pool,
 		writer:        w,
@@ -79,7 +79,7 @@ func main() {
 	}
 	r.SetMaxInFlight(int(max))
 	for i := 0; i < int(max); i++ {
-		r.AddHandler(msg_deliver)
+		r.AddHandler(metric_deliver)
 	}
 	lookupdlist := strings.Split(lookupd_addresses, ",")
 	for _, addr := range lookupdlist {
@@ -89,7 +89,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go msg_deliver.ScanTrigger()
+	go metric_deliver.ScanTrigger()
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
