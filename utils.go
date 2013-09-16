@@ -64,7 +64,9 @@ func (this *MetricData) GetMetricName() string {
 	if len(this.TypeInstance) > 0 {
 		metric_name += "_" + this.TypeInstance
 	}
-	metric_name += "." + this.DataSetName
+	if this.DataSetName != "value" {
+		metric_name += "." + this.DataSetName
+	}
 	return metric_name
 }
 
