@@ -43,14 +43,14 @@ func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 
 func (this *DataArchive) do_compress(key string) {
 	data_con := this.dataservice.Get()
-	defer data_con.Close()
-	t, err := redis.Float64(data_con.Do("HGET", key, "compresstime"))
+	t, err := redis.Int64(data_con.Do("HGET", key, "compresstime"))
 	if err != nil && err != redis.ErrNil {
 		log.Println("failed to get compress time", err)
 		return
 	}
+	data_con.Close()
 	metric := "archive:" + key
-	current := int64(t)
+	current := t
 	last_d := time.Now().Unix() - 24*3600
 	last_2d := time.Now().Unix() - 2*24*3600
 	var interval int64
@@ -63,6 +63,7 @@ func (this *DataArchive) do_compress(key string) {
 		} else {
 			interval = 300
 		}
+		data_con := this.dataservice.Get()
 		value_list, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", metric, current, current+interval))
 		if err == nil {
 			sumvalue := float64(0)
@@ -89,9 +90,15 @@ func (this *DataArchive) do_compress(key string) {
 		} else {
 			return
 		}
+		if err = data_con.Flush(); err != nil {
+			log.Println("failed to compress: ", key, err)
+		}
+		data_con.Close()
 	}
+	data_con = this.dataservice.Get()
 	data_con.Send("HSET", key, "compresstime", current)
 	if err = data_con.Flush(); err != nil {
 		log.Println("failed to compress: ", key, err)
 	}
+	data_con.Close()
 }
