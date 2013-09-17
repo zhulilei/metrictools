@@ -27,7 +27,7 @@ func (this *CollectdJSON) GenerateMetricData() []*MetricData {
 			PluginInstance: this.PluginInstance,
 			Type:           this.Type,
 			TypeInstance:   this.TypeInstance,
-			TTL:            int(this.Interval) * 3600,
+			TTL:            int(this.Interval) * 180,
 		}
 		metrics = append(metrics, metric)
 	}
