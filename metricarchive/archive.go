@@ -17,11 +17,11 @@ type DataArchive struct {
 func (this *DataArchive) HandleMessage(m *nsq.Message) error {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	stat, _ := redis.Int(data_con.Do("HGET", string(m.Body), "ttl"))
+	stat, _ := redis.Int64(data_con.Do("HGET", string(m.Body), "ttl"))
 	var last int64
 	current := time.Now().Unix()
 	if stat > 0 {
-		last = current - int64(stat)*24*3600
+		last = current - stat
 	} else {
 		last = current - 300
 	}
@@ -63,38 +63,35 @@ func (this *DataArchive) do_compress(key string) {
 		} else {
 			interval = 300
 		}
-		rst, err := data_con.Do("ZRANGEBYSCORE", metric, current, current+interval)
+		value_list, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", metric, current, current+interval))
 		if err == nil {
-			value_list := rst.([]interface{})
 			sumvalue := float64(0)
 			sumtime := int64(0)
-			for _, value := range value_list {
-				t, v, _ := metrictools.GetTimestampAndValue(string(value.([]byte)))
+			for _, val := range value_list {
+				t, v, _ := metrictools.GetTimestampAndValue(val)
 				sumvalue += v
 				sumtime += t
 			}
 			size := len(value_list)
 			if size > 0 {
 				body := fmt.Sprintf("%d:%.2f", sumtime/int64(size), sumvalue/float64(size))
-				_, err = data_con.Do("ZADD", metric, sumtime/int64(size), body)
+				err = data_con.Send("ZADD", metric, sumtime/int64(size), body)
 				if err != nil {
 					break
 				}
 			}
-			for _, value := range value_list {
-				_, err = data_con.Do("ZREM", metric, value)
-				if err != nil {
-					break
-				}
-			}
+			err = data_con.Send("ZREMRANGEBYSCORE", metric, current, current+interval)
 			if err != nil {
+				log.Println("failed to remove old data", err)
 				break
 			}
 			current += interval
 		} else {
-			log.Println("fail to get range", err)
-			time.Sleep(time.Second)
+			return
 		}
 	}
-	data_con.Do("HSET", key, "compresstime", current)
+	data_con.Send("HSET", key, "compresstime", current)
+	if err = data_con.Flush(); err != nil {
+		log.Println("failed to compress: ", key, err)
+	}
 }
