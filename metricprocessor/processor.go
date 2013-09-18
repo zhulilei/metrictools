@@ -116,15 +116,15 @@ func (this *MetricDeliver) ScanTrigger() {
 	defer config_con.Close()
 	for {
 		keys, err := redis.Strings(config_con.Do("KEYS", "trigger:*"))
-		if err != nil && err != redis.ErrNil {
+		if err != nil {
 			continue
 		}
+		now := time.Now().Unix()
 		for _, v := range keys {
 			last, err := redis.Int64(config_con.Do("HGET", v, "last"))
-			if err != nil {
+			if err != nil && err != redis.ErrNil {
 				continue
 			}
-			now := time.Now().Unix()
 			if now-last < 61 {
 				continue
 			}
