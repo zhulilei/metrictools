@@ -68,7 +68,7 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 			log.Println(err)
 			break
 		}
-		var t int
+		var t int64
 		t, err = redis.Int64(data_con.Do("HGET", metric_name, "archivetime"))
 		if err != nil && err != redis.ErrNil {
 			log.Println("fail to get archivetime", err)
