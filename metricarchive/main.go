@@ -27,8 +27,6 @@ func main() {
 	maxInFlight, _ := c["archivemaxinflight"]
 	redis_server, _ := c["data_redis_server"]
 	redis_auth, _ := c["data_redis_auth"]
-	config_redis_server, _ := c["config_redis_server"]
-	config_redis_auth, _ := c["config_redis_auth"]
 	archive_channel, _ := c["archive_channel"]
 	archive_topic, _ := c["archive_topic"]
 
@@ -45,23 +43,9 @@ func main() {
 	}
 	redis_pool := redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
-	config_redis_con := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", config_redis_server)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := c.Do("AUTH", config_redis_auth); err != nil {
-			c.Close()
-			return nil, err
-		}
-		return c, err
-	}
-	config_redis_pool := redis.NewPool(config_redis_con, 3)
-	defer config_redis_pool.Close()
 
 	dr := &DataArchive{
 		dataservice:   redis_pool,
-		configservice: config_redis_pool,
 	}
 	r, err := nsq.NewReader(archive_topic, archive_channel)
 	if err != nil {

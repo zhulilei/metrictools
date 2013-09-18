@@ -11,7 +11,6 @@ import (
 
 type DataArchive struct {
 	dataservice   *redis.Pool
-	configservice *redis.Pool
 }
 
 func (this *DataArchive) HandleMessage(m *nsq.Message) error {
