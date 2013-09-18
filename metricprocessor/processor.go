@@ -116,7 +116,7 @@ func (this *MetricDeliver) ScanTrigger() {
 	defer config_con.Close()
 	for {
 		keys, err := redis.Strings(config_con.Do("KEYS", "trigger:*"))
-		if err != nil {
+		if err != nil && err != redis.ErrNil {
 			continue
 		}
 		for _, v := range keys {
