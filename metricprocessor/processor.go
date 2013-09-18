@@ -68,13 +68,13 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 			log.Println(err)
 			break
 		}
-		var t float64
-		t, err = redis.Float64(data_con.Do("HGET", metric_name, "archivetime"))
+		var t int
+		t, err = redis.Int64(data_con.Do("HGET", metric_name, "archivetime"))
 		if err != nil && err != redis.ErrNil {
 			log.Println("fail to get archivetime", err)
 			break
 		}
-		if time.Now().Unix()-int64(t) > 600 {
+		if time.Now().Unix()-t >= 600 {
 			this.writer.Publish(this.archive_topic, []byte(metric_name))
 		}
 		_, err = data_con.Do("HMSET", metric_name, "value", metric.Value, "timestamp", metric.Timestamp, "rate_value", new_value, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
