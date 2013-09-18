@@ -29,13 +29,10 @@ type MetricData struct {
 
 type Trigger struct {
 	Expression string  `json:"expression", redis:"exp"`
-	Persist    bool    `json:"persist", redis:"persist"`
 	Relation   int     `json:"relation", redis:"relation"`
 	Interval   int     `json:"interval", redis:"interval"`
 	Period     int     `json:"period", redis:"period"`
-	WValue     float64 `json:"warning", redis:"warning"`
-	EValue     float64 `json:"error", redis:"error"`
-	Name       string  `json:"name", redis:"-"`
+	Name       string  `json:"name", redis:"name"`
 	Role       string  `json:"role", redis:"role"`
 	Stat       int     `json:"stat", redis:"stat"`
 }
