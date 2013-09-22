@@ -35,9 +35,14 @@ func (this *TriggerTask) HandleMessage(m *nsq.Message) error {
 func (this *TriggerTask) calculate(trigger_name string) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
-	info, _ := redis.Values(data_con.Do("HGET", trigger_name, "exp", "name"))
+	config_con := this.configservice.Get()
+	defer config_con.Close()
+	info, err := redis.Values(config_con.Do("HGET", trigger_name, "exp", "name"))
+	if err != nil {
+		log.Println("get trigger failed", trigger_name, err)
+	}
 	var trigger metrictools.Trigger
-	_, err := redis.Scan(info, &trigger.Expression, &trigger.Name)
+	redis.Scan(info, &trigger.Expression, &trigger.Name)
 
 	v, err := calculate_exp(this, trigger.Expression)
 	if err != nil {
