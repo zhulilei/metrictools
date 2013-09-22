@@ -2,6 +2,8 @@ package main
 
 import (
 	metrictools "../"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
@@ -40,6 +42,9 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(tg.Name + " exists"))
 		return
 	}
+	h := sha1.New()
+	h.Write([]byte(tg.Expression))
+	tg.Name = base64.URLEncoding.EncodeToString(h.Sum(nil))
 	_, err = config_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
 		"role", tg.Role,

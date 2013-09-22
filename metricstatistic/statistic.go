@@ -37,14 +37,14 @@ func (this *TriggerTask) calculate(trigger_name string) {
 	defer data_con.Close()
 	config_con := this.configservice.Get()
 	defer config_con.Close()
-	info, err := redis.Values(config_con.Do("HMGET", trigger_name, "exp", "name"))
+	var trigger metrictools.Trigger
+	var err error
+	trigger.Expression, err = redis.String(config_con.Do("HGET", trigger_name, "exp"))
 	if err != nil {
 		log.Println("get trigger failed", trigger_name, err)
 		return
 	}
-	var trigger metrictools.Trigger
-	redis.Scan(info, &trigger.Expression, &trigger.Name)
-
+	trigger.Name = trigger_name[8:]
 	v, err := calculate_exp(this, trigger.Expression)
 	if err != nil {
 		log.Println("calculate failed", trigger_name, err)
