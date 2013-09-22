@@ -25,7 +25,7 @@ func main() {
 	}
 	lookupd_addresses, _ := c["lookupd_addresses"]
 	nsqd_addr, _ := c["nsqd_addr"]
-	maxInFlight, _ := c["MaxInFlight"]
+	maxInFlight, _ := c["maxinflight"]
 	trigger_channel, _ := c["trigger_channel"]
 	trigger_topic, _ := c["trigger_topic"]
 	notify_topic, _ := c["notify_topic"]
