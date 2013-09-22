@@ -2,6 +2,7 @@ package main
 
 import (
 	metrictools "../"
+	"errors"
 	"fmt"
 	nsq "github.com/bitly/go-nsq"
 	"github.com/datastream/cal"
@@ -108,25 +109,55 @@ func ParseTimeSeries(values []string) []skyline.TimePoint {
 
 func calculate_exp(t *TriggerTask, exp string) (float64, error) {
 	exp_list := cal.Parser(exp)
+	if len(exp_list) < 1 {
+		return 0, errors.New("no exp")
+	}
+	var timeseries []int64
 	k_v := make(map[string]interface{})
 	data_con := t.dataservice.Get()
 	defer data_con.Close()
 	for _, item := range exp_list {
 		if len(item) > 0 {
-			v, err := redis.Float64(data_con.Do("HGET", item, "rate_value"))
+			var v float64
+			var t int64
+			values, err := redis.Values(data_con.Do("HMGET", item, "rate_value", "timestamp"))
+			if err == nil {
+				_, err = redis.Scan(values, &v, &t)
+			}
 			if err == redis.ErrNil {
+				t = time.Now().Unix()
 				v, err = strconv.ParseFloat(item, 64)
 			}
 			if err != nil {
 				return 0, err
 			}
-			if err == nil {
-				k_v[item] = v
-			} else {
-				log.Println("failed to load value of", item)
-			}
+			k_v[item] = v
+			timeseries = append(timeseries, t)
 		}
+	}
+	if len(exp_list) == 1 {
+		return k_v[exp].(float64), nil
+	}
+	if !checktime(timeseries) {
+		return 0, errors.New("some data are too old")
 	}
 	rst, err := cal.Cal(exp, k_v)
 	return rst, err
+}
+
+func checktime(timeseries []int64) bool {
+	max := timeseries[0]
+	min := timeseries[0]
+	for _, v := range timeseries {
+		if max < v {
+			max = v
+		}
+		if min > v {
+			min = v
+		}
+	}
+	if (max - min) > 90 {
+		return false
+	}
+	return true
 }
