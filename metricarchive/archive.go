@@ -3,14 +3,14 @@ package main
 import (
 	metrictools "../"
 	"fmt"
-	"github.com/bitly/nsq/nsq"
+	nsq "github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"time"
 )
 
 type DataArchive struct {
-	dataservice   *redis.Pool
+	dataservice *redis.Pool
 }
 
 func (this *DataArchive) HandleMessage(m *nsq.Message) error {

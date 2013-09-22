@@ -3,7 +3,7 @@ package main
 import (
 	metrictools "../"
 	"fmt"
-	"github.com/bitly/nsq/nsq"
+	nsq "github.com/bitly/go-nsq"
 	"github.com/datastream/cal"
 	"github.com/datastream/skyline"
 	"github.com/garyburd/redigo/redis"
@@ -48,7 +48,7 @@ func (this *TriggerTask) calculate(trigger_name string) {
 	body := fmt.Sprintf("%d:%.2f", t, v)
 	_, err = data_con.Do("ZADD", "archive:"+trigger.Name, t, body)
 	_, err = data_con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-3600)
-	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+trigger.Name, t - 3600*3 , t))
+	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+trigger.Name, t-3600*3, t))
 	if err != nil {
 		timeseries := ParseTimeSeries(values)
 		if skyline.MedianAbsoluteDeviation(timeseries) {
@@ -59,8 +59,8 @@ func (this *TriggerTask) calculate(trigger_name string) {
 		}
 		var one_hour []skyline.TimePoint
 		l := len(timeseries)
-		if  l > 60 {
-			one_hour = timeseries[l-60:l]
+		if l > 60 {
+			one_hour = timeseries[l-60 : l]
 		}
 		if skyline.FirstHourAverage(one_hour, 0) {
 			log.Println("firsthouraverage:", trigger.Name)
@@ -86,13 +86,13 @@ func (this *TriggerTask) calculate(trigger_name string) {
 func ParseTimeSeries(values []string) []skyline.TimePoint {
 	var rst []skyline.TimePoint
 	for _, val := range values {
-		t, v , err := metrictools.GetTimestampAndValue(val)
+		t, v, err := metrictools.GetTimestampAndValue(val)
 		if err != nil {
 			continue
 		}
 		timepoint := skyline.TimePoint{
 			Timestamp: t,
-			Value: v,
+			Value:     v,
 		}
 		rst = append(rst, timepoint)
 	}

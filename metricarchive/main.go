@@ -3,7 +3,7 @@ package main
 import (
 	metrictools "../"
 	"flag"
-	"github.com/bitly/nsq/nsq"
+	nsq "github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"os"
@@ -45,7 +45,7 @@ func main() {
 	defer redis_pool.Close()
 
 	dr := &DataArchive{
-		dataservice:   redis_pool,
+		dataservice: redis_pool,
 	}
 	r, err := nsq.NewReader(archive_topic, archive_channel)
 	if err != nil {

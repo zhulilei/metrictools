@@ -4,7 +4,7 @@ import (
 	metrictools "../"
 	"encoding/json"
 	"fmt"
-	"github.com/bitly/nsq/nsq"
+	nsq "github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"time"

@@ -28,13 +28,13 @@ type MetricData struct {
 }
 
 type Trigger struct {
-	Expression string  `json:"expression", redis:"exp"`
-	Relation   int     `json:"relation", redis:"relation"`
-	Interval   int     `json:"interval", redis:"interval"`
-	Period     int     `json:"period", redis:"period"`
-	Name       string  `json:"name", redis:"name"`
-	Role       string  `json:"role", redis:"role"`
-	Stat       int     `json:"stat", redis:"stat"`
+	Expression string `json:"expression", redis:"exp"`
+	Relation   int    `json:"relation", redis:"relation"`
+	Interval   int    `json:"interval", redis:"interval"`
+	Period     int    `json:"period", redis:"period"`
+	Name       string `json:"name", redis:"name"`
+	Role       string `json:"role", redis:"role"`
+	Stat       int    `json:"stat", redis:"stat"`
 }
 
 type Notify struct {
