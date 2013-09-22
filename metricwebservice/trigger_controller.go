@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func TriggerShow(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +34,7 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
+	tg.Expression = strings.Trim(tg.Expression, " ")
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	config_con := configservice.Get()
 	defer config_con.Close()
