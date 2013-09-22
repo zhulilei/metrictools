@@ -33,16 +33,6 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	if tg.EValue > tg.WValue && tg.Relation == metrictools.LESS {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("bad error/warning setting"))
-		return
-	}
-	if tg.EValue < tg.WValue && tg.Relation == metrictools.GREATER {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("bad error/warning setting"))
-		return
-	}
 	config_con := configservice.Get()
 	defer config_con.Close()
 	_, err := redis.String(config_con.Do("HGET", "trigger:"+tg.Name, "exp"))
@@ -53,10 +43,7 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = config_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
-		"persist", tg.Persist,
 		"relation", tg.Relation,
-		"warning", tg.WValue,
-		"error", tg.EValue,
 		"interval", tg.Interval,
 		"role", tg.Role,
 		"period", tg.Period,
