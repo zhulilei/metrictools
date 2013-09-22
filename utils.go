@@ -8,11 +8,6 @@ import (
 	"strings"
 )
 
-const (
-	LESS    = 1
-	GREATER = 2
-)
-
 type MetricData struct {
 	Value          float64 `json:"value", redis:"value"`
 	DataSetType    string  `json:"dstype", redis:"dstype"`
@@ -29,9 +24,6 @@ type MetricData struct {
 
 type Trigger struct {
 	Expression string `json:"expression", redis:"exp"`
-	Relation   int    `json:"relation", redis:"relation"`
-	Interval   int    `json:"interval", redis:"interval"`
-	Period     int    `json:"period", redis:"period"`
 	Name       string `json:"name", redis:"name"`
 	Role       string `json:"role", redis:"role"`
 	Stat       int    `json:"stat", redis:"stat"`

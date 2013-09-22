@@ -19,7 +19,6 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(data))
 	}
 }
@@ -43,16 +42,12 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = config_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
-		"relation", tg.Relation,
-		"interval", tg.Interval,
 		"role", tg.Role,
-		"period", tg.Period,
 		"stat", tg.Stat)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Add successful"))
 	}
 }
@@ -73,7 +68,6 @@ func TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))
 	} else {
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("delete successful"))
 	}
 }
