@@ -46,16 +46,23 @@ func (this *TriggerTask) calculate(trigger_name string) {
 		return
 	}
 	trigger.Name = trigger_name[8:]
-	v, err := calculate_exp(this, trigger.Expression)
-	if err != nil {
-		log.Println("calculate failed", trigger_name, err)
+	exp_list := cal.Parser(trigger.Expression)
+	if len(exp_list) < 1 {
 		return
 	}
-
 	t := time.Now().Unix()
-	body := fmt.Sprintf("%d:%.2f", t, v)
-	_, err = data_con.Do("ZADD", "archive:"+trigger.Name, t, body)
-	_, err = data_con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-3600)
+	if len(exp_list) == 1 {
+		trigger.Name = trigger.Expression
+	} else {
+		v, err := calculate_exp(this, exp_list)
+		if err != nil {
+			log.Println("calculate failed", trigger_name, err)
+			return
+		}
+		body := fmt.Sprintf("%d:%.2f", t, v)
+		_, err = data_con.Do("ZADD", "archive:"+trigger.Name, t, body)
+		_, err = data_con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-3600)
+	}
 	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+trigger.Name, t-3600*3, t))
 	if err != nil {
 		timeseries := ParseTimeSeries(values)
@@ -107,36 +114,29 @@ func ParseTimeSeries(values []string) []skyline.TimePoint {
 	return rst
 }
 
-func calculate_exp(t *TriggerTask, exp string) (float64, error) {
-	exp_list := cal.Parser(exp)
-	if len(exp_list) < 1 {
-		return 0, errors.New("no exp")
-	}
+func calculate_exp(t *TriggerTask, exp_list []string) (float64, error) {
 	var timeseries []int64
 	k_v := make(map[string]interface{})
 	data_con := t.dataservice.Get()
 	defer data_con.Close()
+	exp := ""
 	for _, item := range exp_list {
-		if len(item) > 0 {
-			var v float64
-			var t int64
-			values, err := redis.Values(data_con.Do("HMGET", item, "rate_value", "timestamp"))
-			if err == nil {
-				_, err = redis.Scan(values, &v, &t)
-			}
-			if err == redis.ErrNil {
-				t = time.Now().Unix()
-				v, err = strconv.ParseFloat(item, 64)
-			}
-			if err != nil {
-				return 0, err
-			}
-			k_v[item] = v
-			timeseries = append(timeseries, t)
+		var v float64
+		var t int64
+		values, err := redis.Values(data_con.Do("HMGET", item, "rate_value", "timestamp"))
+		if err == nil {
+			_, err = redis.Scan(values, &v, &t)
 		}
-	}
-	if len(exp_list) == 1 {
-		return k_v[exp].(float64), nil
+		if err == redis.ErrNil {
+			t = time.Now().Unix()
+			v, err = strconv.ParseFloat(item, 64)
+		}
+		if err != nil {
+			return 0, err
+		}
+		k_v[item] = v
+		timeseries = append(timeseries, t)
+		exp += item
 	}
 	if !checktime(timeseries) {
 		return 0, errors.New("some data are too old")
@@ -157,6 +157,10 @@ func checktime(timeseries []int64) bool {
 		}
 	}
 	if (max - min) > 90 {
+		return false
+	}
+	t := time.Now().Unix()
+	if (t - max) > 60 {
 		return false
 	}
 	return true
