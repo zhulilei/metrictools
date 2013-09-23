@@ -119,7 +119,7 @@ func (this *TriggerTask) checkvalue(trigger string) {
 	defer data_con.Close()
 	t := time.Now().Unix()
 	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+trigger, t-3600*3, t))
-	if err != nil {
+	if err == nil {
 		timeseries := ParseTimeSeries(values)
 		if skyline.MedianAbsoluteDeviation(timeseries) {
 			log.Println("medianabsolutedeviation:", trigger)
@@ -127,13 +127,12 @@ func (this *TriggerTask) checkvalue(trigger string) {
 		if skyline.Grubbs(timeseries) {
 			log.Println("grubbs:", trigger)
 		}
-		var one_hour []skyline.TimePoint
 		l := len(timeseries)
 		if l > 60 {
-			one_hour = timeseries[l-60 : l]
-		}
-		if skyline.FirstHourAverage(one_hour, 0) {
-			log.Println("firsthouraverage:", trigger)
+			one_hour := timeseries[l-60 : l]
+			if skyline.FirstHourAverage(one_hour, 0) {
+				log.Println("firsthouraverage:", trigger)
+			}
 		}
 		if skyline.SimpleStddevFromMovingAverage(timeseries) {
 			log.Println("simplestddevfrommovingaverage:", trigger)
