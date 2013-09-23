@@ -36,6 +36,9 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	tg.Expression = strings.Trim(tg.Expression, " ")
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
+	h := sha1.New()
+	h.Write([]byte(tg.Expression))
+	tg.Name = base64.URLEncoding.EncodeToString(h.Sum(nil))
 	config_con := configservice.Get()
 	defer config_con.Close()
 	_, err := redis.String(config_con.Do("HGET", "trigger:"+tg.Name, "exp"))
@@ -44,9 +47,6 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(tg.Name + " exists"))
 		return
 	}
-	h := sha1.New()
-	h.Write([]byte(tg.Expression))
-	tg.Name = base64.URLEncoding.EncodeToString(h.Sum(nil))
 	_, err = config_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
 		"role", tg.Role,
