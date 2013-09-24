@@ -2,6 +2,7 @@ package main
 
 import (
 	metrictools "../"
+	"encoding/json"
 	"errors"
 	"fmt"
 	nsq "github.com/bitly/go-nsq"
@@ -119,35 +120,52 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 	defer data_con.Close()
 	t := time.Now().Unix()
 	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+archive, t-3600*3, t))
+	var msg string
 	if err == nil {
 		timeseries := ParseTimeSeries(values)
 		if skyline.MedianAbsoluteDeviation(timeseries) {
-			log.Println("medianabsolutedeviation:", exp)
+			msg += "medianabsolutedeviation\r\n"
 		}
 		if skyline.Grubbs(timeseries) {
-			log.Println("grubbs:", exp)
+			msg += "grubbs\r\n"
 		}
 		l := len(timeseries)
 		if l > 60 {
 			one_hour := timeseries[l-60 : l]
 			if skyline.FirstHourAverage(one_hour, 0) {
-				log.Println("firsthouraverage:", exp)
+				msg += "firsthouraverage\r\n"
 			}
 		}
 		if skyline.SimpleStddevFromMovingAverage(timeseries) {
-			log.Println("simplestddevfrommovingaverage:", exp)
+			msg += "simplestddevfrommovingaverage\r\n"
 		}
 		if skyline.StddevFromMovingAverage(timeseries) {
-			log.Println("stddevfrommovingaverage:", exp)
+			msg += "stddevfrommovingaverage\r\n"
 		}
 		if skyline.MeanSubtractionCumulation(timeseries) {
-			log.Println("meansubtractioncumulation:", exp)
+			msg += "meansubtractioncumulation\r\n"
 		}
 		if skyline.LeastSquares(timeseries) {
-			log.Println("leastsquares:", exp)
+			msg += "leastsquares\r\n"
 		}
 		if skyline.HistogramBins(timeseries) {
-			log.Println("histogram:", exp)
+			msg += "histogrambins\r\n"
+		}
+		if len(msg) > 0 {
+			rst := make(map[string]string)
+			rst["time"] = time.Now().Format("2006-01-02 15:04:05")
+			rst["event"] = msg
+			rst["trigger"] = exp
+			if archive == exp {
+				rst["url"] = "/v1/api/metric/" + archive
+			} else {
+				rst["url"] = "/v1/api/trigger/" + archive
+			}
+			if body, err := json.Marshal(rst); err == nil {
+				this.writer.Publish(this.topic, body)
+			}
+			msg += exp
+			log.Println(msg)
 		}
 	}
 }
