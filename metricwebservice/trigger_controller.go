@@ -15,14 +15,41 @@ import (
 func TriggerShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	name := mux.Vars(r)["name"]
+	starttime := r.FormValue("starttime")
+	endtime := r.FormValue("endtime")
+	start := gettime(starttime)
+	end := gettime(endtime)
+	if !checktime(start, end) {
+		start = end - 3600*3
+	}
 	config_con := configservice.Get()
 	defer config_con.Close()
-	data, err := redis.String(config_con.Do("GET", "trigger:"+name))
+	exp, err := redis.String(config_con.Do("HGET", "trigger:"+name, "exp"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
-		w.Write([]byte(data))
+		var record_list []interface{}
+		data_con := dataservice.Get()
+		defer data_con.Close()
+		metric_data, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+name, start, end))
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		record := make(map[string]interface{})
+		record["name"] = exp
+		record["values"] = metrictools.GenerateTimeseries(metric_data)
+		record_list = append(record_list, record)
+		rst := make(map[string]interface{})
+		rst["metrics"] = record_list
+		rst["url"] = "/api/v1/trigger/" + name
+		if body, err := json.Marshal(rst); err == nil {
+			w.Write(body)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}
 }
 
