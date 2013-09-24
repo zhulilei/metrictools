@@ -51,7 +51,7 @@ func (this *TriggerTask) calculate(trigger_name string) {
 		return
 	}
 	if len(exp_list) == 1 {
-		go this.checkvalue(trigger.Expression)
+		go this.checkvalue(trigger.Expression, trigger.Expression)
 	} else {
 		v, err := this.calculate_exp(exp_list)
 		if err != nil {
@@ -62,7 +62,7 @@ func (this *TriggerTask) calculate(trigger_name string) {
 		body := fmt.Sprintf("%d:%.2f", t, v)
 		_, err = data_con.Do("ZADD", "archive:"+trigger.Name, t, body)
 		_, err = data_con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-3600)
-		go this.checkvalue(trigger.Name)
+		go this.checkvalue(trigger.Name, trigger.Expression)
 	}
 }
 
@@ -114,40 +114,40 @@ func (this *TriggerTask) calculate_exp(exp_list []string) (float64, error) {
 	return rst, err
 }
 
-func (this *TriggerTask) checkvalue(trigger string) {
+func (this *TriggerTask) checkvalue(archive, exp string) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
 	t := time.Now().Unix()
-	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+trigger, t-3600*3, t))
+	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+archive, t-3600*3, t))
 	if err == nil {
 		timeseries := ParseTimeSeries(values)
 		if skyline.MedianAbsoluteDeviation(timeseries) {
-			log.Println("medianabsolutedeviation:", trigger)
+			log.Println("medianabsolutedeviation:", exp)
 		}
 		if skyline.Grubbs(timeseries) {
-			log.Println("grubbs:", trigger)
+			log.Println("grubbs:", exp)
 		}
 		l := len(timeseries)
 		if l > 60 {
 			one_hour := timeseries[l-60 : l]
 			if skyline.FirstHourAverage(one_hour, 0) {
-				log.Println("firsthouraverage:", trigger)
+				log.Println("firsthouraverage:", exp)
 			}
 		}
 		if skyline.SimpleStddevFromMovingAverage(timeseries) {
-			log.Println("simplestddevfrommovingaverage:", trigger)
+			log.Println("simplestddevfrommovingaverage:", exp)
 		}
 		if skyline.StddevFromMovingAverage(timeseries) {
-			log.Println("stddevfrommovingaverage:", trigger)
+			log.Println("stddevfrommovingaverage:", exp)
 		}
 		if skyline.MeanSubtractionCumulation(timeseries) {
-			log.Println("meansubtractioncumulation:", trigger)
+			log.Println("meansubtractioncumulation:", exp)
 		}
 		if skyline.LeastSquares(timeseries) {
-			log.Println("leastsquares:", trigger)
+			log.Println("leastsquares:", exp)
 		}
 		if skyline.HistogramBins(timeseries) {
-			log.Println("histogram:", trigger)
+			log.Println("histogram:", exp)
 		}
 	}
 }
