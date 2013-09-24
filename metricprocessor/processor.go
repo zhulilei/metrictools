@@ -83,7 +83,7 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 			break
 		}
 		_, err = data_con.Do("HSETNX", metric_name, "ttl", metric.TTL)
-		_, err = data_con.Do("SADD", metric.Host, metric_name)
+		_, err = data_con.Do("SADD", "host:"+metric.Host, metric_name)
 	}
 	return err
 }

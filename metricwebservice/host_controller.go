@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strings"
 )
 
 func HostIndex(w http.ResponseWriter, r *http.Request) {
@@ -16,15 +17,13 @@ func HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	hosts, _ := redis.Strings(data_con.Do("KEYS", "*"))
+	hosts, _ := redis.Strings(data_con.Do("KEYS", "host:*"))
 	var rst []interface{}
 	for _, host := range hosts {
-		if host[:8] != "archive:" {
-			query := make(map[string]interface{})
-			query["name"] = host
-			query["metric"] = "/host/" + host
-			rst = append(rst, query)
-		}
+		query := make(map[string]interface{})
+		query["name"] = host
+		query["metric"] = "/host/" + host
+		rst = append(rst, query)
 	}
 	body, _ := json.Marshal(rst)
 	w.Write(body)
@@ -34,10 +33,10 @@ func HostShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
-	host := mux.Vars(r)["name"]
+	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	_, err := redis.Strings(data_con.Do("SMEMBERS", host))
+	_, err := redis.Strings(data_con.Do("SMEMBERS", "host:"+host))
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
 		query := make(map[string]interface{})
@@ -54,10 +53,10 @@ func HostShow(w http.ResponseWriter, r *http.Request) {
 func HostDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
-	host := mux.Vars(r)["name"]
+	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	metric_list, err := redis.Strings(data_con.Do("SMEMBERS", host))
+	metric_list, err := redis.Strings(data_con.Do("SMEMBERS", "host:"+host))
 	if err == nil {
 		for _, v := range metric_list {
 			_, err = data_con.Do("DEL", v)
@@ -71,7 +70,7 @@ func HostDelete(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		_, err = data_con.Do("DEL", host)
+		_, err = data_con.Do("DEL", "host:"+host)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -84,10 +83,10 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
-	host := mux.Vars(r)["host"]
+	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	metric_list, err := redis.Strings(data_con.Do("SMEMBERS", host))
+	metric_list, err := redis.Strings(data_con.Do("SMEMBERS", "host:"+host))
 	if err == nil {
 		var rst []interface{}
 		sort.Strings(metric_list)
@@ -133,11 +132,11 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 func HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "DELETE")
-	host := mux.Vars(r)["host"]
+	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	metric := mux.Vars(r)["name"]
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	_, err := data_con.Do("SREM", host, metric)
+	_, err := data_con.Do("SREM", "host:"+host, metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

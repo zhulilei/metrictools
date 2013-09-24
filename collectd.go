@@ -1,5 +1,9 @@
 package metrictools
 
+import (
+	"strings"
+)
+
 type CollectdJSON struct {
 	Values         []float64 `json:"values"`
 	DataSetTypes   []string  `json:"dstypes"`
@@ -15,14 +19,16 @@ type CollectdJSON struct {
 
 func (this *CollectdJSON) GenerateMetricData() []*MetricData {
 	var metrics []*MetricData
+	var host string
 	for i := range this.Values {
+		host = strings.Replace(this.Host, "-", ".", -1)
 		metric := &MetricData{
 			Value:          this.Values[i],
 			DataSetType:    this.DataSetTypes[i],
 			DataSetName:    this.DataSetNames[i],
 			Timestamp:      int64(this.Timestamp),
 			Interval:       this.Interval,
-			Host:           this.Host,
+			Host:           host,
 			Plugin:         this.Plugin,
 			PluginInstance: this.PluginInstance,
 			Type:           this.Type,

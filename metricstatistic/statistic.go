@@ -82,7 +82,7 @@ func ParseTimeSeries(values []string) []skyline.TimePoint {
 	return rst
 }
 
-func (this *TriggerTask)calculate_exp(exp_list []string) (float64, error) {
+func (this *TriggerTask) calculate_exp(exp_list []string) (float64, error) {
 	k_v := make(map[string]interface{})
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
