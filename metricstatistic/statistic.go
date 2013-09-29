@@ -11,6 +11,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -120,41 +121,41 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 	defer data_con.Close()
 	t := time.Now().Unix()
 	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+archive, t-3600*3, t))
-	var msg string
+	var skyline_trigger []string
 	if err == nil {
 		timeseries := ParseTimeSeries(values)
 		if skyline.MedianAbsoluteDeviation(timeseries) {
-			msg += "medianabsolutedeviation\r\n"
+			skyline_trigger = append(skyline_trigger, "MedianAbsoluteDeviation")
 		}
 		if skyline.Grubbs(timeseries) {
-			msg += "grubbs\r\n"
+			skyline_trigger = append(skyline_trigger, "Grubbs")
 		}
 		l := len(timeseries)
 		if l > 60 {
 			one_hour := timeseries[l-60 : l]
 			if skyline.FirstHourAverage(one_hour, 0) {
-				msg += "firsthouraverage\r\n"
+				skyline_trigger = append(skyline_trigger, "FirstHourAverage")
 			}
 		}
 		if skyline.SimpleStddevFromMovingAverage(timeseries) {
-			msg += "simplestddevfrommovingaverage\r\n"
+			skyline_trigger = append(skyline_trigger, "SimpleStddevFromMovingAverage")
 		}
 		if skyline.StddevFromMovingAverage(timeseries) {
-			msg += "stddevfrommovingaverage\r\n"
+			skyline_trigger = append(skyline_trigger, "StddevFromMovingAverage")
 		}
 		if skyline.MeanSubtractionCumulation(timeseries) {
-			msg += "meansubtractioncumulation\r\n"
+			skyline_trigger = append(skyline_trigger, "MeanSubtractionCumulation")
 		}
 		if skyline.LeastSquares(timeseries) {
-			msg += "leastsquares\r\n"
+			skyline_trigger = append(skyline_trigger, "LeastSquares")
 		}
 		if skyline.HistogramBins(timeseries) {
-			msg += "histogrambins\r\n"
+			skyline_trigger = append(skyline_trigger, "HistogramBins")
 		}
-		if len(msg) > 0 {
+		if len(skyline_trigger) > 0 {
 			rst := make(map[string]string)
 			rst["time"] = time.Now().Format("2006-01-02 15:04:05")
-			rst["event"] = msg
+			rst["event"] = strings.Join(skyline_trigger, ", ")
 			rst["trigger"] = exp
 			if archive == exp {
 				rst["url"] = "/v1/api/metric/" + archive
@@ -163,9 +164,8 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 			}
 			if body, err := json.Marshal(rst); err == nil {
 				this.writer.Publish(this.topic, body)
+				log.Println(string(body))
 			}
-			msg += exp
-			log.Println(msg)
 		}
 	}
 }
