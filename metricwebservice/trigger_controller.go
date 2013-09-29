@@ -76,8 +76,7 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = config_con.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
-		"role", tg.Role,
-		"stat", tg.Stat)
+		"role", tg.Role)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))

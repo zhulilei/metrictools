@@ -92,9 +92,6 @@ func main() {
 	s.HandleFunc("/host/{host}/metric/{name}", HostMetricDelete).
 		Methods("DELETE")
 
-	s.HandleFunc("/statistic/{name}", StatisticShow).
-		Methods("GET")
-
 	s.HandleFunc("/trigger", TriggerCreate).
 		Methods("POST").
 		Headers("Content-Type", "application/json")

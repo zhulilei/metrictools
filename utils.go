@@ -26,7 +26,6 @@ type Trigger struct {
 	Expression string `json:"expression", redis:"exp"`
 	Name       string `json:"name", redis:"name"`
 	Role       string `json:"role", redis:"role"`
-	Stat       int    `json:"stat", redis:"stat"`
 }
 
 type NotifyAction struct {

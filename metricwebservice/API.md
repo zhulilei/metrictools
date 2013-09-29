@@ -7,7 +7,7 @@
 metrics should not be nil.
 if starttime & endtime are nil, starttime = Now().Unix(), endtime = starttime -3*3600
 
-## Setting metric archive
+## Setting metric TTL
 
     POST /metric
     # json data
@@ -16,7 +16,7 @@ if starttime & endtime are nil, starttime = Now().Unix(), endtime = starttime -3
         "assb":3,
     }
 
-first part is metric, second is data's ttl day.
+first part is metric, second is data's ttl.
 
 ## Delete metric
 
@@ -26,14 +26,35 @@ first part is metric, second is data's ttl day.
 
     GET /host/{name}
 
+return:
+
+    {
+        "name":"xxxx",
+        "metrics_url":"/host/xxxx/metric"
+    }
+
 ## Delete host
 
     DELETE /host/{name}
 
-
 ## Get host's all metrics
 
     GET /host/{host}/metric
+
+return:
+
+    [{
+        "name":"xxx_cpu0_user",
+        "host":"xxx",
+        "plugin":"cpu",
+        "plugin_instance":"0",
+        "type":"user",
+        "type_instance":"",
+        "interval":60,
+        "dstype":"COUNT",
+        "ttl":3600,
+        "url":"/api/v1/metric/xxx_cpu0_user"
+    }]
 
 ## Delete metric and remove metric from host
 
@@ -49,12 +70,7 @@ first part is metric, second is data's ttl day.
     #json data
     {
         "expression":"aaa",
-        "trigger_type":1,
-        "relation":2,
-        "interval":30,
-        "period":120,
-        "name":"asdasdasd",
-        "role":"test"
+        "role":"test",
     }
 
 ## Delete trigger
@@ -67,7 +83,7 @@ first part is metric, second is data's ttl day.
 
 ## Create trigger's action
 
-    POST /trigger/{t_name}/action
+    POST /trigger/{trigger}/action
     #json data
     {
         "name":"aaaa",
@@ -81,4 +97,4 @@ first part is metric, second is data's ttl day.
 
 ## Delete trigger's action
 
-    DELETE /trigger/{t_name}/action/{name}
+    DELETE /trigger/{trigger}/action/{name}

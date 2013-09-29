@@ -22,7 +22,7 @@ func HostIndex(w http.ResponseWriter, r *http.Request) {
 	for _, host := range hosts {
 		query := make(map[string]interface{})
 		query["name"] = host
-		query["metric"] = "/host/" + host
+		query["metric"] = "/api/v1/host/" + host
 		rst = append(rst, query)
 	}
 	body, _ := json.Marshal(rst)
@@ -41,7 +41,7 @@ func HostShow(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		query := make(map[string]interface{})
 		query["name"] = host
-		query["metric"] = "/host/" + host + "/metric"
+		query["metrics_url"] = "/api/v1/host/" + host + "/metric"
 		body, _ := json.Marshal(query)
 		w.Write(body)
 	} else {
