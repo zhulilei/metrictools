@@ -29,17 +29,10 @@ type Trigger struct {
 	Stat       int    `json:"stat", redis:"stat"`
 }
 
-type Notify struct {
-	Name  string  `json:"trigger_name"`
-	Level int     `json:"level"`
-	Value float64 `json:"value"`
-}
-
 type NotifyAction struct {
-	Name       string `json:"name", redis:"-"`
-	Repeat     int    `json:"repeat", redis:"repeat"`
 	Uri        string `json:"uri", redis:"uri"`
 	UpdateTime int64  `json:"update_time", redis:"update_time"`
+	Repeat     int    `json:"repeat", redis:"repeat"`
 	Count      int    `json:"count", redis:"count"`
 }
 

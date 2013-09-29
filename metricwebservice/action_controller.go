@@ -2,6 +2,8 @@ package main
 
 import (
 	metrictools "../"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"github.com/gorilla/mux"
 	"log"
@@ -10,19 +12,18 @@ import (
 
 func ActionIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	tg := mux.Vars(r)["t_name"]
+	tg := mux.Vars(r)["trigger"]
 	var err error
 	config_con := configservice.Get()
 	defer config_con.Close()
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	data, err := config_con.Do("KEYS", "actions:"+tg+"*")
+	data, err := config_con.Do("KEYS", "actions:"+tg+":*")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
 		body, _ := json.Marshal(data)
-		w.WriteHeader(http.StatusOK)
 		w.Write(body)
 	}
 }
@@ -36,22 +37,24 @@ func ActionCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	tg := mux.Vars(r)["t_name"]
+	tg := mux.Vars(r)["trigger"]
 	config_con := configservice.Get()
 	defer config_con.Close()
-	_, err := config_con.Do("HMSET", "actions:"+tg+":"+action.Name,
+	h := sha1.New()
+	h.Write([]byte(action.Uri))
+	name := base64.URLEncoding.EncodeToString(h.Sum(nil))
+	_, err := config_con.Do("HMSET", "actions:"+tg+":"+name,
 		"repeat", action.Repeat, "uri", action.Uri)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Add successful"))
 	}
 }
 
 func ActionDelete(w http.ResponseWriter, r *http.Request) {
-	tg := mux.Vars(r)["t_name"]
+	tg := mux.Vars(r)["trigger"]
 	name := mux.Vars(r)["name"]
 	config_con := configservice.Get()
 	defer config_con.Close()
@@ -60,7 +63,6 @@ func ActionDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("delete successful"))
 	}
 }

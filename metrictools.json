@@ -14,5 +14,6 @@
     "config_redis_auth":"admin",
     "data_redis_server":"127.0.0.1:6379",
     "data_redis_auth":"admin",
-    "web_bind":"127.0.0.1:1234"
+    "web_bind":"127.0.0.1:1234",
+    "notify_email_address":"notify@test.org"
 }

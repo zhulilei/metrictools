@@ -25,6 +25,7 @@ func main() {
 	}
 	lookupd_addresses, _ := c["lookupd_addresses"]
 	maxInFlight, _ := c["maxinflight"]
+	email_address, _ := c["notify_email_address"]
 	notify_channel, _ := c["notify_channel"]
 	notify_topic, _ := c["notify_topic"]
 	config_redis_server, _ := c["config_redis_server"]
@@ -43,7 +44,10 @@ func main() {
 	}
 	redis_pool := redis.NewPool(redis_con, 3)
 	defer redis_pool.Close()
-	nt := &Notify{redis_pool}
+	nt := &Notify{
+		Pool:         redis_pool,
+		EmailAddress: email_address,
+	}
 	r, err := nsq.NewReader(notify_topic, notify_channel)
 	if err != nil {
 		log.Fatal(err)

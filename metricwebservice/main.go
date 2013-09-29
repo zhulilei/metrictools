@@ -103,11 +103,11 @@ func main() {
 	s.HandleFunc("/trigger/{name}", TriggerDelete).
 		Methods("DELETE")
 
-	s.HandleFunc("/trigger/{t_name}/action", ActionCreate).
+	s.HandleFunc("/trigger/{trigger}/action", ActionCreate).
 		Methods("POST").Headers("Content-Type", "application/json")
-	s.HandleFunc("/trigger/{t_name}/action", ActionIndex).
+	s.HandleFunc("/trigger/{trigger}/action", ActionIndex).
 		Methods("GET")
-	s.HandleFunc("/trigger/{t_name}/action/{name}", ActionDelete).
+	s.HandleFunc("/trigger/{trigger}/action/{name}", ActionDelete).
 		Methods("DELETE")
 
 	http.Handle("/", r)

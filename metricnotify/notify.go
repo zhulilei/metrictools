@@ -2,103 +2,86 @@ package main
 
 import (
 	metrictools "../"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	nsq "github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
+	"net/smtp"
+	"strings"
 	"time"
 )
 
 type Notify struct {
 	*redis.Pool
+	EmailAddress string
 }
 
 func (this *Notify) HandleMessage(m *nsq.Message) error {
-	var notify_msg metrictools.Notify
+	var notify_msg map[string]string
 	var err error
-	config_con := this.Get()
-	defer config_con.Close()
 	if err = json.Unmarshal([]byte(m.Body), &notify_msg); err == nil {
-		keys, err := redis.Strings(config_con.Do("KEYS", "actions:"+notify_msg.Name+"*"))
-		if err != nil {
-			return err
-		}
-		for _, v := range keys {
-			uri, _ := redis.String(
-				config_con.Do("HGET", v, "uri"))
-			rep, _ := redis.Int(
-				config_con.Do("HGET", v, "repeat"))
-			count, _ := redis.Int(
-				config_con.Do("HGET", v, "count"))
-			last, _ := redis.Int64(config_con.Do("HGET", v, "last"))
-			action := metrictools.NotifyAction{
-				Uri:        uri,
-				Repeat:     rep,
-				Count:      count,
-				UpdateTime: last,
-			}
-			now := time.Now().Unix()
-			if action.Repeat > 0 ||
-				(now-action.UpdateTime > 300 &&
-					action.Count < 3) {
-				var count int
-				if (now - action.UpdateTime) > 300 {
-					count = 1
-				} else {
-					count = action.Count + 1
-				}
-				go send_notify(action, notify_msg)
-				config_con.Do("HSET", v, "last", count)
-			}
-		}
+		go this.SendNotify(notify_msg)
 	}
 	return err
 }
 
-//send notify
-func send_notify(notifyaction metrictools.NotifyAction, notify metrictools.Notify) {
-	scheme, data := split_uri(notifyaction.Uri)
-	switch scheme {
-	case "mailto":
-		{
-			log.Println("send mail:",
-				data, notify.Name, notify.Level)
+func (this *Notify) SendNotify(notify_msg map[string]string) {
+	config_con := this.Get()
+	defer config_con.Close()
+	keys, err := redis.Strings(config_con.Do("KEYS", "actions:"+notify_msg["trigger"]+":*"))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	for _, v := range keys {
+		var action metrictools.NotifyAction
+		values, err := redis.Values(config_con.Do("HMGET", v, "uri", "update_time", "repeat", "count"))
+		if err != nil {
+			log.Println(err)
+			continue
 		}
-	case "http":
-		{
-			log.Println("send http:",
-				data, notify.Name, notify.Level)
+		_, err = redis.Scan(values, &action.Uri, &action.UpdateTime, &action.Repeat, &action.Count)
+		if err != nil {
+			log.Println(err)
+			continue
 		}
-	case "https":
-		{
-			log.Println("send https:",
-				data, notify.Name, notify.Level)
+		n := time.Now().Unix()
+		if (n-action.UpdateTime) < 600 && action.Repeat >= action.Count {
+			continue
 		}
-	case "mq":
-		{
-			log.Println("send mq:",
-				data, notify.Name, notify.Level)
-		}
-	case "xmpp":
-		{
-			log.Println("send xmpp:",
-				data, notify.Name, notify.Level)
-		}
-	case "sms":
-		{
-			log.Println("send sms:",
-				data, notify.Name, notify.Level)
+		uri := strings.Split(action.Uri, ":")
+		switch uri[0] {
+		case "mailto":
+			if err = SendNotifyMail(notify_msg["trigger"], notify_msg["time"]+"\n"+notify_msg["event"]+"\n"+notify_msg["url"], this.EmailAddress, []string{uri[1]}); err != nil {
+				log.Println(err)
+			}
+		default:
+			log.Println(notify_msg)
 		}
 	}
 }
 
-// please check uri format before save
-func split_uri(uri string) (string, string) {
-	var index int
-	for index = range uri {
-		if uri[index] == ':' {
-			break
-		}
+func SendNotifyMail(title, body, from string, to []string) error {
+	header := make(map[string]string)
+	header["To"] = strings.Join(to, ", ")
+	header["Subject"] = title
+	header["MIME-Version"] = "1.0"
+	header["Content-Type"] = "text/plain; charset=\"utf-8\""
+	header["Content-Transfer-Encoding"] = "base64"
+	var msg string
+	for k, v := range header {
+		msg += fmt.Sprintf("%s: %s\r\n", k, v)
 	}
-	return uri[:index], uri[index+1:]
+	msg += "\r\n" + base64.StdEncoding.EncodeToString([]byte(body))
+
+	err := smtp.SendMail(
+		"localhost:25",
+		nil,
+		from,
+		to,
+		[]byte(msg),
+	)
+	return err
 }
