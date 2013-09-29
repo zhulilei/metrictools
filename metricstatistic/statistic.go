@@ -158,9 +158,9 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 			rst["event"] = strings.Join(skyline_trigger, ", ")
 			rst["trigger"] = exp
 			if archive == exp {
-				rst["url"] = "/v1/api/metric/" + archive
+				rst["url"] = "/api/v1/metric/" + archive
 			} else {
-				rst["url"] = "/v1/api/trigger/" + archive
+				rst["url"] = "/api/v1/trigger/" + archive
 			}
 			if body, err := json.Marshal(rst); err == nil {
 				this.writer.Publish(this.topic, body)
