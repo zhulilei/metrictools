@@ -5,40 +5,49 @@ It's a distributed system monitor toolset.
 
 ## Tools
 ### metricprocessor
-metric_processor read metric data from mq, then write mongodb and redis.
-It will scan `trigger` records in mongodb and dispatch task via rabbitmq.
+metric_processor read metric data from mq, then write redis.
+It will scan `trigger` records in redis and dispatch task via nsq.
 
 A `trigger` may looks like `10min.cpu.free.hostA/10min.memory.free.hostA`.
 
 ### metricstatistic
-metric_statistic read `trigger` from mq, then calculate it.
-metric_statistic can read/write calculate result in redis.
+metricstatistic read `trigger` from mq, then calculate it.
+metricstatistic can read/write calculate result in redis.
 
 ### metricnotify
-metric_notify read notify from mq, then query notify's action in mongodb.
+metricnotify read notify from mq, then query notify's action in redis.
 
 ### metricwebservice
 It's a web api to access metric data in redis.
-The json data can be processed by [nvd3.js](http://nvd3.org).
 
 ### metricweb
 
 move to github.com/datastream/metricweb
 
 ### metricarchive
-delete old data, remove dup data
+delete old data, compress data
 
 ## Require
  * collectd v4.8+ (write_http plugin)
  * nsq
- * mongodb(with ttl index support)
  * redis
 
 ## data format
 
 collectd's json format https://collectd.org/wiki/index.php/Plugin:Write_HTTP
 
-collectd's command format will need addition type.db to genrate record.
+    {
+        "values":[2566625042,2028255604],
+        "dstypes":["derive","derive"],
+        "dsnames":["rx","tx"],
+        "time":1363158128.258,
+        "interval":60.000,
+        "host":"mon6.photo.163.org",
+        "plugin":"interface",
+        "plugin_instance":"eth1",
+        "type":"if_packets",
+        "type_instance":""
+    }
 
 ## collectd config
 
@@ -49,6 +58,7 @@ collectd's command format will need addition type.db to genrate record.
         Password "user_token"
       </URL>
     </Plugin>
+
 
 ## Current Staff
 
@@ -61,5 +71,4 @@ collectd's command format will need addition type.db to genrate record.
 
 ## Todo
 
-1. support data compress
-2. try to port etsy/skyline
+1. improve metricwebservice
