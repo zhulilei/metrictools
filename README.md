@@ -60,15 +60,7 @@ collectd's json format https://collectd.org/wiki/index.php/Plugin:Write_HTTP
     </Plugin>
 
 
-## Current Staff
-
-1. test trigger
-
-## Why switch to NSQ
-
-1. no single node fail
-1. easy deploy
-
 ## Todo
 
+1. test metricnotify
 1. improve metricwebservice
