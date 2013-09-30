@@ -32,30 +32,29 @@ func (this *Notify) SendNotify(notify_msg map[string]string) {
 	defer config_con.Close()
 	keys, err := redis.Strings(config_con.Do("KEYS", "actions:"+notify_msg["trigger"]+":*"))
 	if err != nil {
-		log.Println(err)
+		log.Println("no action for", notify_msg["trigger"])
 		return
 	}
 	for _, v := range keys {
 		var action metrictools.NotifyAction
 		values, err := redis.Values(config_con.Do("HMGET", v, "uri", "update_time", "repeat", "count"))
 		if err != nil {
-			log.Println(err)
+			log.Println("failed to get ", v)
 			continue
 		}
 		_, err = redis.Scan(values, &action.Uri, &action.UpdateTime, &action.Repeat, &action.Count)
 		if err != nil {
-			log.Println(err)
 			continue
 		}
 		n := time.Now().Unix()
-		if (n-action.UpdateTime) < 600 && action.Repeat >= action.Count {
+		if ((n-action.UpdateTime) < 600) && (action.Repeat >= action.Count) {
 			continue
 		}
 		uri := strings.Split(action.Uri, ":")
 		switch uri[0] {
 		case "mailto":
 			if err = SendNotifyMail(notify_msg["trigger"], notify_msg["time"]+"\n"+notify_msg["event"]+"\n"+notify_msg["url"], this.EmailAddress, []string{uri[1]}); err != nil {
-				log.Println(err)
+				log.Println("fail to sendnotifymail",err)
 			}
 		default:
 			log.Println(notify_msg)
