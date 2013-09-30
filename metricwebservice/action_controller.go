@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -40,6 +41,10 @@ func ActionCreate(w http.ResponseWriter, r *http.Request) {
 	tg := mux.Vars(r)["trigger"]
 	config_con := configservice.Get()
 	defer config_con.Close()
+	if _, err := redis.String(config_con.Do("HGET", "trigger:"+tg, "exp")); err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 	h := sha1.New()
 	h.Write([]byte(action.Uri))
 	name := base64.URLEncoding.EncodeToString(h.Sum(nil))

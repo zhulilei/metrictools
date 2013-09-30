@@ -86,7 +86,6 @@ return:
     POST /trigger/{trigger}/action
     #json data
     {
-        "name":"aaaa",
         "repeat":2,
         "Uri":"http://asdasd",
     }
