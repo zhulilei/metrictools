@@ -1,26 +1,21 @@
 <!DOCTYPE html>
 <html>
-
   <head>
     <meta charset='utf-8' />
     <meta http-equiv="X-UA-Compatible" content="chrome=1" />
     <meta name="description" content="Metrictools :  Distributed system monitor toolset" />
-
     <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
-
     <title>Metrictools</title>
   </head>
 
   <body>
 
-    <!-- HEADER -->
+    
     <div id="header_wrap" class="outer">
         <header class="inner">
           <a id="forkme_banner" href="https://github.com/datastream/metrictools">View on GitHub</a>
-
           <h1 id="project_title">Metrictools</h1>
           <h2 id="project_tagline"> Distributed system monitor toolset</h2>
-
             <section id="downloads">
               <a class="zip_download_link" href="https://github.com/datastream/metrictools/zipball/master">Download this project as a .zip file</a>
               <a class="tar_download_link" href="https://github.com/datastream/metrictools/tarball/master">Download this project as a tar.gz file</a>
@@ -28,52 +23,153 @@
         </header>
     </div>
 
-    <!-- MAIN CONTENT -->
+    
     <div id="main_content_wrap" class="outer">
       <section id="main_content" class="inner">
-        <h3>
-<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>Welcome to GitHub Pages.</h3>
+<h1>Introducing metrictools</h1>
 
-<p>This automatic page generator is the easiest way to create beautiful pages for all of your projects. Author your page content here using GitHub Flavored Markdown, select a template crafted by a designer, and publish. After your page is generated, you can check out the new branch:</p>
+<p>It&rsquo;s distributed system monitoring solution. It can process metric data from collectd.</p>
 
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
+<h2>Metrictools</h2>
+
+<h3>metricprocessor</h3>
+
+<p><code>metricprocessor</code> read collectd json data from nsq, parse json and store data into redis.
+it also check metrics&rsquo; archive time, and send metrics&rsquo; name to <code>metricarchive</code>.</p>
+
+<p><code>metricprocessor</code> scan all records in redis which match <code>trigger:*</code>, and send them to <code>metricstatistic</code></p>
+
+<pre><code>collectd -&gt; nsq -&gt; metricprocessor -&gt; redis
 </code></pre>
 
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
+<h3>metricarchive</h3>
 
-<h3>
-<a name="designer-templates" class="anchor" href="#designer-templates"><span class="octicon octicon-link"></span></a>Designer Templates</h3>
+<p><code>metricarchive</code> read metric name from nsq, compress and remove old data.</p>
 
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
+<pre><code>metricprocessor -&gt; nsq -&gt; metricarchive -&gt; redis
+</code></pre>
 
-<h3>
-<a name="rather-drive-stick" class="anchor" href="#rather-drive-stick"><span class="octicon octicon-link"></span></a>Rather Drive Stick?</h3>
+<h3>metricstatistic</h3>
 
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
+<p><code>metricstatistic</code> read trigger from nsq, then calculate triggers&rsquo; expression.
+It also use <code>etsy/skyline</code> algorithms to check data. If skyline algorithms return true, send data to <code>metricnotify</code>.</p>
 
-<h3>
-<a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
+<pre><code># calculate expression
+metricprocessor -&gt; nsq -&gt; metricarchive -&gt; redis
+# skyline
+redis -&gt; metricarchive -&gt; nsq -&gt; metricnotify
+</code></pre>
 
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
+<h3>metricwebservice</h3>
 
-<h3>
-<a name="support-or-contact" class="anchor" href="#support-or-contact"><span class="octicon octicon-link"></span></a>Support or Contact</h3>
+<p><code>metricwebservice</code> is a web api, it provide data from redis.</p>
 
-<p>Having trouble with Pages? Check out the documentation at <a href="http://help.github.com/pages">http://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
+<pre><code>metricwebservice -&gt; redis
+</code></pre>
+
+<h3>metricnotify</h3>
+
+<p><code>metricnotify</code> read data, and send data via email, http etc.</p>
+
+<pre><code>metricstatistic -&gt; nsq -&gt; metricnotify -&gt; email/http/im etc.
+</code></pre>
+
+<p>All these tools communicate data via nsq.</p>
+
+<h2>How to Setup</h2>
+
+<h3>Require</h3>
+
+<ol>
+<li>collectd v4.8+ (write_http plugin)</li>
+<li>nsq</li>
+<li>redis</li>
+</ol>
+
+<h4>collectd</h4>
+
+<p>collectd runs on every node, and send data to nsq api via http.</p>
+
+<pre><code>&lt;Plugin write_http&gt;
+  &lt;URL &quot;http://nsq_node:4151/put?topic=metric&quot;&gt;
+    Format &quot;JSON&quot;
+    User &quot;instance_name&quot;
+    Password &quot;user_token&quot;
+  &lt;/URL&gt;
+&lt;/Plugin&gt;
+</code></pre>
+
+<h4>nsq</h4>
+
+<p><a href="http://bitly.github.io/nsq/overview/quick_start.html">Quick Start</a></p>
+
+<h4>redis</h4>
+
+<p>on debian</p>
+
+<pre><code>apt-get install redis-server
+service redis-server start
+</code></pre>
+
+<p>on freebsd</p>
+
+<pre><code>cd /usr/ports/databases/redis;make install
+service redis-server start
+</code></pre>
+
+<p>on mac ox x</p>
+
+<pre><code>brew install redis-server
+/usr/local/bin/redis-server
+</code></pre>
+
+<h4>metrictools</h4>
+
+<pre><code>git clone github.com/datastream/metrictools
+cd metrictools;make
+vim metrictools.json
+
+{
+    &quot;lookupd_addresses&quot;:&quot;127.0.0.1:4160&quot;,
+    &quot;nsqd_addr&quot;:&quot;127.0.0.1:4151&quot;,
+    &quot;maxinflight&quot;:&quot;200&quot;,
+    &quot;metric_topic&quot;:&quot;metric&quot;,
+    &quot;trigger_topic&quot;:&quot;trigger&quot;,
+    &quot;trigger_channel&quot;:&quot;trigger_ch&quot;,
+    &quot;notify_topic&quot;:&quot;notify&quot;,
+    &quot;notify_channel&quot;:&quot;notify_ch&quot;,
+    &quot;redis_conn_count&quot;:&quot;10&quot;,
+    &quot;config_redis_server&quot;:&quot;127.0.0.1:6379&quot;,
+    &quot;config_redis_auth&quot;:&quot;admin&quot;,
+    &quot;data_redis_server&quot;:&quot;127.0.0.1:6379&quot;,
+    &quot;data_redis_auth&quot;:&quot;admin&quot;,
+    &quot;web_bind&quot;:&quot;127.0.0.1:1234&quot;,
+    &quot;notify_email_address&quot;:&quot;notify@test.org&quot;
+}
+</code></pre>
+
+<p>change <code>nsq lookupd address</code> redis_server&rsquo;s ip and auth.</p>
+
+<h5>Run metrictools</h5>
+
+<ol>
+<li><code>cd metricprocessor;./metricprocessor -conf ../metrictools.json</code></li>
+<li><code>cd metricstatistic;./metricstatistic -conf ../metrictools.json</code></li>
+<li><code>cd metricwebservice;./metricwebservice -conf ../metrictools.json</code></li>
+<li><code>cd metricarchive;./metricarchive -conf ../metrictools.json</code></li>
+<li><code>cd metricnotify;./metricnotify -conf ../metrictools.json</code></li>
+</ol>
+
+<h2>More</h2>
       </section>
     </div>
 
-    <!-- FOOTER  -->
+    
     <div id="footer_wrap" class="outer">
       <footer class="inner">
         <p class="copyright">Metrictools maintained by <a href="https://github.com/datastream">datastream</a></p>
         <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
       </footer>
     </div>
-
-    
-
   </body>
 </html>
