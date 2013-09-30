@@ -5,8 +5,6 @@
     "metric_topic":"metric",
     "trigger_topic":"trigger",
     "trigger_channel":"trigger_ch",
-    "statistic_topic":"statistic",
-    "statistic_channel":"statistic_ch",
     "notify_topic":"notify",
     "notify_channel":"notify_ch",
     "redis_conn_count":"10",
