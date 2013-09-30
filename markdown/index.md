@@ -33,7 +33,9 @@ It also use `etsy/skyline` algorithms to check data. If skyline algorithms retur
 
 `metricwebservice` is a web api, it provide data from redis.
 
-    metricwebservice -> redis
+    metricwebservice <-> redis
+
+See also (github.com/datastream/metricweb)
 
 ### metricnotify
 
@@ -119,4 +121,7 @@ change `nsq lookupd address` redis_server's ip and auth.
 1. `cd metricarchive;./metricarchive -conf ../metrictools.json`
 1. `cd metricnotify;./metricnotify -conf ../metrictools.json`
 
-## More
+## Todo
+
+1. look a distributed storage backend.
+1. improve metricwebservice

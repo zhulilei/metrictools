@@ -1,175 +1,90 @@
 <!DOCTYPE html>
-<html>
+<html lang='en' xml:lang='en' xmlns='http://www.w3.org/1999/xhtml'>
   <head>
-    <meta charset='utf-8' />
-    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
-    <meta name="description" content="Metrictools :  Distributed system monitor toolset" />
-    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
-    <title>Metrictools</title>
+    <meta content='text/html;charset=UTF-8' http-equiv='content-type'>
+    <meta content='width=device-width, initial-scale=1.0' name='viewport'>
+    <title>Metricstools</title>
+    <link href="stylesheets/bootstrap.css" media="screen" rel="stylesheet">
+    <link href="stylesheets/metrictools.css" media="screen" rel="stylesheet">
+    <link href="stylesheets/nv.d3.css" media="screen" rel="stylesheet">
   </head>
-
   <body>
-
-    
-    <div id="header_wrap" class="outer">
-        <header class="inner">
-          <a id="forkme_banner" href="https://github.com/datastream/metrictools">View on GitHub</a>
-          <h1 id="project_title">Metrictools</h1>
-          <h2 id="project_tagline"> Distributed system monitor toolset</h2>
-            <section id="downloads">
-              <a class="zip_download_link" href="https://github.com/datastream/metrictools/zipball/master">Download this project as a .zip file</a>
-              <a class="tar_download_link" href="https://github.com/datastream/metrictools/tarball/master">Download this project as a tar.gz file</a>
-            </section>
-        </header>
-    </div>
-
-    
-    <div id="main_content_wrap" class="outer">
-      <section id="main_content" class="inner">
-<h1>Introducing metrictools</h1>
-
-<p>It&rsquo;s distributed system monitoring solution. It can process metric data from collectd.</p>
-
-<h2>Metrictools</h2>
-
-<h3>metricprocessor</h3>
-
-<p><code>metricprocessor</code> read collectd json data from nsq, parse json and store data into redis.
-it also check metrics&rsquo; archive time, and send metrics&rsquo; name to <code>metricarchive</code>.</p>
-
-<p><code>metricprocessor</code> scan all records in redis which match <code>trigger:*</code>, and send them to <code>metricstatistic</code></p>
-
-<pre><code>collectd -&gt; nsq -&gt; metricprocessor -&gt; redis
-</code></pre>
-
-<h3>metricarchive</h3>
-
-<p><code>metricarchive</code> read metric name from nsq, compress and remove old data.</p>
-
-<pre><code>metricprocessor -&gt; nsq -&gt; metricarchive -&gt; redis
-</code></pre>
-
-<h3>metricstatistic</h3>
-
-<p><code>metricstatistic</code> read trigger from nsq, then calculate triggers&rsquo; expression.
-It also use <code>etsy/skyline</code> algorithms to check data. If skyline algorithms return true, send data to <code>metricnotify</code>.</p>
-
-<pre><code># calculate expression
-metricprocessor -&gt; nsq -&gt; metricarchive -&gt; redis
-# skyline
-redis -&gt; metricarchive -&gt; nsq -&gt; metricnotify
-</code></pre>
-
-<h3>metricwebservice</h3>
-
-<p><code>metricwebservice</code> is a web api, it provide data from redis.</p>
-
-<pre><code>metricwebservice -&gt; redis
-</code></pre>
-
-<h3>metricnotify</h3>
-
-<p><code>metricnotify</code> read data, and send data via email, http etc.</p>
-
-<pre><code>metricstatistic -&gt; nsq -&gt; metricnotify -&gt; email/http/im etc.
-</code></pre>
-
-<p>All these tools communicate data via nsq.</p>
-
-<h2>How to Setup</h2>
-
-<h3>Require</h3>
-
-<ol>
-<li>collectd v4.8+ (write_http plugin)</li>
-<li>nsq</li>
-<li>redis</li>
-</ol>
-
-<h4>collectd</h4>
-
-<p>collectd runs on every node, and send data to nsq api via http.</p>
-
-<pre><code>&lt;Plugin write_http&gt;
-  &lt;URL &quot;http://nsq_node:4151/put?topic=metric&quot;&gt;
-    Format &quot;JSON&quot;
-    User &quot;instance_name&quot;
-    Password &quot;user_token&quot;
-  &lt;/URL&gt;
-&lt;/Plugin&gt;
-</code></pre>
-
-<h4>nsq</h4>
-
-<p><a href="http://bitly.github.io/nsq/overview/quick_start.html">Quick Start</a></p>
-
-<h4>redis</h4>
-
-<p>on debian</p>
-
-<pre><code>apt-get install redis-server
-service redis-server start
-</code></pre>
-
-<p>on freebsd</p>
-
-<pre><code>cd /usr/ports/databases/redis;make install
-service redis-server start
-</code></pre>
-
-<p>on mac ox x</p>
-
-<pre><code>brew install redis-server
-/usr/local/bin/redis-server
-</code></pre>
-
-<h4>metrictools</h4>
-
-<pre><code>git clone github.com/datastream/metrictools
-cd metrictools;make
-vim metrictools.json
-
-{
-    &quot;lookupd_addresses&quot;:&quot;127.0.0.1:4160&quot;,
-    &quot;nsqd_addr&quot;:&quot;127.0.0.1:4151&quot;,
-    &quot;maxinflight&quot;:&quot;200&quot;,
-    &quot;metric_topic&quot;:&quot;metric&quot;,
-    &quot;trigger_topic&quot;:&quot;trigger&quot;,
-    &quot;trigger_channel&quot;:&quot;trigger_ch&quot;,
-    &quot;notify_topic&quot;:&quot;notify&quot;,
-    &quot;notify_channel&quot;:&quot;notify_ch&quot;,
-    &quot;redis_conn_count&quot;:&quot;10&quot;,
-    &quot;config_redis_server&quot;:&quot;127.0.0.1:6379&quot;,
-    &quot;config_redis_auth&quot;:&quot;admin&quot;,
-    &quot;data_redis_server&quot;:&quot;127.0.0.1:6379&quot;,
-    &quot;data_redis_auth&quot;:&quot;admin&quot;,
-    &quot;web_bind&quot;:&quot;127.0.0.1:1234&quot;,
-    &quot;notify_email_address&quot;:&quot;notify@test.org&quot;
-}
-</code></pre>
-
-<p>change <code>nsq lookupd address</code> redis_server&rsquo;s ip and auth.</p>
-
-<h5>Run metrictools</h5>
-
-<ol>
-<li><code>cd metricprocessor;./metricprocessor -conf ../metrictools.json</code></li>
-<li><code>cd metricstatistic;./metricstatistic -conf ../metrictools.json</code></li>
-<li><code>cd metricwebservice;./metricwebservice -conf ../metrictools.json</code></li>
-<li><code>cd metricarchive;./metricarchive -conf ../metrictools.json</code></li>
-<li><code>cd metricnotify;./metricnotify -conf ../metrictools.json</code></li>
-</ol>
-
-<h2>More</h2>
+    <header class="navbar navbar-fixed-top navbar-inverse" role="banner">
+      <div class="container">
+        <div class="navbar-header">
+          <button class="navbar-toggle" data-target=".bs-navbar-collapse" data-toggle="collapse" type="button"></button>
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </div>
+        <a class="navbar-brand" href="/">Metrictools</a>
+        <nav class="collapse navbar-collapse bs-navbar-collapse" role="navigation">
+          <ul class="nav navbar-nav">
+            <li>
+              <a href="/host">Host</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+    <!-- nav -->
+    <header class="umbotron subhead" id="overview">
+      <div class="container">
+        <h1>Metictools</h1>
+        <p class="lead">metric data tools.</p>
+      </div>
+      <!-- host header -->
+    </header>
+    <div class="container">
+      <section id="monitorapp">
+        <section id="main">
+          <label>Hostname:</label>
+          <input id="search-host" placeholder="Hostname" class="search-query" autofocus>
+          <!-- search host -->
+        </section>
+        <!-- main -->
+        <section id="hostmetric">
+          <div class="col-md-3">
+            <ul id="metric_list"></ul>
+          </div>
+        </section>
+        <!-- host's metrics -->
+        <section id="metricgraphic">
+          <div class="col-md-9">
+            <div id="chart" style="display:none">
+              <svg style="height: 400px"></svg>
+              <a class="btn btn-lg btn-info" href="#refresh" id="refreshmetrics">Refesh</a>
+              <a class="btn btn-lg btn-warning" href="#reset" id="resetmetrics">Reset</a>
+            </div>
+          </div>
+        </section>
+        <!-- host monitor dashboard -->
       </section>
     </div>
 
-    
-    <div id="footer_wrap" class="outer">
-      <footer class="inner">
-        <p class="copyright">Metrictools maintained by <a href="https://github.com/datastream">datastream</a></p>
-        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
-      </footer>
-    </div>
+    <script type="text/template" id="hostmetric-template">
+      <div class="view">
+        <a href="#/metric/<%= name%>" id="<%= type %>" class="toggle"><%= name %></a>
+      </div>
+    </script>
+
+    <script src="bower_components/jquery-2.0.3.js"></script>
+    <script src="bower_components/jquery.quicksearch.js"></script>
+    <script src="bower_components/bootstrap.js"></script>
+    <script src="bower_components/underscore.js"></script>
+    <script src="bower_components/backbone.js"></script>
+    <script src="bower_components/backbone.localStorage.js"></script>
+    <script src="bower_components/d3.js"></script>
+    <script src="bower_components/nv.d3.js"></script>
+    <script src="js/models/hostmetric.js"></script>
+    <script src="js/models/metric.js"></script>
+    <script src="js/collections/hostmetrics.js"></script>
+    <script src="js/collections/metrics.js"></script>
+    <script src="js/views/hostmetric.js"></script>
+    <script src="js/views/metric.js"></script>
+    <script src="js/views/monitor.js"></script>
+    <script src="js/routers/router.js"></script>
+    <script src="js/app.js"></script>
   </body>
 </html>
