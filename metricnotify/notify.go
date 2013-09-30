@@ -53,7 +53,7 @@ func (this *Notify) SendNotify(notify_msg map[string]string) {
 		uri := strings.Split(action.Uri, ":")
 		switch uri[0] {
 		case "mailto":
-			if err = SendNotifyMail(notify_msg["trigger"], notify_msg["time"]+"\n"+notify_msg["event"]+"\n"+notify_msg["url"], this.EmailAddress, []string{uri[1]}); err != nil {
+			if err = SendNotifyMail(notify_msg["trigger_exp"], notify_msg["time"]+"\n"+notify_msg["event"]+"\n"+notify_msg["url"], this.EmailAddress, []string{uri[1]}); err != nil {
 				log.Println("fail to sendnotifymail",err)
 			}
 		default:

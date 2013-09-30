@@ -2,6 +2,8 @@ package main
 
 import (
 	metrictools "../"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -156,11 +158,15 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 			rst := make(map[string]string)
 			rst["time"] = time.Now().Format("2006-01-02 15:04:05")
 			rst["event"] = strings.Join(skyline_trigger, ", ")
-			rst["trigger"] = exp
+			h := sha1.New()
+			h.Write([]byte(exp))
+			name := base64.URLEncoding.EncodeToString(h.Sum(nil))
+			rst["trigger"] = name
+			rst["trigger_exp"] =  exp
 			if archive == exp {
 				rst["url"] = "/api/v1/metric/" + archive
 			} else {
-				rst["url"] = "/api/v1/trigger/" + archive
+				rst["url"] = "/api/v1/trigger/" + name
 			}
 			if body, err := json.Marshal(rst); err == nil {
 				this.writer.Publish(this.topic, body)
