@@ -81,7 +81,14 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
-		w.Write([]byte("Add successful"))
+		t := make(map[string]string)
+		t["name"] = tg.Name
+		t["url"] = "/api/v1/trigger/" + tg.Name
+		if body, err := json.Marshal(t); err == nil {
+			w.Write(body)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}
 }
 
