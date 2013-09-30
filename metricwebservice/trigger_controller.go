@@ -98,12 +98,23 @@ func TriggerDelete(w http.ResponseWriter, r *http.Request) {
 	defer config_con.Close()
 	data_con := dataservice.Get()
 	defer data_con.Close()
-	_, err := config_con.Do("DEL", "archive:"+name)
+	_, err := data_con.Do("DEL", "archive:"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	_, err = config_con.Do("DEL", "trigger:"+name)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Failed to delete trigger"))
+		return
+	}
+	keys, err := redis.Strings(config_con.Do("KEYS", "actions:"+name+":*"))
+	for _, v := range keys {
+		if _, err = config_con.Do("DEL", v); err != nil {
+			break
+		}
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))
