@@ -65,7 +65,7 @@ func (this *TriggerTask) calculate(trigger_name string) {
 		t := time.Now().Unix()
 		body := fmt.Sprintf("%d:%.2f", t, v)
 		_, err = data_con.Do("ZADD", "archive:"+trigger.Name, t, body)
-		_, err = data_con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-3600)
+		_, err = data_con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-3600*24)
 		go this.checkvalue(trigger.Name, trigger.Expression)
 	}
 }
@@ -122,7 +122,7 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
 	t := time.Now().Unix()
-	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+archive, t-3600*3, t))
+	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+archive, t-3600*24, t))
 	var skyline_trigger []string
 	if err == nil {
 		timeseries := ParseTimeSeries(values)
