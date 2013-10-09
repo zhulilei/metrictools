@@ -111,7 +111,7 @@ func (this *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, err
 }
 
 func (this *MetricDeliver) ScanTrigger() {
-	ticker := time.Tick(time.Minute)
+	ticker := time.Tick(time.Second*30)
 	config_con := this.configservice.Get()
 	defer config_con.Close()
 	for {
