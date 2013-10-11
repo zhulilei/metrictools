@@ -67,7 +67,7 @@ func (this *TriggerTask) calculate(trigger_name string) {
 		t := time.Now().Unix()
 		body := fmt.Sprintf("%d:%.2f", t, v)
 		_, err = data_con.Do("ZADD", "archive:"+trigger.Name, t, body)
-		_, err = data_con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-3600*24)
+		_, err = data_con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-this.FullDuration-100)
 		go this.checkvalue(trigger.Name, trigger.Expression)
 	}
 }
