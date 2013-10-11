@@ -130,7 +130,7 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 	if err == nil {
 		timeseries := ParseTimeSeries(values)
 		if (timeseries[len(timeseries)-1].Timestamp - timeseries[0].Timestamp) < this.FullDuration {
-			log.Println("incomplete data")
+			log.Println("incomplete data", exp)
 			return
 		}
 		if skyline.MedianAbsoluteDeviation(timeseries) {
