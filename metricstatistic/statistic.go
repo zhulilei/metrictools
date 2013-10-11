@@ -124,7 +124,7 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 	data_con := this.dataservice.Get()
 	defer data_con.Close()
 	t := time.Now().Unix()
-	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+archive, t-3600*24, t))
+	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+archive, t-this.FullDuration, t))
 	var skyline_trigger []string
 	threshold := 8 - this.Consensus
 	if err == nil {
