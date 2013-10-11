@@ -24,6 +24,8 @@ type TriggerTask struct {
 	writer        *nsq.Writer
 	nsqd_address  string
 	topic         string
+	FullDuration  int64
+	Consensus     int
 }
 
 func (this *TriggerTask) HandleMessage(m *nsq.Message) error {
@@ -124,20 +126,21 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 	t := time.Now().Unix()
 	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+archive, t-3600*24, t))
 	var skyline_trigger []string
+	threshold := 8 - this.Consensus
 	if err == nil {
 		timeseries := ParseTimeSeries(values)
+		if (timeseries[len(timeseries)-1].Timestamp - timeseries[0].Timestamp) < this.FullDuration {
+			log.Println("incomplete data")
+			return
+		}
 		if skyline.MedianAbsoluteDeviation(timeseries) {
 			skyline_trigger = append(skyline_trigger, "MedianAbsoluteDeviation")
 		}
 		if skyline.Grubbs(timeseries) {
 			skyline_trigger = append(skyline_trigger, "Grubbs")
 		}
-		l := len(timeseries)
-		if l > 60 {
-			one_hour := timeseries[l-60 : l]
-			if skyline.FirstHourAverage(one_hour, 0) {
-				skyline_trigger = append(skyline_trigger, "FirstHourAverage")
-			}
+		if skyline.FirstHourAverage(timeseries, this.FullDuration) {
+			skyline_trigger = append(skyline_trigger, "FirstHourAverage")
 		}
 		if skyline.SimpleStddevFromMovingAverage(timeseries) {
 			skyline_trigger = append(skyline_trigger, "SimpleStddevFromMovingAverage")
@@ -154,7 +157,7 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 		if skyline.HistogramBins(timeseries) {
 			skyline_trigger = append(skyline_trigger, "HistogramBins")
 		}
-		if len(skyline_trigger) > 0 {
+		if (8 - len(skyline_trigger)) <= threshold {
 			rst := make(map[string]string)
 			rst["time"] = time.Now().Format("2006-01-02 15:04:05")
 			rst["event"] = strings.Join(skyline_trigger, ", ")
@@ -162,7 +165,7 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 			h.Write([]byte(exp))
 			name := base64.URLEncoding.EncodeToString(h.Sum(nil))
 			rst["trigger"] = name
-			rst["trigger_exp"] =  exp
+			rst["trigger_exp"] = exp
 			if archive == exp {
 				rst["url"] = "/api/v1/metric/" + archive
 			} else {

@@ -33,6 +33,8 @@ func main() {
 	redis_auth, _ := c["data_redis_auth"]
 	config_redis_server, _ := c["config_redis_server"]
 	config_redis_auth, _ := c["config_redis_auth"]
+	fullduration, _ := c["full_duration"]
+	consensus, _ := c["consensus"]
 
 	redis_con := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", redis_server)
@@ -75,7 +77,8 @@ func main() {
 		topic:         notify_topic,
 		nsqd_address:  nsqd_addr,
 	}
-
+	tt.FullDuration, _ = strconv.ParseInt(fullduration, 10, 64)
+	tt.Consensus, _ = strconv.Atoi(consensus)
 	for i := 0; i < int(max); i++ {
 		r.AddHandler(tt)
 	}

@@ -47,14 +47,14 @@ func (this *Notify) SendNotify(notify_msg map[string]string) {
 			continue
 		}
 		n := time.Now().Unix()
-		if ((n-action.UpdateTime) < 600) && (action.Repeat >= action.Count) {
+		if ((n - action.UpdateTime) < 600) && (action.Repeat >= action.Count) {
 			continue
 		}
 		uri := strings.Split(action.Uri, ":")
 		switch uri[0] {
 		case "mailto":
 			if err = SendNotifyMail(notify_msg["trigger_exp"], notify_msg["time"]+"\n"+notify_msg["event"]+"\n"+notify_msg["url"], this.EmailAddress, []string{uri[1]}); err != nil {
-				log.Println("fail to sendnotifymail",err)
+				log.Println("fail to sendnotifymail", err)
 			}
 		default:
 			log.Println(notify_msg)

@@ -5,6 +5,8 @@
     "metric_topic":"metric",
     "trigger_topic":"trigger",
     "trigger_channel":"trigger_ch",
+    "full_duration":"86400",
+    "consensus":"6",
     "notify_topic":"notify",
     "notify_channel":"notify_ch",
     "redis_conn_count":"10",
