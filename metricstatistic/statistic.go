@@ -40,9 +40,9 @@ func (m *TriggerTask) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *TriggerTask) calculate(triggerName string) {
-	dataCon := m.dataservice.Get()
+	dataCon := m.dataService.Get()
 	defer dataCon.Close()
-	configCon := m.configservice.Get()
+	configCon := m.configService.Get()
 	defer configCon.Close()
 	var trigger metrictools.Trigger
 	var err error
@@ -91,7 +91,7 @@ func ParseTimeSeries(values []string) []skyline.TimePoint {
 
 func (m *TriggerTask) calculateExp(expList []string) (float64, error) {
 	kv := make(map[string]interface{})
-	dataCon := m.dataservice.Get()
+	dataCon := m.dataService.Get()
 	defer dataCon.Close()
 	exp := ""
 	current := time.Now().Unix()
@@ -122,7 +122,7 @@ func (m *TriggerTask) calculateExp(expList []string) (float64, error) {
 }
 
 func (m *TriggerTask) checkvalue(archive, exp string) {
-	dataCon := m.dataservice.Get()
+	dataCon := m.dataService.Get()
 	defer dataCon.Close()
 	t := time.Now().Unix()
 	values, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+archive, t-m.FullDuration, t))
