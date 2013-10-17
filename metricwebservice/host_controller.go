@@ -11,13 +11,14 @@ import (
 	"strings"
 )
 
+// HostIndex GET /host
 func HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	hosts, _ := redis.Strings(data_con.Do("KEYS", "host:*"))
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	hosts, _ := redis.Strings(dataCon.Do("KEYS", "host:*"))
 	var rst []interface{}
 	for _, host := range hosts {
 		query := make(map[string]interface{})
@@ -29,14 +30,15 @@ func HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
+// HostShow GET /host/{:name}
 func HostShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	_, err := redis.Strings(data_con.Do("SMEMBERS", "host:"+host))
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	_, err := redis.Strings(dataCon.Do("SMEMBERS", "host:"+host))
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
 		query := make(map[string]interface{})
@@ -50,27 +52,28 @@ func HostShow(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HostDelete DELETE /host/{:name}
 func HostDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	metric_list, err := redis.Strings(data_con.Do("SMEMBERS", "host:"+host))
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	metricList, err := redis.Strings(dataCon.Do("SMEMBERS", "host:"+host))
 	if err == nil {
-		for _, v := range metric_list {
-			_, err = data_con.Do("DEL", v)
+		for _, v := range metricList {
+			_, err = dataCon.Do("DEL", v)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			_, err = data_con.Do("DEL", "archive:"+v)
+			_, err = dataCon.Do("DEL", "archive:"+v)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 		}
-		_, err = data_con.Do("DEL", "host:"+host)
+		_, err = dataCon.Do("DEL", "host:"+host)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -79,19 +82,20 @@ func HostDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// HostMetricIndex GET /host/{:hostname}/metric
 func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	metric_list, err := redis.Strings(data_con.Do("SMEMBERS", "host:"+host))
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	metricList, err := redis.Strings(dataCon.Do("SMEMBERS", "host:"+host))
 	if err == nil {
 		var rst []interface{}
-		sort.Strings(metric_list)
-		for _, v := range metric_list {
-			m, err := redis.Values(data_con.Do("HMGET", v, "dstype", "dsname", "interval", "host", "plugin", "plugin_instance", "type", "type_instance", "ttl"))
+		sort.Strings(metricList)
+		for _, v := range metricList {
+			m, err := redis.Values(dataCon.Do("HMGET", v, "dstype", "dsname", "interval", "host", "plugin", "plugin_instance", "type", "type_instance", "ttl"))
 			if err != nil {
 				log.Println("failed to hgetall", err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -129,24 +133,25 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HostMetricDelete DELETE /host/{:hostname}/metric/{:name}
 func HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	metric := mux.Vars(r)["name"]
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	_, err := data_con.Do("SREM", "host:"+host, metric)
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	_, err := dataCon.Do("SREM", "host:"+host, metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_, err = data_con.Do("DEL", "archive:"+metric)
+	_, err = dataCon.Do("DEL", "archive:"+metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_, err = data_con.Do("DEL", metric)
+	_, err = dataCon.Do("DEL", metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

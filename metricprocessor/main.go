@@ -14,74 +14,74 @@ import (
 )
 
 var (
-	conf_file = flag.String("conf", "metrictools.json", "metrictools config file")
+	confFile = flag.String("conf", "metrictools.json", "metrictools config file")
 )
 
 func main() {
 	flag.Parse()
-	c, err := metrictools.ReadConfig(*conf_file)
+	c, err := metrictools.ReadConfig(*confFile)
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	lookupd_addresses, _ := c["lookupd_addresses"]
-	nsqd_addr, _ := c["nsqd_addr"]
+	lookupdAddresses, _ := c["lookupd_addresses"]
+	nsqdAddr, _ := c["nsqd_addr"]
 	maxinflight, _ := c["maxinflight"]
-	metric_channel, _ := c["metric_channel"]
-	metric_topic, _ := c["metric_topic"]
-	trigger_topic, _ := c["trigger_topic"]
-	archive_topic, _ := c["archive_topic"]
-	redis_server, _ := c["data_redis_server"]
-	redis_auth, _ := c["data_redis_auth"]
-	config_redis_server, _ := c["config_redis_server"]
-	config_redis_auth, _ := c["config_redis_auth"]
+	metricChannel, _ := c["metric_channel"]
+	metricTopic, _ := c["metric_topic"]
+	triggerTopic, _ := c["trigger_topic"]
+	archiveTopic, _ := c["archive_topic"]
+	redisServer, _ := c["data_redis_server"]
+	redisAuth, _ := c["data_redis_auth"]
+	configRedisServer, _ := c["config_redis_server"]
+	configRedisAuth, _ := c["config_redis_auth"]
 
-	redis_con := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", redis_server)
+	redisCon := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", redisServer)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := c.Do("AUTH", redis_auth); err != nil {
+		if _, err := c.Do("AUTH", redisAuth); err != nil {
 			c.Close()
 			return nil, err
 		}
 		return c, err
 	}
-	redis_pool := redis.NewPool(redis_con, 3)
-	defer redis_pool.Close()
+	redisPool := redis.NewPool(redisCon, 3)
+	defer redisPool.Close()
 
-	config_redis_con := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", config_redis_server)
+	configRedisCon := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", configRedisServer)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := c.Do("AUTH", config_redis_auth); err != nil {
+		if _, err := c.Do("AUTH", configRedisAuth); err != nil {
 			c.Close()
 			return nil, err
 		}
 		return c, err
 	}
-	config_redis_pool := redis.NewPool(config_redis_con, 3)
-	defer config_redis_pool.Close()
+	configRedisPool := redis.NewPool(configRedisCon, 3)
+	defer configRedisPool.Close()
 
-	w := nsq.NewWriter(nsqd_addr)
-	metric_deliver := &MetricDeliver{
-		dataservice:   redis_pool,
-		configservice: config_redis_pool,
+	w := nsq.NewWriter(nsqdAddr)
+	metricDeliver := &MetricDeliver{
+		dataService:   redisPool,
+		configService: configRedisPool,
 		writer:        w,
-		trigger_topic: trigger_topic,
-		archive_topic: archive_topic,
-		nsqd_addr:     nsqd_addr,
+		triggerTopic:  triggerTopic,
+		archiveTopic:  archiveTopic,
+		nsqdAddr:      nsqdAddr,
 	}
 	max, _ := strconv.ParseInt(maxinflight, 10, 32)
-	r, err := nsq.NewReader(metric_topic, metric_channel)
+	r, err := nsq.NewReader(metricTopic, metricChannel)
 	if err != nil {
 		log.Fatal(err)
 	}
 	r.SetMaxInFlight(int(max))
 	for i := 0; i < int(max); i++ {
-		r.AddHandler(metric_deliver)
+		r.AddHandler(metricDeliver)
 	}
-	lookupdlist := strings.Split(lookupd_addresses, ",")
+	lookupdlist := strings.Split(lookupdAddresses, ",")
 	for _, addr := range lookupdlist {
 		log.Printf("lookupd addr %s", addr)
 		err := r.ConnectToLookupd(addr)
@@ -89,7 +89,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	go metric_deliver.ScanTrigger()
+	go metricDeliver.ScanTrigger()
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan

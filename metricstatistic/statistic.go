@@ -17,61 +17,62 @@ import (
 	"time"
 )
 
-// add map to maintain current calculating exp
+// TriggerTask define a trigger statistic task
 type TriggerTask struct {
-	dataservice   *redis.Pool
-	configservice *redis.Pool
+	dataService   *redis.Pool
+	configService *redis.Pool
 	writer        *nsq.Writer
-	nsqd_address  string
+	nsqdAddress   string
 	topic         string
 	FullDuration  int64
 	Consensus     int
 }
 
-func (this *TriggerTask) HandleMessage(m *nsq.Message) error {
-	t_name := string(m.Body)
-	config_con := this.configservice.Get()
-	defer config_con.Close()
+// HandleMessage is TriggerTask's nsq handle function
+func (m *TriggerTask) HandleMessage(msg *nsq.Message) error {
+	name := string(msg.Body)
+	configCon := m.configService.Get()
+	defer configCon.Close()
 	now := time.Now().Unix()
-	go config_con.Do("HSET", t_name, "last", now)
-	go this.calculate(t_name)
+	go configCon.Do("HSET", name, "last", now)
+	go m.calculate(name)
 	return nil
 }
 
-// calculate trigger.exp
-func (this *TriggerTask) calculate(trigger_name string) {
-	data_con := this.dataservice.Get()
-	defer data_con.Close()
-	config_con := this.configservice.Get()
-	defer config_con.Close()
+func (m *TriggerTask) calculate(triggerName string) {
+	dataCon := m.dataservice.Get()
+	defer dataCon.Close()
+	configCon := m.configservice.Get()
+	defer configCon.Close()
 	var trigger metrictools.Trigger
 	var err error
-	trigger.Expression, err = redis.String(config_con.Do("HGET", trigger_name, "exp"))
+	trigger.Expression, err = redis.String(configCon.Do("HGET", triggerName, "exp"))
 	if err != nil {
-		log.Println("get trigger failed", trigger_name, err)
+		log.Println("get trigger failed", triggerName, err)
 		return
 	}
-	trigger.Name = trigger_name[8:]
-	exp_list := cal.Parser(trigger.Expression)
-	if len(exp_list) < 1 {
+	trigger.Name = triggerName[8:]
+	expList := cal.Parser(trigger.Expression)
+	if len(expList) < 1 {
 		return
 	}
-	if len(exp_list) == 1 {
-		go this.checkvalue(trigger.Expression, trigger.Expression)
+	if len(expList) == 1 {
+		go m.checkvalue(trigger.Expression, trigger.Expression)
 	} else {
-		v, err := this.calculate_exp(exp_list)
+		v, err := m.calculateExp(expList)
 		if err != nil {
-			log.Println("calculate failed", trigger_name, err)
+			log.Println("calculate failed", triggerName, err)
 			return
 		}
 		t := time.Now().Unix()
 		body := fmt.Sprintf("%d:%.2f", t, v)
-		_, err = data_con.Do("ZADD", "archive:"+trigger.Name, t, body)
-		_, err = data_con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-this.FullDuration-100)
-		go this.checkvalue(trigger.Name, trigger.Expression)
+		_, err = dataCon.Do("ZADD", "archive:"+trigger.Name, t, body)
+		_, err = dataCon.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-m.FullDuration-100)
+		go m.checkvalue(trigger.Name, trigger.Expression)
 	}
 }
 
+// ParseTimeSeries convert redis value to skyline's data format
 func ParseTimeSeries(values []string) []skyline.TimePoint {
 	var rst []skyline.TimePoint
 	for _, val := range values {
@@ -88,16 +89,16 @@ func ParseTimeSeries(values []string) []skyline.TimePoint {
 	return rst
 }
 
-func (this *TriggerTask) calculate_exp(exp_list []string) (float64, error) {
-	k_v := make(map[string]interface{})
-	data_con := this.dataservice.Get()
-	defer data_con.Close()
+func (m *TriggerTask) calculateExp(expList []string) (float64, error) {
+	kv := make(map[string]interface{})
+	dataCon := m.dataservice.Get()
+	defer dataCon.Close()
 	exp := ""
 	current := time.Now().Unix()
-	for _, item := range exp_list {
+	for _, item := range expList {
 		var v float64
 		t := time.Now().Unix()
-		values, err := redis.Values(data_con.Do("HMGET", item, "rate_value", "timestamp"))
+		values, err := redis.Values(dataCon.Do("HMGET", item, "rate_value", "timestamp"))
 		if err == nil {
 			_, err = redis.Scan(values, &v, &t)
 			if err != nil {
@@ -113,54 +114,54 @@ func (this *TriggerTask) calculate_exp(exp_list []string) (float64, error) {
 		if err != nil {
 			return 0, err
 		}
-		k_v[item] = v
+		kv[item] = v
 		exp += item
 	}
-	rst, err := cal.Cal(exp, k_v)
+	rst, err := cal.Cal(exp, kv)
 	return rst, err
 }
 
-func (this *TriggerTask) checkvalue(archive, exp string) {
-	data_con := this.dataservice.Get()
-	defer data_con.Close()
+func (m *TriggerTask) checkvalue(archive, exp string) {
+	dataCon := m.dataservice.Get()
+	defer dataCon.Close()
 	t := time.Now().Unix()
-	values, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+archive, t-this.FullDuration, t))
-	var skyline_trigger []string
-	threshold := 8 - this.Consensus
+	values, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+archive, t-m.FullDuration, t))
+	var skylineTrigger []string
+	threshold := 8 - m.Consensus
 	if err == nil {
 		timeseries := ParseTimeSeries(values)
-		if (timeseries[len(timeseries)-1].Timestamp - timeseries[0].Timestamp) < this.FullDuration {
+		if (timeseries[len(timeseries)-1].Timestamp - timeseries[0].Timestamp) < m.FullDuration {
 			log.Println("incomplete data", exp, archive)
 			return
 		}
 		if skyline.MedianAbsoluteDeviation(timeseries) {
-			skyline_trigger = append(skyline_trigger, "MedianAbsoluteDeviation")
+			skylineTrigger = append(skylineTrigger, "MedianAbsoluteDeviation")
 		}
 		if skyline.Grubbs(timeseries) {
-			skyline_trigger = append(skyline_trigger, "Grubbs")
+			skylineTrigger = append(skylineTrigger, "Grubbs")
 		}
-		if skyline.FirstHourAverage(timeseries, this.FullDuration) {
-			skyline_trigger = append(skyline_trigger, "FirstHourAverage")
+		if skyline.FirstHourAverage(timeseries, m.FullDuration) {
+			skylineTrigger = append(skylineTrigger, "FirstHourAverage")
 		}
 		if skyline.SimpleStddevFromMovingAverage(timeseries) {
-			skyline_trigger = append(skyline_trigger, "SimpleStddevFromMovingAverage")
+			skylineTrigger = append(skylineTrigger, "SimpleStddevFromMovingAverage")
 		}
 		if skyline.StddevFromMovingAverage(timeseries) {
-			skyline_trigger = append(skyline_trigger, "StddevFromMovingAverage")
+			skylineTrigger = append(skylineTrigger, "StddevFromMovingAverage")
 		}
 		if skyline.MeanSubtractionCumulation(timeseries) {
-			skyline_trigger = append(skyline_trigger, "MeanSubtractionCumulation")
+			skylineTrigger = append(skylineTrigger, "MeanSubtractionCumulation")
 		}
 		if skyline.LeastSquares(timeseries) {
-			skyline_trigger = append(skyline_trigger, "LeastSquares")
+			skylineTrigger = append(skylineTrigger, "LeastSquares")
 		}
 		if skyline.HistogramBins(timeseries) {
-			skyline_trigger = append(skyline_trigger, "HistogramBins")
+			skylineTrigger = append(skylineTrigger, "HistogramBins")
 		}
-		if (8 - len(skyline_trigger)) <= threshold {
+		if (8 - len(skylineTrigger)) <= threshold {
 			rst := make(map[string]string)
 			rst["time"] = time.Now().Format("2006-01-02 15:04:05")
-			rst["event"] = strings.Join(skyline_trigger, ", ")
+			rst["event"] = strings.Join(skylineTrigger, ", ")
 			h := sha1.New()
 			h.Write([]byte(exp))
 			name := base64.URLEncoding.EncodeToString(h.Sum(nil))
@@ -172,7 +173,7 @@ func (this *TriggerTask) checkvalue(archive, exp string) {
 				rst["url"] = "/api/v1/trigger/" + name
 			}
 			if body, err := json.Marshal(rst); err == nil {
-				this.writer.Publish(this.topic, body)
+				m.writer.Publish(m.topic, body)
 				log.Println(string(body))
 			}
 		}

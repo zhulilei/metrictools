@@ -13,31 +13,33 @@ import (
 	"time"
 )
 
+// Notify define a notify task
 type Notify struct {
 	*redis.Pool
 	EmailAddress string
 }
 
-func (this *Notify) HandleMessage(m *nsq.Message) error {
-	var notify_msg map[string]string
+// HandleMessage is Notify's nsq handle function
+func (m *Notify) HandleMessage(msg *nsq.Message) error {
+	var notifyMsg map[string]string
 	var err error
-	if err = json.Unmarshal([]byte(m.Body), &notify_msg); err == nil {
-		go this.SendNotify(notify_msg)
+	if err = json.Unmarshal([]byte(msg.Body), &notifyMsg); err == nil {
+		go m.sendNotify(notifyMsg)
 	}
 	return err
 }
 
-func (this *Notify) SendNotify(notify_msg map[string]string) {
-	config_con := this.Get()
-	defer config_con.Close()
-	keys, err := redis.Strings(config_con.Do("KEYS", "actions:"+notify_msg["trigger"]+":*"))
+func (m *Notify) sendNotify(notifyMsg map[string]string) {
+	configCon := m.Get()
+	defer configCon.Close()
+	keys, err := redis.Strings(configCon.Do("KEYS", "actions:"+notifyMsg["trigger"]+":*"))
 	if err != nil {
-		log.Println("no action for", notify_msg["trigger"])
+		log.Println("no action for", notifyMsg["trigger"])
 		return
 	}
 	for _, v := range keys {
 		var action metrictools.NotifyAction
-		values, err := redis.Values(config_con.Do("HMGET", v, "uri", "update_time", "repeat", "count"))
+		values, err := redis.Values(configCon.Do("HMGET", v, "uri", "update_time", "repeat", "count"))
 		if err != nil {
 			log.Println("failed to get ", v)
 			continue
@@ -53,16 +55,16 @@ func (this *Notify) SendNotify(notify_msg map[string]string) {
 		uri := strings.Split(action.Uri, ":")
 		switch uri[0] {
 		case "mailto":
-			if err = SendNotifyMail(notify_msg["trigger_exp"], notify_msg["time"]+"\n"+notify_msg["event"]+"\n"+notify_msg["url"], this.EmailAddress, []string{uri[1]}); err != nil {
+			if err = sendNotifyMail(notifyMsg["trigger_exp"], notifyMsg["time"]+"\n"+notifyMsg["event"]+"\n"+notifyMsg["url"], m.EmailAddress, []string{uri[1]}); err != nil {
 				log.Println("fail to sendnotifymail", err)
 			}
 		default:
-			log.Println(notify_msg)
+			log.Println(notifyMsg)
 		}
 	}
 }
 
-func SendNotifyMail(title, body, from string, to []string) error {
+func sendNotifyMail(title, body, from string, to []string) error {
 	header := make(map[string]string)
 	header["To"] = strings.Join(to, ", ")
 	header["Subject"] = title

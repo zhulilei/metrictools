@@ -14,76 +14,76 @@ import (
 )
 
 var (
-	conf_file = flag.String("conf", "metrictools.conf", "analyst config file")
+	confFile = flag.String("conf", "metrictools.conf", "analyst config file")
 )
 
 func main() {
 	flag.Parse()
-	c, err := metrictools.ReadConfig(*conf_file)
+	c, err := metrictools.ReadConfig(*confFile)
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	lookupd_addresses, _ := c["lookupd_addresses"]
-	nsqd_addr, _ := c["nsqd_addr"]
+	lookupdAddresses, _ := c["lookupd_addresses"]
+	nsqdAddr, _ := c["nsqd_addr"]
 	maxInFlight, _ := c["maxinflight"]
-	trigger_channel, _ := c["trigger_channel"]
-	trigger_topic, _ := c["trigger_topic"]
-	notify_topic, _ := c["notify_topic"]
-	redis_server, _ := c["data_redis_server"]
-	redis_auth, _ := c["data_redis_auth"]
-	config_redis_server, _ := c["config_redis_server"]
-	config_redis_auth, _ := c["config_redis_auth"]
-	fullduration, _ := c["full_duration"]
+	triggerChannel, _ := c["trigger_channel"]
+	triggerTopic, _ := c["trigger_topic"]
+	notifyTopic, _ := c["notify_topic"]
+	redisServer, _ := c["data_redis_server"]
+	redisAuth, _ := c["data_redis_auth"]
+	configRedisServer, _ := c["config_redis_server"]
+	configRedisAuth, _ := c["config_redis_auth"]
+	fullDuration, _ := c["full_duration"]
 	consensus, _ := c["consensus"]
 
-	redis_con := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", redis_server)
+	redisCon := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", redisServer)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := c.Do("AUTH", redis_auth); err != nil {
+		if _, err := c.Do("AUTH", redisAuth); err != nil {
 			c.Close()
 			return nil, err
 		}
 		return c, err
 	}
-	redis_pool := redis.NewPool(redis_con, 3)
-	defer redis_pool.Close()
+	redisPool := redis.NewPool(redisCon, 3)
+	defer redisPool.Close()
 	// redis
-	config_redis_con := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", config_redis_server)
+	configRedisCon := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", configRedisServer)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := c.Do("AUTH", config_redis_auth); err != nil {
+		if _, err := c.Do("AUTH", configRedisAuth); err != nil {
 			c.Close()
 			return nil, err
 		}
 		return c, err
 	}
-	config_redis_pool := redis.NewPool(config_redis_con, 3)
-	defer config_redis_pool.Close()
-	r, err := nsq.NewReader(trigger_topic, trigger_channel)
+	configRedisPool := redis.NewPool(configRedisCon, 3)
+	defer configRedisPool.Close()
+	r, err := nsq.NewReader(triggerTopic, triggerChannel)
 	if err != nil {
 		log.Fatal(err)
 	}
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	r.SetMaxInFlight(int(max))
-	w := nsq.NewWriter(nsqd_addr)
+	w := nsq.NewWriter(nsqdAddr)
 	tt := &TriggerTask{
 		writer:        w,
-		dataservice:   redis_pool,
-		configservice: config_redis_pool,
-		topic:         notify_topic,
-		nsqd_address:  nsqd_addr,
+		dataService:   redisPool,
+		configService: configRedisPool,
+		topic:         notifyTopic,
+		nsqdAddress:   nsqdAddr,
 	}
-	tt.FullDuration, _ = strconv.ParseInt(fullduration, 10, 64)
+	tt.FullDuration, _ = strconv.ParseInt(fullDuration, 10, 64)
 	tt.Consensus, _ = strconv.Atoi(consensus)
 	for i := 0; i < int(max); i++ {
 		r.AddHandler(tt)
 	}
-	lookupdlist := strings.Split(lookupd_addresses, ",")
-	for _, addr := range lookupdlist {
+	lookupdList := strings.Split(lookupdAddresses, ",")
+	for _, addr := range lookupdList {
 		log.Printf("lookupd addr %s", addr)
 		err := r.ConnectToLookupd(addr)
 		if err != nil {

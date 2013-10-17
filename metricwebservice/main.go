@@ -10,52 +10,52 @@ import (
 )
 
 var (
-	conf_file = flag.String("conf", "metrictools.conf", "analyst config file")
+	confFile = flag.String("conf", "metrictools.conf", "analyst config file")
 )
 
-var dataservice *redis.Pool
-var configservice *redis.Pool
+var dataService *redis.Pool
+var configService *redis.Pool
 
 func main() {
 	flag.Parse()
-	c, err := metrictools.ReadConfig(*conf_file)
+	c, err := metrictools.ReadConfig(*confFile)
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	config_redis_server, _ := c["config_redis_server"]
-	config_redis_auth, _ := c["config_redis_auth"]
-	data_redis_server, _ := c["data_redis_server"]
-	data_redis_auth, _ := c["data_redis_auth"]
+	configRedisServer, _ := c["config_redis_server"]
+	configRedisAuth, _ := c["config_redis_auth"]
+	dataRedisServer, _ := c["data_redis_server"]
+	dataRedisAuth, _ := c["data_redis_auth"]
 	bind, _ := c["web_bind"]
 
 	// redis
-	config_redis_con := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", config_redis_server)
+	configRedisCon := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", configRedisServer)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := c.Do("AUTH", config_redis_auth); err != nil {
+		if _, err := c.Do("AUTH", configRedisAuth); err != nil {
 			c.Close()
 			return nil, err
 		}
 		return c, err
 	}
-	configservice = redis.NewPool(config_redis_con, 3)
-	defer configservice.Close()
+	configService = redis.NewPool(configRedisCon, 3)
+	defer configService.Close()
 
-	data_redis_con := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", data_redis_server)
+	dataRedisCon := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", dataRedisServer)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := c.Do("AUTH", data_redis_auth); err != nil {
+		if _, err := c.Do("AUTH", dataRedisAuth); err != nil {
 			c.Close()
 			return nil, err
 		}
 		return c, err
 	}
-	dataservice = redis.NewPool(data_redis_con, 3)
-	defer dataservice.Close()
+	dataService = redis.NewPool(dataRedisCon, 3)
+	defer dataService.Close()
 
 	r := mux.NewRouter()
 	s := r.PathPrefix("/api/v1").Subrouter()

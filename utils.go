@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// MetricData will be stored in redis.
 type MetricData struct {
 	Value          float64 `json:"value", redis:"value"`
 	DataSetType    string  `json:"dstype", redis:"dstype"`
@@ -22,12 +23,14 @@ type MetricData struct {
 	TTL            int     `json:"ttl", redis:"ttl"`
 }
 
+// Trigger define a statistic expression
 type Trigger struct {
 	Expression string `json:"expression", redis:"exp"`
 	Name       string `json:"name", redis:"name"`
 	Role       string `json:"role", redis:"role"`
 }
 
+// NotifyAction define how to send notify
 type NotifyAction struct {
 	Uri        string `json:"uri", redis:"uri"`
 	UpdateTime int64  `json:"update_time", redis:"update_time"`
@@ -35,31 +38,33 @@ type NotifyAction struct {
 	Count      int    `json:"count", redis:"count"`
 }
 
-func (this *MetricData) GetMetricName() string {
-	metric_name := this.Plugin
-	if len(this.PluginInstance) > 0 {
-		if matched, _ := regexp.MatchString(`^\d+$`, this.PluginInstance); matched {
-			metric_name += this.PluginInstance
+// GetMetricName return metricdata name
+func (m *MetricData) GetMetricName() string {
+	metricName := m.Plugin
+	if len(m.PluginInstance) > 0 {
+		if matched, _ := regexp.MatchString(`^\d+$`, m.PluginInstance); matched {
+			metricName += m.PluginInstance
 		} else {
-			metric_name += "_" + this.PluginInstance
+			metricName += "_" + m.PluginInstance
 		}
 	}
-	if len(this.Type) > 0 && this.Type != this.Plugin {
-		metric_name += "." + this.Type
+	if len(m.Type) > 0 && m.Type != m.Plugin {
+		metricName += "." + m.Type
 	}
-	if len(this.TypeInstance) > 0 {
-		if matched, _ := regexp.MatchString(`^\d+$`, this.TypeInstance); matched {
-			metric_name += this.TypeInstance
+	if len(m.TypeInstance) > 0 {
+		if matched, _ := regexp.MatchString(`^\d+$`, m.TypeInstance); matched {
+			metricName += m.TypeInstance
 		} else {
-			metric_name += "_" + this.TypeInstance
+			metricName += "_" + m.TypeInstance
 		}
 	}
-	if this.DataSetName != "value" {
-		metric_name += "." + this.DataSetName
+	if m.DataSetName != "value" {
+		metricName += "." + m.DataSetName
 	}
-	return metric_name
+	return metricName
 }
 
+// GetTimestampAndValue return timestamp and value
 func GetTimestampAndValue(key string) (int64, float64, error) {
 	body := string(key)
 	kv := strings.Split(body, ":")
@@ -75,9 +80,10 @@ func GetTimestampAndValue(key string) (int64, float64, error) {
 	return t, v, err
 }
 
-func GenerateTimeseries(metric_data []string) [][]interface{} {
+// GenerateTimeseries return metricdata's timestamp and value
+func GenerateTimeseries(metricData []string) [][]interface{} {
 	var timeserires [][]interface{}
-	for _, val := range metric_data {
+	for _, val := range metricData {
 		timestamp, value, err := GetTimestampAndValue(val)
 		if err != nil {
 			log.Println("invalid data", val)

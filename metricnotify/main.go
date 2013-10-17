@@ -14,41 +14,41 @@ import (
 )
 
 var (
-	conf_file = flag.String("conf", "metrictools.conf", "analyst config file")
+	confFile = flag.String("conf", "metrictools.conf", "analyst config file")
 )
 
 func main() {
 	flag.Parse()
-	c, err := metrictools.ReadConfig(*conf_file)
+	c, err := metrictools.ReadConfig(*confFile)
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	lookupd_addresses, _ := c["lookupd_addresses"]
+	lookupdAddresses, _ := c["lookupd_addresses"]
 	maxInFlight, _ := c["maxinflight"]
-	email_address, _ := c["notify_email_address"]
-	notify_channel, _ := c["notify_channel"]
-	notify_topic, _ := c["notify_topic"]
-	config_redis_server, _ := c["config_redis_server"]
-	config_redis_auth, _ := c["config_redis_auth"]
+	emailAddress, _ := c["notify_email_address"]
+	notifyChannel, _ := c["notify_channel"]
+	notifyTopic, _ := c["notify_topic"]
+	configRedisServer, _ := c["config_redis_server"]
+	configRedisAuth, _ := c["config_redis_auth"]
 
-	redis_con := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", config_redis_server)
+	redisCon := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", configRedisServer)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := c.Do("AUTH", config_redis_auth); err != nil {
+		if _, err := c.Do("AUTH", configRedisAuth); err != nil {
 			c.Close()
 			return nil, err
 		}
 		return c, err
 	}
-	redis_pool := redis.NewPool(redis_con, 3)
-	defer redis_pool.Close()
+	redisPool := redis.NewPool(redisCon, 3)
+	defer redisPool.Close()
 	nt := &Notify{
-		Pool:         redis_pool,
-		EmailAddress: email_address,
+		Pool:         redisPool,
+		EmailAddress: emailAddress,
 	}
-	r, err := nsq.NewReader(notify_topic, notify_channel)
+	r, err := nsq.NewReader(notifyTopic, notifyChannel)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func main() {
 	for i := 0; i < int(max); i++ {
 		r.AddHandler(nt)
 	}
-	lookupdlist := strings.Split(lookupd_addresses, ",")
+	lookupdlist := strings.Split(lookupdAddresses, ",")
 	for _, addr := range lookupdlist {
 		log.Printf("lookupd addr %s", addr)
 		err := r.ConnectToLookupd(addr)

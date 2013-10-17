@@ -10,19 +10,21 @@ import (
 	"time"
 )
 
+// MetricDeliver define a metric proccess task
 type MetricDeliver struct {
-	dataservice   *redis.Pool
-	configservice *redis.Pool
+	dataService   *redis.Pool
+	configService *redis.Pool
 	writer        *nsq.Writer
-	trigger_topic string
-	archive_topic string
-	nsqd_addr     string
+	triggerTopic  string
+	archiveTopic  string
+	nsqdAddr      string
 }
 
-func (this *MetricDeliver) HandleMessage(m *nsq.Message) error {
+// HandleMessage is MetricDeliver's nsq handle function
+func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 	var err error
 	var c []metrictools.CollectdJSON
-	if err = json.Unmarshal(m.Body, &c); err != nil {
+	if err = json.Unmarshal(msg.Body, &c); err != nil {
 		log.Println(err)
 		return nil
 	}
@@ -34,23 +36,23 @@ func (this *MetricDeliver) HandleMessage(m *nsq.Message) error {
 			continue
 		}
 		metrics := v.GenerateMetricData()
-		if err := this.PersistData(metrics); err != nil {
+		if err := m.persistData(metrics); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error {
+func (m *MetricDeliver) persistData(metrics []*metrictools.MetricData) error {
 	var err error
-	data_con := this.dataservice.Get()
-	defer data_con.Close()
+	dataCon := m.dataService.Get()
+	defer dataCon.Close()
 	for _, metric := range metrics {
-		var new_value float64
+		var nvalue float64
 		if metric.DataSetType == "counter" || metric.DataSetType == "derive" {
-			new_value, err = this.getRate(metric)
+			nvalue, err = m.getRate(metric)
 		} else {
-			new_value = metric.Value
+			nvalue = metric.Value
 		}
 		if err != nil {
 			if err.Error() == "ignore" {
@@ -61,37 +63,37 @@ func (this *MetricDeliver) PersistData(metrics []*metrictools.MetricData) error 
 				break
 			}
 		}
-		record := fmt.Sprintf("%d:%.2f", metric.Timestamp, new_value)
-		metric_name := metric.Host + "_" + metric.GetMetricName()
-		_, err = data_con.Do("ZADD", "archive:"+metric_name, metric.Timestamp, record)
+		record := fmt.Sprintf("%d:%.2f", metric.Timestamp, nvalue)
+		metricName := metric.Host + "_" + metric.GetMetricName()
+		_, err = dataCon.Do("ZADD", "archive:"+metricName, metric.Timestamp, record)
 		if err != nil {
 			log.Println(err)
 			break
 		}
 		var t int64
-		t, err = redis.Int64(data_con.Do("HGET", metric_name, "archivetime"))
+		t, err = redis.Int64(dataCon.Do("HGET", metricName, "archivetime"))
 		if err != nil && err != redis.ErrNil {
 			log.Println("fail to get archivetime", err)
 			break
 		}
 		if time.Now().Unix()-t >= 600 {
-			this.writer.Publish(this.archive_topic, []byte(metric_name))
+			m.writer.Publish(m.archiveTopic, []byte(metricName))
 		}
-		_, err = data_con.Do("HMSET", metric_name, "value", metric.Value, "timestamp", metric.Timestamp, "rate_value", new_value, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
+		_, err = dataCon.Do("HMSET", metricName, "value", metric.Value, "timestamp", metric.Timestamp, "rate_value", nvalue, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
 		if err != nil {
-			log.Println("hmset", metric_name, err)
+			log.Println("hmset", metricName, err)
 			break
 		}
-		_, err = data_con.Do("HSETNX", metric_name, "ttl", metric.TTL)
-		_, err = data_con.Do("SADD", "host:"+metric.Host, metric_name)
+		_, err = dataCon.Do("HSETNX", metricName, "ttl", metric.TTL)
+		_, err = dataCon.Do("SADD", "host:"+metric.Host, metricName)
 	}
 	return err
 }
 
-func (this *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, error) {
-	data_con := this.dataservice.Get()
-	defer data_con.Close()
-	rst, err := redis.Values(data_con.Do("HMGET", metric.Host+"_"+metric.GetMetricName(), "value", "timestamp"))
+func (m *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, error) {
+	dataCon := m.dataService.Get()
+	defer dataCon.Close()
+	rst, err := redis.Values(dataCon.Do("HMGET", metric.Host+"_"+metric.GetMetricName(), "value", "timestamp"))
 	if err != nil {
 		return 0, err
 	}
@@ -110,25 +112,26 @@ func (this *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, err
 	return value, nil
 }
 
-func (this *MetricDeliver) ScanTrigger() {
+// ScanTrigger will find out all trigger which not updated in 60s
+func (m *MetricDeliver) ScanTrigger() {
 	ticker := time.Tick(time.Second * 30)
-	config_con := this.configservice.Get()
-	defer config_con.Close()
+	configCon := m.configService.Get()
+	defer configCon.Close()
 	for {
-		keys, err := redis.Strings(config_con.Do("KEYS", "trigger:*"))
+		keys, err := redis.Strings(configCon.Do("KEYS", "trigger:*"))
 		if err != nil {
 			continue
 		}
 		now := time.Now().Unix()
 		for _, v := range keys {
-			last, err := redis.Int64(config_con.Do("HGET", v, "last"))
+			last, err := redis.Int64(configCon.Do("HGET", v, "last"))
 			if err != nil && err != redis.ErrNil {
 				continue
 			}
 			if now-last < 61 {
 				continue
 			}
-			_, _, err = this.writer.Publish(this.trigger_topic, []byte(v))
+			_, _, err = m.writer.Publish(m.triggerTopic, []byte(v))
 		}
 		<-ticker
 	}

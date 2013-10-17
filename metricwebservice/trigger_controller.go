@@ -12,6 +12,7 @@ import (
 	"strings"
 )
 
+// TriggerShow  GET /trigger/{:name}
 func TriggerShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	name := mux.Vars(r)["name"]
@@ -22,17 +23,17 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 	if !checktime(start, end) {
 		start = end - 3600*3
 	}
-	config_con := configservice.Get()
-	defer config_con.Close()
-	exp, err := redis.String(config_con.Do("HGET", "trigger:"+name, "exp"))
+	configCon := configService.Get()
+	defer configCon.Close()
+	exp, err := redis.String(configCon.Do("HGET", "trigger:"+name, "exp"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
-		var record_list []interface{}
-		data_con := dataservice.Get()
-		defer data_con.Close()
-		metric_data, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+name, start, end))
+		var recordList []interface{}
+		dataCon := dataService.Get()
+		defer dataCon.Close()
+		metricData, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+name, start, end))
 		if err != nil {
 			log.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -40,10 +41,10 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 		}
 		record := make(map[string]interface{})
 		record["name"] = exp
-		record["values"] = metrictools.GenerateTimeseries(metric_data)
-		record_list = append(record_list, record)
+		record["values"] = metrictools.GenerateTimeseries(metricData)
+		recordList = append(recordList, record)
 		rst := make(map[string]interface{})
-		rst["metrics"] = record_list
+		rst["metrics"] = recordList
 		rst["url"] = "/api/v1/trigger/" + name
 		if body, err := json.Marshal(rst); err == nil {
 			w.Write(body)
@@ -53,6 +54,7 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// TriggerCreate POST /trigger
 func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	var tg metrictools.Trigger
 	defer r.Body.Close()
@@ -66,15 +68,15 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	h := sha1.New()
 	h.Write([]byte(tg.Expression))
 	tg.Name = base64.URLEncoding.EncodeToString(h.Sum(nil))
-	config_con := configservice.Get()
-	defer config_con.Close()
-	_, err := redis.String(config_con.Do("HGET", "trigger:"+tg.Name, "exp"))
+	configCon := configService.Get()
+	defer configCon.Close()
+	_, err := redis.String(configCon.Do("HGET", "trigger:"+tg.Name, "exp"))
 	if err == nil {
 		w.WriteHeader(http.StatusNotAcceptable)
 		w.Write([]byte(tg.Name + " exists"))
 		return
 	}
-	_, err = config_con.Do("HMSET", "trigger:"+tg.Name,
+	_, err = configCon.Do("HMSET", "trigger:"+tg.Name,
 		"exp", tg.Expression,
 		"role", tg.Role)
 	if err != nil {
@@ -92,26 +94,27 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// TriggerDelete DELETE /trigger/{:name}
 func TriggerDelete(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	config_con := configservice.Get()
-	defer config_con.Close()
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	_, err := data_con.Do("DEL", "archive:"+name)
+	configCon := configService.Get()
+	defer configCon.Close()
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	_, err := dataCon.Do("DEL", "archive:"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_, err = config_con.Do("DEL", "trigger:"+name)
+	_, err = configCon.Do("DEL", "trigger:"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))
 		return
 	}
-	keys, err := redis.Strings(config_con.Do("KEYS", "actions:"+name+":*"))
+	keys, err := redis.Strings(configCon.Do("KEYS", "actions:"+name+":*"))
 	for _, v := range keys {
-		if _, err = config_con.Do("DEL", v); err != nil {
+		if _, err = configCon.Do("DEL", v); err != nil {
 			break
 		}
 	}

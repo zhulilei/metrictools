@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// MetricIndex GET /metric
 func MetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -23,27 +24,27 @@ func MetricIndex(w http.ResponseWriter, r *http.Request) {
 	if !checktime(start, end) {
 		start = end - 3600*3
 	}
-	metric_list := strings.Split(metrics, ",")
-	sort.Strings(metric_list)
-	var record_list []interface{}
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	for i, v := range metric_list {
+	metricList := strings.Split(metrics, ",")
+	sort.Strings(metricList)
+	var recordList []interface{}
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	for i, v := range metricList {
 		record := make(map[string]interface{})
-		if i != 0 && metric_list[i-1] == v {
+		if i != 0 && metricList[i-1] == v {
 			continue
 		}
-		metric_data, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+v, start, end))
+		metricData, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+v, start, end))
 		if err != nil {
 			log.Println(err)
 			continue
 		}
 		record["name"] = v
-		record["values"] = metrictools.GenerateTimeseries(metric_data)
-		record_list = append(record_list, record)
+		record["values"] = metrictools.GenerateTimeseries(metricData)
+		recordList = append(recordList, record)
 	}
 	rst := make(map[string]interface{})
-	rst["metrics"] = record_list
+	rst["metrics"] = recordList
 	rst["url"] = "/api/v1/metric?metrics=" + metrics
 	if body, err := json.Marshal(rst); err == nil {
 		w.Write(body)
@@ -52,6 +53,7 @@ func MetricIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// MetricCreate POST /metric
 func MetricCreate(w http.ResponseWriter, r *http.Request) {
 	var items map[string]int
 	defer r.Body.Close()
@@ -63,16 +65,17 @@ func MetricCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
-	data_con := dataservice.Get()
-	defer data_con.Close()
+	dataCon := dataService.Get()
+	defer dataCon.Close()
 	for metric, value := range items {
-		v, _ := data_con.Do("GET", metric)
+		v, _ := dataCon.Do("GET", metric)
 		if v != nil {
-			data_con.Do("HSET", metric, "ttl", value)
+			dataCon.Do("HSET", metric, "ttl", value)
 		}
 	}
 }
 
+// MetricShow GET /metric/{:name}
 func MetricShow(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
 	starttime := r.FormValue("starttime")
@@ -85,25 +88,26 @@ func MetricShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
-	record_list := make(map[string]interface{})
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	metric_data, err := redis.Strings(data_con.Do("ZRANGEBYSCORE", "archive:"+metric, start, end))
+	recordList := make(map[string]interface{})
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	metricData, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+metric, start, end))
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	record_list["name"] = metric
-	record_list["url"] = "/api/v1/metric/" + metric
-	record_list["records"] = metrictools.GenerateTimeseries(metric_data)
-	if body, err := json.Marshal(record_list); err == nil {
+	recordList["name"] = metric
+	recordList["url"] = "/api/v1/metric/" + metric
+	recordList["records"] = metrictools.GenerateTimeseries(metricData)
+	if body, err := json.Marshal(recordList); err == nil {
 		w.Write(body)
 	} else {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
+// MetricUpdate PATCH /metric/{:name}
 func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
 	var item metrictools.MetricData
@@ -116,28 +120,29 @@ func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	v, _ := data_con.Do("GET", metric)
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	v, _ := dataCon.Do("GET", metric)
 	if v != nil {
-		data_con.Do("HMSET", metric, "ttl", item.TTL)
+		dataCon.Do("HMSET", metric, "ttl", item.TTL)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
 }
 
+// MetricDelete DELETE /metric/{:name}
 func MetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	metric := mux.Vars(r)["name"]
-	data_con := dataservice.Get()
-	defer data_con.Close()
-	_, err := data_con.Do("DEL", "archive:"+metric)
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	_, err := dataCon.Do("DEL", "archive:"+metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_, err = data_con.Do("DEL", metric)
+	_, err = dataCon.Do("DEL", metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
