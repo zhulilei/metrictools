@@ -130,6 +130,10 @@ func (m *TriggerTask) checkvalue(archive, exp string) {
 	threshold := 8 - m.Consensus
 	if err == nil {
 		timeseries := ParseTimeSeries(values)
+		if len(timeseries) == 0 {
+			log.Println(archive, " is empty")
+			return
+		}
 		if (timeseries[len(timeseries)-1].Timestamp - timeseries[0].Timestamp) < m.FullDuration {
 			log.Println("incomplete data", exp, archive)
 			return
