@@ -51,22 +51,32 @@ func (m *DataArchive) compress(metric string, compresstype string) {
 		return
 	}
 	var interval int64
+	now := time.Now().Unix()
 	switch compresstype {
 	case "5mins":
 		if t == 0 {
-			t = time.Now().Unix() - 3600
+			t = now - 3600*24*3
 		}
 		interval = 300
+		if t > (now - 3610*24) {
+			return
+		}
 	case "10mins":
 		if t == 0 {
-			t = time.Now().Unix() - 3600*24*7
+			t = now - 3600*24*7
 		}
 		interval = 600
+		if t > (now - 3600*24*3) {
+			return
+		}
 	case "15mins":
 		if t == 0 {
-			t = time.Now().Unix() - 3600*24*15
+			t = now - 3600*24*15
 		}
 		interval = 900
+		if t > (now - 3600*24*7) {
+			return
+		}
 	}
 	metricset := "archive:" + metric
 	valueList, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", metricset, t, t+interval))
