@@ -3,7 +3,7 @@ package main
 import (
 	metrictools "../"
 	"fmt"
-	nsq "github.com/bitly/go-nsq"
+	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"time"

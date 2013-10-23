@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	nsq "github.com/bitly/go-nsq"
+	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"net/smtp"

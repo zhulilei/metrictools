@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	nsq "github.com/bitly/go-nsq"
+	"github.com/bitly/go-nsq"
 	"github.com/datastream/cal"
 	"github.com/datastream/skyline"
 	"github.com/garyburd/redigo/redis"
