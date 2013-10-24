@@ -125,7 +125,7 @@ func (m *TriggerTask) checkvalue(archive, exp string) {
 	dataCon := m.dataService.Get()
 	defer dataCon.Close()
 	t := time.Now().Unix()
-	values, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+archive, t-m.FullDuration, t))
+	values, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+archive, t-m.FullDuration-120, t))
 	var skylineTrigger []string
 	threshold := 8 - m.Consensus
 	if err == nil {
@@ -134,8 +134,9 @@ func (m *TriggerTask) checkvalue(archive, exp string) {
 			log.Println(archive, " is empty")
 			return
 		}
-		if (timeseries[len(timeseries)-1].Timestamp - timeseries[0].Timestamp) < m.FullDuration {
-			log.Println("incomplete data", exp, archive)
+		timeSize := timeseries[len(timeseries)-1].Timestamp - timeseries[0].Timestamp
+		if timeSize < m.FullDuration {
+			log.Println("incomplete data", exp, archive, timeSize)
 			return
 		}
 		if skyline.MedianAbsoluteDeviation(timeseries) {
