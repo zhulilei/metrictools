@@ -28,7 +28,7 @@
       <section id="main_content" class="inner">
 <h1>Introducing metrictools</h1>
 
-<p>It&rsquo;s distributed system monitoring solution. It can process metric data from collectd.</p>
+<p>It&rsquo;s distributed system monitoring solution. It support collectd&rsquo;s json format data.</p>
 
 <h2>Metrictools</h2>
 
@@ -85,7 +85,7 @@ redis -&gt; metricarchive -&gt; nsq -&gt; metricnotify
 <ol>
 <li>collectd v4.8+ (write_http plugin)</li>
 <li>nsq</li>
-<li>redis</li>
+<li>redis (optional twemproxy)</li>
 </ol>
 
 <h4>collectd</h4>
@@ -124,6 +124,10 @@ service redis-server start
 <pre><code>brew install redis-server
 /usr/local/bin/redis-server
 </code></pre>
+
+<h4>twemproxy</h4>
+
+<p>metrictools support <a href="https://github.com/twitter/twemproxy">twemproxy</a> now.</p>
 
 <h4>metrictools</h4>
 
@@ -165,8 +169,8 @@ vim metrictools.json
 <h2>Todo</h2>
 
 <ol>
-<li>look a distributed storage backend.</li>
 <li>improve metricwebservice</li>
+<li>improve anomalous metric detect algorithms</li>
 </ol>
       </section>
     </div>

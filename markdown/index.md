@@ -1,6 +1,6 @@
 # Introducing metrictools
 
-It's distributed system monitoring solution. It can process metric data from collectd.
+It's distributed system monitoring solution. It support collectd's json format data.
 
 ## Metrictools
 
@@ -50,7 +50,7 @@ All these tools communicate data via nsq.
 ### Require
 1. collectd v4.8+ (write_http plugin)
 1. nsq
-1. redis
+1. redis (optional twemproxy)
 
 #### collectd
 
@@ -86,6 +86,9 @@ on mac ox x
     brew install redis-server
     /usr/local/bin/redis-server
 
+#### twemproxy
+
+metrictools support [twemproxy](https://github.com/twitter/twemproxy) now.
 
 #### metrictools
 
@@ -123,5 +126,5 @@ change `nsq lookupd address` redis_server's ip and auth.
 
 ## Todo
 
-1. look a distributed storage backend.
 1. improve metricwebservice
+2. improve anomalous metric detect algorithms
