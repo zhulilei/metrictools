@@ -2,7 +2,6 @@ package main
 
 import (
 	metrictools "../"
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
@@ -56,9 +55,7 @@ func ActionCreate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	h := sha1.New()
-	h.Write([]byte(action.Uri))
-	name := base64.URLEncoding.EncodeToString(h.Sum(nil))
+	name := base64.URLEncoding.EncodeToString([]byte(action.Uri))
 	_, err = dataCon.Do("HMSET", tg+":"+name,
 		"repeat", action.Repeat, "uri", action.Uri)
 	_, err = dataCon.Do("SADD", tg+":actions", tg+":"+name)
@@ -68,9 +65,7 @@ func ActionCreate(w http.ResponseWriter, r *http.Request) {
 	} else {
 		t := make(map[string]string)
 		t["trigger_name"] = tg
-		h := sha1.New()
-		h.Write([]byte(name))
-		t["action_name"] = base64.URLEncoding.EncodeToString(h.Sum(nil))
+		t["action_name"] = base64.URLEncoding.EncodeToString([]byte(name))
 		t["url"] = "/api/v1/trigger/" + trigger + "/" + name
 		if body, err := json.Marshal(t); err == nil {
 			w.Write(body)

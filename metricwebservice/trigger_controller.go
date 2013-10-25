@@ -2,7 +2,6 @@ package main
 
 import (
 	metrictools "../"
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
@@ -45,9 +44,7 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		record := make(map[string]interface{})
-		h := sha1.New()
-		h.Write([]byte(name))
-		tgname := base64.URLEncoding.EncodeToString(h.Sum(nil))
+		tgname := base64.URLEncoding.EncodeToString([]byte(name))
 		record["name"] = tgname
 		record["values"] = metrictools.GenerateTimeseries(metricData)
 		recordList = append(recordList, record)
@@ -89,9 +86,7 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Failed insert"))
 	} else {
 		t := make(map[string]string)
-		h := sha1.New()
-		h.Write([]byte(tg.Name))
-		t["name"] = base64.URLEncoding.EncodeToString(h.Sum(nil))
+		t["name"] = base64.URLEncoding.EncodeToString([]byte(tg.Name))
 		t["url"] = "/api/v1/trigger/" + t["name"]
 		if body, err := json.Marshal(t); err == nil {
 			w.Write(body)
