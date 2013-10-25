@@ -29,7 +29,7 @@ func main() {
 	triggerChannel, _ := c["trigger_channel"]
 	triggerTopic, _ := c["trigger_topic"]
 	notifyTopic, _ := c["notify_topic"]
-	redisServer, _ := c["data_redis_server"]
+	redisServer, _ := c["redis_server"]
 	fullDuration, _ := c["full_duration"]
 	consensus, _ := c["consensus"]
 

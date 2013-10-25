@@ -10,8 +10,7 @@
     "notify_topic":"notify",
     "notify_channel":"notify_ch",
     "redis_conn_count":"10",
-    "config_redis_server":"127.0.0.1:6379",
-    "data_redis_server":"127.0.0.1:6379",
+    "redis_server":"127.0.0.1:6379",
     "web_bind":"127.0.0.1:1234",
     "notify_email_address":"notify@test.org"
 }

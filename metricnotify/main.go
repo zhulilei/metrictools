@@ -28,7 +28,7 @@ func main() {
 	emailAddress, _ := c["notify_email_address"]
 	notifyChannel, _ := c["notify_channel"]
 	notifyTopic, _ := c["notify_topic"]
-	configRedisServer, _ := c["config_redis_server"]
+	configRedisServer, _ := c["redis_server"]
 
 	redisCon := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", configRedisServer)

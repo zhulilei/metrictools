@@ -25,7 +25,7 @@ func main() {
 	}
 	lookupdAddresses, _ := c["lookupd_addresses"]
 	maxInFlight, _ := c["archivemaxinflight"]
-	redisServer, _ := c["data_redis_server"]
+	redisServer, _ := c["redis_server"]
 	archiveChannel, _ := c["archive_channel"]
 	archiveTopic, _ := c["archive_topic"]
 

@@ -21,7 +21,7 @@ func main() {
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	dataRedisServer, _ := c["data_redis_server"]
+	dataRedisServer, _ := c["redis_server"]
 	bind, _ := c["web_bind"]
 
 	dataRedisCon := func() (redis.Conn, error) {
