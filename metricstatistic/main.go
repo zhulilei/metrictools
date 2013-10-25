@@ -30,19 +30,13 @@ func main() {
 	triggerTopic, _ := c["trigger_topic"]
 	notifyTopic, _ := c["notify_topic"]
 	redisServer, _ := c["data_redis_server"]
-	redisAuth, _ := c["data_redis_auth"]
 	configRedisServer, _ := c["config_redis_server"]
-	configRedisAuth, _ := c["config_redis_auth"]
 	fullDuration, _ := c["full_duration"]
 	consensus, _ := c["consensus"]
 
 	redisCon := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", redisServer)
 		if err != nil {
-			return nil, err
-		}
-		if _, err := c.Do("AUTH", redisAuth); err != nil {
-			c.Close()
 			return nil, err
 		}
 		return c, err
@@ -53,10 +47,6 @@ func main() {
 	configRedisCon := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", configRedisServer)
 		if err != nil {
-			return nil, err
-		}
-		if _, err := c.Do("AUTH", configRedisAuth); err != nil {
-			c.Close()
 			return nil, err
 		}
 		return c, err

@@ -29,15 +29,10 @@ func main() {
 	notifyChannel, _ := c["notify_channel"]
 	notifyTopic, _ := c["notify_topic"]
 	configRedisServer, _ := c["config_redis_server"]
-	configRedisAuth, _ := c["config_redis_auth"]
 
 	redisCon := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", configRedisServer)
 		if err != nil {
-			return nil, err
-		}
-		if _, err := c.Do("AUTH", configRedisAuth); err != nil {
-			c.Close()
 			return nil, err
 		}
 		return c, err
