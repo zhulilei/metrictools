@@ -30,8 +30,7 @@ func main() {
 	metricTopic, _ := c["metric_topic"]
 	triggerTopic, _ := c["trigger_topic"]
 	archiveTopic, _ := c["archive_topic"]
-	redisServer, _ := c["data_redis_server"]
-	configRedisServer, _ := c["config_redis_server"]
+	redisServer, _ := c["redis_server"]
 
 	redisCon := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", redisServer)
@@ -43,24 +42,13 @@ func main() {
 	redisPool := redis.NewPool(redisCon, 3)
 	defer redisPool.Close()
 
-	configRedisCon := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", configRedisServer)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
-	}
-	configRedisPool := redis.NewPool(configRedisCon, 3)
-	defer configRedisPool.Close()
-
 	w := nsq.NewWriter(nsqdAddr)
 	metricDeliver := &MetricDeliver{
-		dataService:   redisPool,
-		configService: configRedisPool,
-		writer:        w,
-		triggerTopic:  triggerTopic,
-		archiveTopic:  archiveTopic,
-		nsqdAddr:      nsqdAddr,
+		dataService:  redisPool,
+		writer:       w,
+		triggerTopic: triggerTopic,
+		archiveTopic: archiveTopic,
+		nsqdAddr:     nsqdAddr,
 	}
 	max, _ := strconv.ParseInt(maxinflight, 10, 32)
 	r, err := nsq.NewReader(metricTopic, metricChannel)

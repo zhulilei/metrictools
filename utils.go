@@ -25,9 +25,9 @@ type MetricData struct {
 
 // Trigger define a statistic expression
 type Trigger struct {
-	Expression string `json:"expression", redis:"exp"`
-	Name       string `json:"name", redis:"name"`
-	Role       string `json:"role", redis:"role"`
+	IsExpression bool   `json:"is_expression", redis:"is_e"`
+	Name         string `json:"name", redis:"name"`
+	Role         string `json:"role", redis:"role"`
 }
 
 // NotifyAction define how to send notify

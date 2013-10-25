@@ -19,22 +19,21 @@ import (
 
 // TriggerTask define a trigger statistic task
 type TriggerTask struct {
-	dataService   *redis.Pool
-	configService *redis.Pool
-	writer        *nsq.Writer
-	nsqdAddress   string
-	topic         string
-	FullDuration  int64
-	Consensus     int
+	dataService  *redis.Pool
+	writer       *nsq.Writer
+	nsqdAddress  string
+	topic        string
+	FullDuration int64
+	Consensus    int
 }
 
 // HandleMessage is TriggerTask's nsq handle function
 func (m *TriggerTask) HandleMessage(msg *nsq.Message) error {
 	name := string(msg.Body)
-	configCon := m.configService.Get()
-	defer configCon.Close()
+	dataCon := m.dataService.Get()
+	defer dataCon.Close()
 	now := time.Now().Unix()
-	go configCon.Do("HSET", name, "last", now)
+	go dataCon.Do("HSET", name, "last", now)
 	go m.calculate(name)
 	return nil
 }
@@ -42,34 +41,27 @@ func (m *TriggerTask) HandleMessage(msg *nsq.Message) error {
 func (m *TriggerTask) calculate(triggerName string) {
 	dataCon := m.dataService.Get()
 	defer dataCon.Close()
-	configCon := m.configService.Get()
-	defer configCon.Close()
 	var trigger metrictools.Trigger
 	var err error
-	trigger.Expression, err = redis.String(configCon.Do("HGET", triggerName, "exp"))
+	trigger.IsExpression, err = redis.Bool(dataCon.Do("HGET", triggerName, "is_e"))
 	if err != nil {
 		log.Println("get trigger failed", triggerName, err)
 		return
 	}
-	trigger.Name = triggerName[8:]
-	expList := cal.Parser(trigger.Expression)
-	if len(expList) < 1 {
-		return
-	}
-	if len(expList) == 1 {
-		go m.checkvalue(trigger.Expression, trigger.Expression)
-	} else {
+	trigger.Name = triggerName
+	if trigger.IsExpression {
+		expList := cal.Parser(trigger.Name)
 		v, err := m.calculateExp(expList)
 		if err != nil {
-			log.Println("calculate failed", triggerName, err)
+			log.Println("calculate failed", trigger.Name, err)
 			return
 		}
 		t := time.Now().Unix()
 		body := fmt.Sprintf("%d:%.2f", t, v)
 		_, err = dataCon.Do("ZADD", "archive:"+trigger.Name, t, body)
-		_, err = dataCon.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-m.FullDuration-100)
-		go m.checkvalue(trigger.Name, trigger.Expression)
+		_, err = dataCon.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-m.FullDuration-600)
 	}
+	go m.checkvalue(trigger.Name, trigger.IsExpression)
 }
 
 // ParseTimeSeries convert redis value to skyline's data format
@@ -121,22 +113,22 @@ func (m *TriggerTask) calculateExp(expList []string) (float64, error) {
 	return rst, err
 }
 
-func (m *TriggerTask) checkvalue(archive, exp string) {
+func (m *TriggerTask) checkvalue(exp string, isExpression bool) {
 	dataCon := m.dataService.Get()
 	defer dataCon.Close()
 	t := time.Now().Unix()
-	values, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+archive, t-m.FullDuration-120, t))
+	values, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+exp, t-m.FullDuration-120, t))
 	var skylineTrigger []string
 	threshold := 8 - m.Consensus
 	if err == nil {
 		timeseries := ParseTimeSeries(values)
 		if len(timeseries) == 0 {
-			log.Println(archive, " is empty")
+			log.Println(exp, " is empty")
 			return
 		}
 		timeSize := timeseries[len(timeseries)-1].Timestamp - timeseries[0].Timestamp
 		if timeSize < m.FullDuration {
-			log.Println("incomplete data", exp, archive, timeSize)
+			log.Println("incomplete data", exp, timeSize)
 			return
 		}
 		if skyline.MedianAbsoluteDeviation(timeseries) {
@@ -172,10 +164,10 @@ func (m *TriggerTask) checkvalue(archive, exp string) {
 			name := base64.URLEncoding.EncodeToString(h.Sum(nil))
 			rst["trigger"] = name
 			rst["trigger_exp"] = exp
-			if archive == exp {
-				rst["url"] = "/api/v1/metric/" + archive
-			} else {
+			if isExpression {
 				rst["url"] = "/api/v1/trigger/" + name
+			} else {
+				rst["url"] = "/api/v1/metric/" + exp
 			}
 			if body, err := json.Marshal(rst); err == nil {
 				m.writer.Publish(m.topic, body)

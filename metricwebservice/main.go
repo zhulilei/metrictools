@@ -14,7 +14,6 @@ var (
 )
 
 var dataService *redis.Pool
-var configService *redis.Pool
 
 func main() {
 	flag.Parse()
@@ -22,20 +21,8 @@ func main() {
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	configRedisServer, _ := c["config_redis_server"]
 	dataRedisServer, _ := c["data_redis_server"]
 	bind, _ := c["web_bind"]
-
-	// redis
-	configRedisCon := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", configRedisServer)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
-	}
-	configService = redis.NewPool(configRedisCon, 3)
-	defer configService.Close()
 
 	dataRedisCon := func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", dataRedisServer)

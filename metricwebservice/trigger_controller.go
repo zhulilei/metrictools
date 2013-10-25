@@ -9,13 +9,14 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
 // TriggerShow  GET /trigger/{:name}
 func TriggerShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	name := mux.Vars(r)["name"]
+	tg := mux.Vars(r)["name"]
 	starttime := r.FormValue("starttime")
 	endtime := r.FormValue("endtime")
 	start := gettime(starttime)
@@ -23,16 +24,20 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 	if !checktime(start, end) {
 		start = end - 3600*3
 	}
-	configCon := configService.Get()
-	defer configCon.Close()
-	exp, err := redis.String(configCon.Do("HGET", "trigger:"+name, "exp"))
+	n, err := base64.URLEncoding.DecodeString(tg)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	name := string(n)
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	_, err = redis.String(dataCon.Do("HGET", name, "is_e"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
 		var recordList []interface{}
-		dataCon := dataService.Get()
-		defer dataCon.Close()
 		metricData, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+name, start, end))
 		if err != nil {
 			log.Println(err)
@@ -40,12 +45,15 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		record := make(map[string]interface{})
-		record["name"] = exp
+		h := sha1.New()
+		h.Write([]byte(name))
+		tgname := base64.URLEncoding.EncodeToString(h.Sum(nil))
+		record["name"] = tgname
 		record["values"] = metrictools.GenerateTimeseries(metricData)
 		recordList = append(recordList, record)
 		rst := make(map[string]interface{})
 		rst["metrics"] = recordList
-		rst["url"] = "/api/v1/trigger/" + name
+		rst["url"] = "/api/v1/trigger/" + tgname
 		if body, err := json.Marshal(rst); err == nil {
 			w.Write(body)
 		} else {
@@ -63,29 +71,28 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	tg.Expression = strings.Trim(tg.Expression, " ")
+	tg.Name = strings.Trim(tg.Name, " ")
+	tg.IsExpression, _ = regexp.MatchString(`(\+|-|\*|/)`, tg.Name)
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	h := sha1.New()
-	h.Write([]byte(tg.Expression))
-	tg.Name = base64.URLEncoding.EncodeToString(h.Sum(nil))
-	configCon := configService.Get()
-	defer configCon.Close()
-	_, err := redis.String(configCon.Do("HGET", "trigger:"+tg.Name, "exp"))
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	_, err := redis.String(dataCon.Do("HGET", tg.Name, "role"))
 	if err == nil {
 		w.WriteHeader(http.StatusNotAcceptable)
 		w.Write([]byte(tg.Name + " exists"))
 		return
 	}
-	_, err = configCon.Do("HMSET", "trigger:"+tg.Name,
-		"exp", tg.Expression,
-		"role", tg.Role)
+	_, err = dataCon.Do("HMSET", tg.Name, "is_e", tg.IsExpression, "role", tg.Role)
+	_, err = dataCon.Do("SADD", "triggers", tg.Name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
 		t := make(map[string]string)
-		t["name"] = tg.Name
-		t["url"] = "/api/v1/trigger/" + tg.Name
+		h := sha1.New()
+		h.Write([]byte(tg.Name))
+		t["name"] = base64.URLEncoding.EncodeToString(h.Sum(nil))
+		t["url"] = "/api/v1/trigger/" + t["name"]
 		if body, err := json.Marshal(t); err == nil {
 			w.Write(body)
 		} else {
@@ -96,28 +103,42 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 
 // TriggerDelete DELETE /trigger/{:name}
 func TriggerDelete(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
-	configCon := configService.Get()
-	defer configCon.Close()
+	tg := mux.Vars(r)["name"]
+	n, err := base64.URLEncoding.DecodeString(tg)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	name := string(n)
 	dataCon := dataService.Get()
 	defer dataCon.Close()
-	_, err := dataCon.Do("DEL", "archive:"+name)
+	isExpression, err := redis.Bool(dataCon.Do("HGET", name, "is_e"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_, err = configCon.Do("DEL", "trigger:"+name)
+	if isExpression {
+		dataCon.Do("DEL", "archive:"+name)
+		_, err = dataCon.Do("DEL", name)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	} else {
+		_, err = dataCon.Do("HDEL", name, "is_e", "role")
+	}
+	keys, err := redis.Strings(dataCon.Do("SMEMBERS", name+":actions"))
+	for _, v := range keys {
+		if _, err = dataCon.Do("DEL", v); err != nil {
+			break
+		}
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))
 		return
 	}
-	keys, err := redis.Strings(configCon.Do("KEYS", "actions:"+name+":*"))
-	for _, v := range keys {
-		if _, err = configCon.Do("DEL", v); err != nil {
-			break
-		}
-	}
+	_, err = dataCon.Do("SREM", "triggers", name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))

@@ -18,7 +18,7 @@ func HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	dataCon := dataService.Get()
 	defer dataCon.Close()
-	hosts, _ := redis.Strings(dataCon.Do("KEYS", "host:*"))
+	hosts, _ := redis.Strings(dataCon.Do("SMEMBERS", "hosts"))
 	var rst []interface{}
 	for _, host := range hosts {
 		query := make(map[string]interface{})

@@ -12,12 +12,11 @@ import (
 
 // MetricDeliver define a metric proccess task
 type MetricDeliver struct {
-	dataService   *redis.Pool
-	configService *redis.Pool
-	writer        *nsq.Writer
-	triggerTopic  string
-	archiveTopic  string
-	nsqdAddr      string
+	dataService  *redis.Pool
+	writer       *nsq.Writer
+	triggerTopic string
+	archiveTopic string
+	nsqdAddr     string
 }
 
 // HandleMessage is MetricDeliver's nsq handle function
@@ -115,16 +114,16 @@ func (m *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, error)
 // ScanTrigger will find out all trigger which not updated in 60s
 func (m *MetricDeliver) ScanTrigger() {
 	ticker := time.Tick(time.Second * 30)
-	configCon := m.configService.Get()
-	defer configCon.Close()
+	dataCon := m.dataService.Get()
+	defer dataCon.Close()
 	for {
-		keys, err := redis.Strings(configCon.Do("KEYS", "trigger:*"))
+		keys, err := redis.Strings(dataCon.Do("SMEMBERS", "triggers"))
 		if err != nil {
 			continue
 		}
 		now := time.Now().Unix()
 		for _, v := range keys {
-			last, err := redis.Int64(configCon.Do("HGET", v, "last"))
+			last, err := redis.Int64(dataCon.Do("HGET", v, "last"))
 			if err != nil && err != redis.ErrNil {
 				continue
 			}

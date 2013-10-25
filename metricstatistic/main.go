@@ -30,7 +30,6 @@ func main() {
 	triggerTopic, _ := c["trigger_topic"]
 	notifyTopic, _ := c["notify_topic"]
 	redisServer, _ := c["data_redis_server"]
-	configRedisServer, _ := c["config_redis_server"]
 	fullDuration, _ := c["full_duration"]
 	consensus, _ := c["consensus"]
 
@@ -43,16 +42,7 @@ func main() {
 	}
 	redisPool := redis.NewPool(redisCon, 3)
 	defer redisPool.Close()
-	// redis
-	configRedisCon := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", configRedisServer)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
-	}
-	configRedisPool := redis.NewPool(configRedisCon, 3)
-	defer configRedisPool.Close()
+
 	r, err := nsq.NewReader(triggerTopic, triggerChannel)
 	if err != nil {
 		log.Fatal(err)
@@ -61,11 +51,10 @@ func main() {
 	r.SetMaxInFlight(int(max))
 	w := nsq.NewWriter(nsqdAddr)
 	tt := &TriggerTask{
-		writer:        w,
-		dataService:   redisPool,
-		configService: configRedisPool,
-		topic:         notifyTopic,
-		nsqdAddress:   nsqdAddr,
+		writer:      w,
+		dataService: redisPool,
+		topic:       notifyTopic,
+		nsqdAddress: nsqdAddr,
 	}
 	tt.FullDuration, _ = strconv.ParseInt(fullDuration, 10, 64)
 	tt.Consensus, _ = strconv.Atoi(consensus)

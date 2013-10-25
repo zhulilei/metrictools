@@ -14,13 +14,16 @@ import (
 // ActionIndex GET /trigger/{:triggername}/action
 func ActionIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	tg := mux.Vars(r)["trigger"]
-	var err error
-	configCon := configService.Get()
-	defer configCon.Close()
+	trigger := mux.Vars(r)["trigger"]
+	t, err := base64.URLEncoding.DecodeString(trigger)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	tg := string(t)
 	dataCon := dataService.Get()
 	defer dataCon.Close()
-	data, err := configCon.Do("KEYS", "actions:"+tg+":*")
+	data, err := dataCon.Do("SMEMBERS", tg+":actions")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -40,26 +43,35 @@ func ActionCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	tg := mux.Vars(r)["trigger"]
-	configCon := configService.Get()
-	defer configCon.Close()
-	if _, err := redis.String(configCon.Do("HGET", "trigger:"+tg, "exp")); err != nil {
+	trigger := mux.Vars(r)["trigger"]
+	t, err := base64.URLEncoding.DecodeString(trigger)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	tg := string(t)
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	if _, err := redis.String(dataCon.Do("HGET", tg, "role")); err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	h := sha1.New()
 	h.Write([]byte(action.Uri))
 	name := base64.URLEncoding.EncodeToString(h.Sum(nil))
-	_, err := configCon.Do("HMSET", "actions:"+tg+":"+name,
+	_, err = dataCon.Do("HMSET", tg+":"+name,
 		"repeat", action.Repeat, "uri", action.Uri)
+	_, err = dataCon.Do("SADD", tg+":actions", tg+":"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
 		t := make(map[string]string)
 		t["trigger_name"] = tg
-		t["action_name"] = name
-		t["url"] = "/api/v1/trigger/" + tg + "/" + name
+		h := sha1.New()
+		h.Write([]byte(name))
+		t["action_name"] = base64.URLEncoding.EncodeToString(h.Sum(nil))
+		t["url"] = "/api/v1/trigger/" + trigger + "/" + name
 		if body, err := json.Marshal(t); err == nil {
 			w.Write(body)
 		} else {
@@ -70,11 +82,18 @@ func ActionCreate(w http.ResponseWriter, r *http.Request) {
 
 // ActionDelete DELETE /trigger/{:triggername}/action/{:name}
 func ActionDelete(w http.ResponseWriter, r *http.Request) {
-	tg := mux.Vars(r)["trigger"]
+	trigger := mux.Vars(r)["trigger"]
+	t, err := base64.URLEncoding.DecodeString(trigger)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	tg := string(t)
 	name := mux.Vars(r)["name"]
-	configCon := configService.Get()
-	defer configCon.Close()
-	_, err := configCon.Do("DEL", "actions:"+tg+":"+name)
+	dataCon := dataService.Get()
+	defer dataCon.Close()
+	dataCon.Do("DEL", tg+":"+name)
+	_, err = dataCon.Do("SREM", tg+":actions", tg+":"+name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))

@@ -32,7 +32,7 @@ func (m *Notify) HandleMessage(msg *nsq.Message) error {
 func (m *Notify) sendNotify(notifyMsg map[string]string) {
 	configCon := m.Get()
 	defer configCon.Close()
-	keys, err := redis.Strings(configCon.Do("KEYS", "actions:"+notifyMsg["trigger"]+":*"))
+	keys, err := redis.Strings(configCon.Do("SMEMBERS", notifyMsg["trigger"]+":actions"))
 	if err != nil {
 		log.Println("no action for", notifyMsg["trigger"])
 		return
