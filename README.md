@@ -30,7 +30,7 @@ delete old data, compress data
 ## Require
  * collectd v4.8+ (write_http plugin)
  * nsq
- * redis
+ * redis (optional twemproxy)
 
 ## data format
 
