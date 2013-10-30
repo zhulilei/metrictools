@@ -119,6 +119,10 @@ func (m *MetricDeliver) ScanTrigger() {
 	for {
 		keys, err := redis.Strings(dataCon.Do("SMEMBERS", "triggers"))
 		if err != nil {
+			if err != redis.ErrNil {
+				dataCon.Close()
+				dataCon = m.dataService.Get()
+			}
 			continue
 		}
 		now := time.Now().Unix()
