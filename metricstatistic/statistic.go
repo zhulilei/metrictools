@@ -174,5 +174,8 @@ func (m *TriggerTask) checkvalue(exp string, isExpression bool) {
 				log.Println(string(body))
 			}
 		}
+		if len(skylineTrigger) > 4 {
+			log.Println(skylineTrigger, exp)
+		}
 	}
 }
