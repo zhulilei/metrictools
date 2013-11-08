@@ -39,7 +39,7 @@ func (m *Notify) sendNotify(notifyMsg map[string]string) {
 	}
 	for _, v := range keys {
 		var action metrictools.NotifyAction
-		values, err := redis.Values(configCon.Do("HMGET", v, "uri", "update_time", "repeat", "count"))
+		values, err := redis.Values(configCon.Do("HMGET", v, "uri", "updated_time", "repeat", "count"))
 		if err != nil {
 			log.Println("failed to get ", v)
 			continue
@@ -61,6 +61,7 @@ func (m *Notify) sendNotify(notifyMsg map[string]string) {
 		default:
 			log.Println(notifyMsg)
 		}
+		configCon.Do("HMSET", v, "updated_time", n, "count", action.Count+1)
 	}
 }
 
