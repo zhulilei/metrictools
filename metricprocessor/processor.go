@@ -52,6 +52,7 @@ func (m *MetricDeliver) Stop() {
 	m.reader.Stop()
 	close(m.exitChannel)
 	m.writer.Stop()
+	m.Pool.Close()
 }
 
 // HandleMessage is MetricDeliver's nsq handle function

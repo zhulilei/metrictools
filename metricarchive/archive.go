@@ -45,6 +45,7 @@ func (m *DataArchive) Run() error {
 func (m *DataArchive) Stop() {
 	m.reader.Stop()
 	close(m.exitChannel)
+	m.Pool.Close()
 }
 
 // HandleMessage is DataArchive's nsq handle function

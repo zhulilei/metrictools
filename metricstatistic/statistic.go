@@ -60,6 +60,7 @@ func (m *TriggerTask) Stop() {
 	m.reader.Stop()
 	close(m.exitChannel)
 	m.writer.Stop()
+	m.Pool.Close()
 }
 
 // HandleMessage is TriggerTask's nsq handle function

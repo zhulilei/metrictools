@@ -36,7 +36,6 @@ func main() {
 		return c, err
 	}
 	redisPool := redis.NewPool(redisCon, 3)
-	defer redisPool.Close()
 
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	lookupdlist := strings.Split(lookupdAddresses, ",")
