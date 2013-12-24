@@ -3,7 +3,6 @@ package main
 import (
 	metrictools "../"
 	"flag"
-	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"os"
@@ -39,27 +38,20 @@ func main() {
 	redisPool := redis.NewPool(redisCon, 3)
 	defer redisPool.Close()
 
-	dr := &DataArchive{
-		dataService: redisPool,
-	}
-	r, err := nsq.NewReader(archiveTopic, archiveChannel)
-	if err != nil {
-		log.Fatal(err)
-	}
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
-	r.SetMaxInFlight(int(max))
-	for i := 0; i < int(max); i++ {
-		r.AddHandler(dr)
-	}
 	lookupdlist := strings.Split(lookupdAddresses, ",")
-	for _, addr := range lookupdlist {
-		log.Printf("lookupd addr %s", addr)
-		err := r.ConnectToLookupd(addr)
-		if err != nil {
-			log.Fatal(err)
-		}
+	dr := &DataArchive{
+		Pool:                redisPool,
+		maxInFlight:         int(max),
+		archiveTopic:        archiveTopic,
+		archiveChannel:      archiveChannel,
+		nsqlookupdAddresses: lookupdlist,
+		msgChannel:          make(chan *Message),
+		exitChannel:         make(chan int),
 	}
+	dr.Run()
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
+	dr.Stop()
 }
