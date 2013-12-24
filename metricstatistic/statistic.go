@@ -42,7 +42,6 @@ func (m *TriggerTask) Run() error {
 		return err
 	}
 	m.reader.SetMaxInFlight(m.maxInFlight)
-	m.writer = nsq.NewWriter(m.nsqdAddr)
 	for i := 0; i < m.maxInFlight; i++ {
 		m.reader.AddHandler(m)
 		go m.calculateTask()
@@ -53,6 +52,7 @@ func (m *TriggerTask) Run() error {
 			return err
 		}
 	}
+	m.writer = nsq.NewWriter(m.nsqdAddr)
 	return err
 }
 

@@ -16,7 +16,40 @@ import (
 // Notify define a notify task
 type Notify struct {
 	*redis.Pool
-	EmailAddress string
+	reader              *nsq.Reader
+	notifyTopic         string
+	notifyChannel       string
+	nsqlookupdAddresses []string
+	maxInFlight         int
+	exitChannel         chan int
+	msgChannel          chan *metrictools.Message
+	EmailAddress        string
+}
+
+func (m *Notify) Run() error {
+	var err error
+	m.reader, err = nsq.NewReader(m.notifyTopic, m.notifyChannel)
+	if err != nil {
+		return err
+	}
+	m.reader.SetMaxInFlight(m.maxInFlight)
+	for i := 0; i < m.maxInFlight; i++ {
+		m.reader.AddHandler(m)
+	}
+	for _, addr := range m.nsqlookupdAddresses {
+		err = m.reader.ConnectToLookupd(addr)
+		if err != nil {
+			return err
+		}
+	}
+	go m.sendNotify()
+	return err
+}
+
+func (m *Notify) Stop() {
+	m.reader.Stop()
+	close(m.exitChannel)
+	m.Pool.Close()
 }
 
 // HandleMessage is Notify's nsq handle function
@@ -24,44 +57,81 @@ func (m *Notify) HandleMessage(msg *nsq.Message) error {
 	var notifyMsg map[string]string
 	var err error
 	if err = json.Unmarshal([]byte(msg.Body), &notifyMsg); err == nil {
-		go m.sendNotify(notifyMsg)
+		message := &metrictools.Message{
+			Body:         notifyMsg,
+			ErrorChannel: make(chan error),
+		}
+		m.msgChannel <- message
+		return <-message.ErrorChannel
 	}
-	return err
+	log.Println(err)
+	return nil
 }
 
-func (m *Notify) sendNotify(notifyMsg map[string]string) {
-	configCon := m.Get()
-	defer configCon.Close()
-	keys, err := redis.Strings(configCon.Do("SMEMBERS", notifyMsg["trigger_exp"]+":actions"))
-	if err != nil {
-		log.Println("no action for", notifyMsg["trigger_exp"])
-		return
-	}
-	for _, v := range keys {
-		var action metrictools.NotifyAction
-		values, err := redis.Values(configCon.Do("HMGET", v, "uri", "updated_time", "repeat", "count"))
-		if err != nil {
-			log.Println("failed to get ", v)
-			continue
-		}
-		_, err = redis.Scan(values, &action.Uri, &action.UpdateTime, &action.Repeat, &action.Count)
-		if err != nil {
-			continue
-		}
-		n := time.Now().Unix()
-		if ((n - action.UpdateTime) < 600) && (action.Repeat >= action.Count) {
-			continue
-		}
-		uri := strings.Split(action.Uri, ":")
-		switch uri[0] {
-		case "mailto":
-			if err = sendNotifyMail(notifyMsg["trigger_exp"], notifyMsg["time"]+"\n"+notifyMsg["event"]+"\n"+notifyMsg["url"], m.EmailAddress, []string{uri[1]}); err != nil {
-				log.Println("fail to sendnotifymail", err)
+func (m *Notify) sendNotify() {
+	con := m.Get()
+	defer con.Close()
+	var err error
+	for {
+		select {
+		case <-m.exitChannel:
+			return
+		case msg := <-m.msgChannel:
+			notifyMsg, ok := msg.Body.(map[string]string)
+			if !ok {
+				fmt.Println("message error:", msg.Body)
+				msg.ErrorChannel <- nil
+				continue
 			}
-		default:
-			log.Println(notifyMsg)
+			var keys []string
+			keys, err = redis.Strings(con.Do("SMEMBERS", notifyMsg["trigger_exp"]+":actions"))
+			if err != nil {
+				if err == redis.ErrNil {
+					log.Println("no action for", notifyMsg["trigger_exp"])
+				} else {
+					con.Close()
+					con = m.Get()
+				}
+				msg.ErrorChannel <- nil
+				continue
+			}
+			for _, v := range keys {
+				var action metrictools.NotifyAction
+				var values []interface{}
+				values, err = redis.Values(con.Do("HMGET", v, "uri", "updated_time", "repeat", "count"))
+				if err != nil {
+					log.Println("failed to get ", v)
+					break
+				}
+				_, err = redis.Scan(values, &action.Uri, &action.UpdateTime, &action.Repeat, &action.Count)
+				if err != nil {
+					continue
+				}
+				n := time.Now().Unix()
+				if ((n - action.UpdateTime) < 600) && (action.Repeat >= action.Count) {
+					continue
+				}
+				uri := strings.Split(action.Uri, ":")
+				switch uri[0] {
+				case "mailto":
+					if err = sendNotifyMail(notifyMsg["trigger_exp"], notifyMsg["time"]+"\n"+notifyMsg["event"]+"\n"+notifyMsg["url"], m.EmailAddress, []string{uri[1]}); err != nil {
+						log.Println("fail to sendnotifymail", err)
+						break
+					}
+				default:
+					log.Println(notifyMsg)
+				}
+				_, err = con.Do("HMSET", v, "updated_time", n, "count", action.Count+1)
+				if err != nil {
+					break
+				}
+			}
+			if err != nil {
+				con.Close()
+				con = m.Get()
+			}
+			msg.ErrorChannel <- nil
 		}
-		configCon.Do("HMSET", v, "updated_time", n, "count", action.Count+1)
 	}
 }
 

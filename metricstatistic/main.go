@@ -39,11 +39,10 @@ func main() {
 		}
 		return c, err
 	}
-	redisPool := redis.NewPool(redisCon, 3)
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	lookupdList := strings.Split(lookupdAddresses, ",")
 	tt := &TriggerTask{
-		Pool:                redisPool,
+		Pool:                redis.NewPool(redisCon, 3),
 		nsqdAddr:            nsqdAddr,
 		triggerTopic:        triggerTopic,
 		triggerChannel:      triggerChannel,

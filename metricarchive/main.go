@@ -35,12 +35,11 @@ func main() {
 		}
 		return c, err
 	}
-	redisPool := redis.NewPool(redisCon, 3)
 
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
 	lookupdlist := strings.Split(lookupdAddresses, ",")
 	dr := &DataArchive{
-		Pool:                redisPool,
+		Pool:                redis.NewPool(redisCon, 3),
 		maxInFlight:         int(max),
 		archiveTopic:        archiveTopic,
 		archiveChannel:      archiveChannel,
