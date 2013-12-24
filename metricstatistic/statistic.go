@@ -84,11 +84,14 @@ func (m *TriggerTask) calculateTask() {
 			name, ok := msg.Body.(string)
 			if !ok {
 				fmt.Println("message error:", msg.Body)
+				msg.ErrorChannel <- nil
+				continue
 			}
 			if _, err := con.Do("HSET", name, "last", now); err != nil {
 				con.Close()
 				con = m.Get()
 				msg.ErrorChannel <- err
+				continue
 			}
 			err := m.calculate(name, con)
 			msg.ErrorChannel <- err

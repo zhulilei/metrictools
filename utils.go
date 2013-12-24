@@ -95,6 +95,6 @@ func GenerateTimeseries(metricData []string) [][]interface{} {
 }
 
 type Message struct {
-	Body       interface{}
+	Body         interface{}
 	ErrorChannel chan error
 }

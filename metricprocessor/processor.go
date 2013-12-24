@@ -23,7 +23,7 @@ type MetricDeliver struct {
 	nsqlookupdAddresses []string
 	maxInFlight         int
 	exitChannel         chan int
-	msgChannel          chan *Message
+	msgChannel          chan *metrictools.Message
 }
 
 func (m *MetricDeliver) Run() error {
@@ -63,19 +63,17 @@ func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 		return nil
 	}
 	for _, v := range c {
-		if len(v.Values) != len(v.DataSetNames) {
-			continue
-		}
-		if len(v.Values) != len(v.DataSetTypes) {
+		if len(v.Values) != len(v.DataSetNames) || len(v.Values) != len(v.DataSetTypes) {
+			log.Println("json data error:", string(msg.Body))
 			continue
 		}
 		metrics := v.GenerateMetricData()
-		message := &Message{
-			metrics:    metrics,
-			errChannel: make(chan error),
+		message := &metrictools.Message{
+			Body:         metrics,
+			ErrorChannel: make(chan error),
 		}
 		m.msgChannel <- message
-		if err := <-message.errChannel; err != nil {
+		if err := <-message.ErrorChannel; err != nil {
 			return err
 		}
 	}
@@ -91,7 +89,13 @@ func (m *MetricDeliver) writeLoop() {
 		case <-m.exitChannel:
 			return
 		case msg := <-m.msgChannel:
-			for _, metric := range msg.metrics {
+			metrics, ok := msg.Body.([]*metrictools.MetricData)
+			if !ok {
+				log.Println("wrong message:", msg.Body)
+				msg.ErrorChannel <- nil
+				continue
+			}
+			for _, metric := range metrics {
 				var nvalue float64
 				nvalue, err = getMetricRate(metric, con)
 				if err != nil {
@@ -131,7 +135,7 @@ func (m *MetricDeliver) writeLoop() {
 				con.Close()
 				con = m.Get()
 			}
-			msg.errChannel <- err
+			msg.ErrorChannel <- err
 		}
 	}
 }
@@ -191,9 +195,4 @@ func (m *MetricDeliver) ScanTrigger() {
 			return
 		}
 	}
-}
-
-type Message struct {
-	metrics    []*metrictools.MetricData
-	errChannel chan error
 }

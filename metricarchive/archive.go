@@ -68,7 +68,8 @@ func (m *DataArchive) archiveData() {
 			metricName, ok := msg.Body.(string)
 			if !ok {
 				log.Println("wrong message:", msg.Body)
-				return
+				msg.ErrorChannel <- nil
+				continue
 			}
 			stat, _ := redis.Int64(con.Do("HGET", metricName, "ttl"))
 			var last int64
@@ -86,6 +87,7 @@ func (m *DataArchive) archiveData() {
 			if err != nil {
 				log.Println("failed to remove old data:", metric, err)
 				msg.ErrorChannel <- err
+				continue
 			}
 			_, err = con.Do("HSET", metricName, "archivetime", time.Now().Unix())
 			compress(metricName, "5mins", con)

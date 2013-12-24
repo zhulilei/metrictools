@@ -53,7 +53,7 @@ func main() {
 		metricTopic:         metricTopic,
 		metricChannel:       metricChannel,
 		exitChannel:         make(chan int),
-		msgChannel:          make(chan *Message),
+		msgChannel:          make(chan *metrictools.Message),
 	}
 	if err := metricDeliver.Run(); err != nil {
 		log.Fatal(err)
