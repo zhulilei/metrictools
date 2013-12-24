@@ -12,11 +12,46 @@ import (
 
 // MetricDeliver define a metric proccess task
 type MetricDeliver struct {
-	dataService  *redis.Pool
-	writer       *nsq.Writer
-	triggerTopic string
-	archiveTopic string
-	nsqdAddr     string
+	*redis.Pool
+	writer              *nsq.Writer
+	reader              *nsq.Reader
+	triggerTopic        string
+	archiveTopic        string
+	nsqdAddr            string
+	metricTopic         string
+	metricChannel       string
+	nsqlookupdAddresses []string
+	maxInFlight         int
+	exitChannel         chan int
+	msgChannel          chan *Message
+}
+
+func (m *MetricDeliver) Run() error {
+	var err error
+	m.writer = nsq.NewWriter(m.nsqdAddr)
+	m.reader, err = nsq.NewReader(m.metricTopic, m.metricChannel)
+	if err != nil {
+		return err
+	}
+	m.reader.SetMaxInFlight(m.maxInFlight)
+	for i := 0; i < m.maxInFlight; i++ {
+		m.reader.AddHandler(m)
+	}
+	for _, addr := range m.nsqlookupdAddresses {
+		err := m.reader.ConnectToLookupd(addr)
+		if err != nil {
+			return err
+		}
+	}
+	go m.writeLoop()
+	go m.ScanTrigger()
+	return err
+}
+
+func (m *MetricDeliver) Stop() {
+	m.reader.Stop()
+	close(m.exitChannel)
+	m.writer.Stop()
 }
 
 // HandleMessage is MetricDeliver's nsq handle function
@@ -35,78 +70,92 @@ func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 			continue
 		}
 		metrics := v.GenerateMetricData()
-		if err := m.persistData(metrics); err != nil {
+		message := &Message{
+			metrics:    metrics,
+			errChannel: make(chan error),
+		}
+		m.msgChannel <- message
+		if err := <-message.errChannel; err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *MetricDeliver) persistData(metrics []*metrictools.MetricData) error {
+func (m *MetricDeliver) writeLoop() {
 	var err error
-	dataCon := m.dataService.Get()
-	defer dataCon.Close()
-	for _, metric := range metrics {
-		var nvalue float64
-		if metric.DataSetType == "counter" || metric.DataSetType == "derive" {
-			nvalue, err = m.getRate(metric)
-		} else {
-			nvalue = metric.Value
-		}
-		if err != nil {
-			if err.Error() == "ignore" {
-				continue
+	con := m.Get()
+	defer con.Close()
+	for {
+		select {
+		case <-m.exitChannel:
+			return
+		case msg := <-m.msgChannel:
+			for _, metric := range msg.metrics {
+				var nvalue float64
+				nvalue, err = getMetricRate(metric, con)
+				if err != nil {
+					if err.Error() == "ignore" {
+						continue
+					}
+					if err != redis.ErrNil {
+						log.Println("fail to get rate value:", err)
+						break
+					}
+				}
+				record := fmt.Sprintf("%d:%.2f", metric.Timestamp, nvalue)
+				metricName := metric.Host + "_" + metric.GetMetricName()
+				_, err = con.Do("ZADD", "archive:"+metricName, metric.Timestamp, record)
+				if err != nil {
+					log.Println("zadd error:", err)
+					break
+				}
+				var t int64
+				t, err = redis.Int64(con.Do("HGET", metricName, "archivetime"))
+				if err != nil && err != redis.ErrNil {
+					log.Println("fail to get archivetime:", err)
+					break
+				}
+				if time.Now().Unix()-t >= 600 {
+					m.writer.Publish(m.archiveTopic, []byte(metricName))
+				}
+				_, err = con.Do("HMSET", metricName, "value", metric.Value, "timestamp", metric.Timestamp, "rate_value", nvalue, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
+				if err != nil {
+					log.Println("hmset record error:", metricName, err)
+					break
+				}
+				_, err = con.Do("HSETNX", metricName, "ttl", metric.TTL)
+				_, err = con.Do("SADD", "host:"+metric.Host, metricName)
 			}
 			if err != redis.ErrNil {
-				log.Println("fail to get new value", err)
-				break
+				con.Close()
+				con = m.Get()
 			}
+			msg.errChannel <- err
 		}
-		record := fmt.Sprintf("%d:%.2f", metric.Timestamp, nvalue)
-		metricName := metric.Host + "_" + metric.GetMetricName()
-		_, err = dataCon.Do("ZADD", "archive:"+metricName, metric.Timestamp, record)
-		if err != nil {
-			log.Println(err)
-			break
-		}
-		var t int64
-		t, err = redis.Int64(dataCon.Do("HGET", metricName, "archivetime"))
-		if err != nil && err != redis.ErrNil {
-			log.Println("fail to get archivetime", err)
-			break
-		}
-		if time.Now().Unix()-t >= 600 {
-			m.writer.Publish(m.archiveTopic, []byte(metricName))
-		}
-		_, err = dataCon.Do("HMSET", metricName, "value", metric.Value, "timestamp", metric.Timestamp, "rate_value", nvalue, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
-		if err != nil {
-			log.Println("hmset", metricName, err)
-			break
-		}
-		_, err = dataCon.Do("HSETNX", metricName, "ttl", metric.TTL)
-		_, err = dataCon.Do("SADD", "host:"+metric.Host, metricName)
 	}
-	return err
 }
 
-func (m *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, error) {
-	dataCon := m.dataService.Get()
-	defer dataCon.Close()
-	rst, err := redis.Values(dataCon.Do("HMGET", metric.Host+"_"+metric.GetMetricName(), "value", "timestamp"))
-	if err != nil {
-		return 0, err
-	}
+func getMetricRate(metric *metrictools.MetricData, con redis.Conn) (float64, error) {
 	var value float64
-	var t int64
-	var v float64
-	_, err = redis.Scan(rst, &v, &t)
-	if err == nil {
-		value = (metric.Value - v) / float64(metric.Timestamp-t)
+	if metric.DataSetType == "counter" || metric.DataSetType == "derive" {
+		rst, err := redis.Values(con.Do("HMGET", metric.Host+"_"+metric.GetMetricName(), "value", "timestamp"))
+		if err != nil {
+			return 0, err
+		}
+		var t int64
+		var v float64
+		_, err = redis.Scan(rst, &v, &t)
+		if err == nil {
+			value = (metric.Value - v) / float64(metric.Timestamp-t)
+		} else {
+			value = metric.Value
+		}
+		if value < 0 {
+			value = 0
+		}
 	} else {
 		value = metric.Value
-	}
-	if value < 0 {
-		value = 0
 	}
 	return value, nil
 }
@@ -114,28 +163,37 @@ func (m *MetricDeliver) getRate(metric *metrictools.MetricData) (float64, error)
 // ScanTrigger will find out all trigger which not updated in 60s
 func (m *MetricDeliver) ScanTrigger() {
 	ticker := time.Tick(time.Second * 30)
-	dataCon := m.dataService.Get()
-	defer dataCon.Close()
+	con := m.Get()
+	defer con.Close()
 	for {
-		keys, err := redis.Strings(dataCon.Do("SMEMBERS", "triggers"))
-		if err != nil {
-			if err != redis.ErrNil {
-				dataCon.Close()
-				dataCon = m.dataService.Get()
-			}
-			continue
-		}
-		now := time.Now().Unix()
-		for _, v := range keys {
-			last, err := redis.Int64(dataCon.Do("HGET", v, "last"))
-			if err != nil && err != redis.ErrNil {
+		select {
+		case <-ticker:
+			keys, err := redis.Strings(con.Do("SMEMBERS", "triggers"))
+			if err != nil {
+				if err != redis.ErrNil {
+					con.Close()
+					con = m.Get()
+				}
 				continue
 			}
-			if now-last < 61 {
-				continue
+			now := time.Now().Unix()
+			for _, v := range keys {
+				last, err := redis.Int64(con.Do("HGET", v, "last"))
+				if err != nil && err != redis.ErrNil {
+					continue
+				}
+				if now-last < 61 {
+					continue
+				}
+				_, _, err = m.writer.Publish(m.triggerTopic, []byte(v))
 			}
-			_, _, err = m.writer.Publish(m.triggerTopic, []byte(v))
+		case <-m.exitChannel:
+			return
 		}
-		<-ticker
 	}
+}
+
+type Message struct {
+	metrics    []*metrictools.MetricData
+	errChannel chan error
 }
