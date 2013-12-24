@@ -50,7 +50,7 @@ func (m *DataArchive) Stop() {
 // HandleMessage is DataArchive's nsq handle function
 func (m *DataArchive) HandleMessage(msg *nsq.Message) error {
 	message := &Message{
-		body:       msg.Body,
+		body:       string(msg.Body),
 		errChannel: make(chan error),
 	}
 	m.msgChannel <- message
