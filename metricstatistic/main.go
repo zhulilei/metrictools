@@ -3,7 +3,6 @@ package main
 import (
 	metrictools "../"
 	"flag"
-	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"os"
@@ -42,36 +41,27 @@ func main() {
 	}
 	redisPool := redis.NewPool(redisCon, 3)
 	defer redisPool.Close()
-
-	r, err := nsq.NewReader(triggerTopic, triggerChannel)
-	if err != nil {
-		log.Fatal(err)
-	}
 	max, _ := strconv.ParseInt(maxInFlight, 10, 32)
-	r.SetMaxInFlight(int(max))
-	w := nsq.NewWriter(nsqdAddr)
+	lookupdList := strings.Split(lookupdAddresses, ",")
 	tt := &TriggerTask{
-		writer:      w,
-		dataService: redisPool,
-		topic:       notifyTopic,
-		nsqdAddress: nsqdAddr,
+		Pool:                redisPool,
+		nsqdAddr:            nsqdAddr,
+		triggerTopic:        triggerTopic,
+		triggerChannel:      triggerChannel,
+		notifyTopic:         notifyTopic,
+		nsqlookupdAddresses: lookupdList,
+		maxInFlight:         int(max),
+		exitChannel:         make(chan int),
+		msgChannel:          make(chan *metrictools.Message),
+		nsqdAddress:         nsqdAddr,
 	}
 	tt.FullDuration, _ = strconv.ParseInt(fullDuration, 10, 64)
 	tt.Consensus, _ = strconv.Atoi(consensus)
-	for i := 0; i < int(max); i++ {
-		r.AddHandler(tt)
-	}
-	lookupdList := strings.Split(lookupdAddresses, ",")
-	for _, addr := range lookupdList {
-		log.Printf("lookupd addr %s", addr)
-		err := r.ConnectToLookupd(addr)
-		if err != nil {
-			log.Fatal(err)
-		}
+	if err := tt.Run(); err != nil {
+		log.Fatal(err)
 	}
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
-	r.Stop()
-	w.Stop()
+	tt.Stop()
 }

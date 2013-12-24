@@ -18,7 +18,7 @@ type DataArchive struct {
 	archiveChannel      string
 	maxInFlight         int
 	exitChannel         chan int
-	msgChannel          chan *Message
+	msgChannel          chan *metrictools.Message
 }
 
 func (m *DataArchive) Run() error {
@@ -49,12 +49,12 @@ func (m *DataArchive) Stop() {
 
 // HandleMessage is DataArchive's nsq handle function
 func (m *DataArchive) HandleMessage(msg *nsq.Message) error {
-	message := &Message{
-		body:       string(msg.Body),
-		errChannel: make(chan error),
+	message := &metrictools.Message{
+		Body:         string(msg.Body),
+		ErrorChannel: make(chan error),
 	}
 	m.msgChannel <- message
-	return <-message.errChannel
+	return <-message.ErrorChannel
 }
 
 func (m *DataArchive) archiveData() {
@@ -65,9 +65,9 @@ func (m *DataArchive) archiveData() {
 		case <-m.exitChannel:
 			return
 		case msg := <-m.msgChannel:
-			metricName, ok := msg.body.(string)
+			metricName, ok := msg.Body.(string)
 			if !ok {
-				log.Println("wrong message:", msg.body)
+				log.Println("wrong message:", msg.Body)
 				return
 			}
 			stat, _ := redis.Int64(con.Do("HGET", metricName, "ttl"))
@@ -85,7 +85,7 @@ func (m *DataArchive) archiveData() {
 			_, err := con.Do("ZREMRANGEBYSCORE", metric, 0, last)
 			if err != nil {
 				log.Println("failed to remove old data:", metric, err)
-				msg.errChannel <- err
+				msg.ErrorChannel <- err
 			}
 			con.Do("HSET", metricName, "archivetime", time.Now().Unix())
 			compress(metricName, "5mins", con)
@@ -156,9 +156,4 @@ func compress(metric string, compresstype string, con redis.Conn) error {
 	}
 	_, err = con.Do("HSET", metric, compresstype, t+interval)
 	return err
-}
-
-type Message struct {
-	body       interface{}
-	errChannel chan error
 }

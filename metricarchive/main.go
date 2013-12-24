@@ -46,7 +46,7 @@ func main() {
 		archiveTopic:        archiveTopic,
 		archiveChannel:      archiveChannel,
 		nsqlookupdAddresses: lookupdlist,
-		msgChannel:          make(chan *Message),
+		msgChannel:          make(chan *metrictools.Message),
 		exitChannel:         make(chan int),
 	}
 	dr.Run()
