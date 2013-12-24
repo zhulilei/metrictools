@@ -87,10 +87,11 @@ func (m *DataArchive) archiveData() {
 				log.Println("failed to remove old data:", metric, err)
 				msg.ErrorChannel <- err
 			}
-			con.Do("HSET", metricName, "archivetime", time.Now().Unix())
+			_, err = con.Do("HSET", metricName, "archivetime", time.Now().Unix())
 			compress(metricName, "5mins", con)
 			compress(metricName, "10mins", con)
 			compress(metricName, "15mins", con)
+			msg.ErrorChannel <- err
 		}
 	}
 }
