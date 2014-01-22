@@ -16,9 +16,14 @@ func HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
-	dataCon := dataService.Get()
-	defer dataCon.Close()
-	hosts, _ := redis.Strings(dataCon.Do("SMEMBERS", "hosts"))
+	q := &RedisQuery{
+		Action:        "SMEMBERS",
+		Options:       []interface{}{"hosts"},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult := <-q.resultChannel
+	hosts, _ := redis.Strings(queryresult.Value, queryresult.Err)
 	var rst []interface{}
 	for _, host := range hosts {
 		query := make(map[string]interface{})
@@ -36,9 +41,14 @@ func HostShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	dataCon := dataService.Get()
-	defer dataCon.Close()
-	_, err := redis.Strings(dataCon.Do("SMEMBERS", "host:"+host))
+	q := &RedisQuery{
+		Action:        "SMEMBERS",
+		Options:       []interface{}{"host:" + host},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult := <-q.resultChannel
+	_, err := redis.Strings(queryresult.Value, queryresult.Err)
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
 		query := make(map[string]interface{})
@@ -57,24 +67,47 @@ func HostDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	dataCon := dataService.Get()
-	defer dataCon.Close()
-	metricList, err := redis.Strings(dataCon.Do("SMEMBERS", "host:"+host))
+	q := &RedisQuery{
+		Action:        "SMEMBERS",
+		Options:       []interface{}{"host:" + host},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult := <-q.resultChannel
+	metricList, err := redis.Strings(queryresult.Value, queryresult.Err)
 	if err == nil {
 		for _, v := range metricList {
-			_, err = dataCon.Do("DEL", v)
-			if err != nil {
+			q := &RedisQuery{
+				Action:        "DEL",
+				Options:       []interface{}{v},
+				resultChannel: make(chan *QueryResult),
+			}
+			queryservice.queryChannel <- q
+			queryresult := <-q.resultChannel
+			if queryresult.Err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			_, err = dataCon.Do("DEL", "archive:"+v)
-			if err != nil {
+			q = &RedisQuery{
+				Action:        "DEL",
+				Options:       []interface{}{"archive:" + v},
+				resultChannel: make(chan *QueryResult),
+			}
+			queryservice.queryChannel <- q
+			queryresult = <-q.resultChannel
+			if queryresult.Err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 		}
-		_, err = dataCon.Do("DEL", "host:"+host)
-		if err != nil {
+		q = &RedisQuery{
+			Action:        "DEL",
+			Options:       []interface{}{"host:" + host},
+			resultChannel: make(chan *QueryResult),
+		}
+		queryservice.queryChannel <- q
+		queryresult = <-q.resultChannel
+		if queryresult.Err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -88,14 +121,27 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	dataCon := dataService.Get()
-	defer dataCon.Close()
-	metricList, err := redis.Strings(dataCon.Do("SMEMBERS", "host:"+host))
+	q := &RedisQuery{
+		Action:        "SMEMBERS",
+		Options:       []interface{}{"host:" + host},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult := <-q.resultChannel
+	metricList, err := redis.Strings(queryresult.Value, queryresult.Err)
 	if err == nil {
 		var rst []interface{}
 		sort.Strings(metricList)
 		for _, v := range metricList {
-			m, err := redis.Values(dataCon.Do("HMGET", v, "dstype", "dsname", "interval", "host", "plugin", "plugin_instance", "type", "type_instance", "ttl"))
+			q = &RedisQuery{
+				Action:        "HMGET",
+				Options:       []interface{}{v, "dstype", "dsname", "interval", "host", "plugin", "plugin_instance", "type", "type_instance", "ttl"},
+				resultChannel: make(chan *QueryResult),
+			}
+			queryservice.queryChannel <- q
+			queryresult = <-q.resultChannel
+
+			m, err := redis.Values(queryresult.Value, queryresult.Err)
 			if err != nil {
 				log.Println("failed to hgetall", err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -139,20 +185,36 @@ func HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	metric := mux.Vars(r)["name"]
-	dataCon := dataService.Get()
-	defer dataCon.Close()
-	_, err := dataCon.Do("SREM", "host:"+host, metric)
-	if err != nil {
+	q := &RedisQuery{
+		Action:        "SREM",
+		Options:       []interface{}{"host:" + host, metric},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult := <-q.resultChannel
+	if queryresult.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_, err = dataCon.Do("DEL", "archive:"+metric)
-	if err != nil {
+	q = &RedisQuery{
+		Action:        "DEL",
+		Options:       []interface{}{"archive:" + metric},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult = <-q.resultChannel
+	if queryresult.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_, err = dataCon.Do("DEL", metric)
-	if err != nil {
+	q = &RedisQuery{
+		Action:        "DEL",
+		Options:       []interface{}{metric},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult = <-q.resultChannel
+	if queryresult.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

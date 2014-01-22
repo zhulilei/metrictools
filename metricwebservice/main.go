@@ -13,7 +13,7 @@ var (
 	confFile = flag.String("conf", "metrictools.conf", "analyst config file")
 )
 
-var dataService *redis.Pool
+var queryservice *WebQueryPool
 
 func main() {
 	flag.Parse()
@@ -21,18 +21,29 @@ func main() {
 	if err != nil {
 		log.Fatal("config parse error", err)
 	}
-	dataRedisServer, _ := c["redis_server"]
+	redisServer, _ := c["redis_server"]
+	// secretKey, _ := c["secret_key"]
 	bind, _ := c["web_bind"]
 
 	dataRedisCon := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", dataRedisServer)
+		c, err := redis.Dial("tcp", redisServer)
 		if err != nil {
 			return nil, err
 		}
 		return c, err
 	}
-	dataService = redis.NewPool(dataRedisCon, 3)
-	defer dataService.Close()
+
+	queryservice = &WebQueryPool{
+		Pool:         redis.NewPool(dataRedisCon, 3),
+		exitChannel:  make(chan int),
+		queryChannel: make(chan *RedisQuery),
+	}
+
+	go queryservice.Run()
+	defer queryservice.Stop()
+
+	// sessionStore = redistore.NewRediStore(10, "tcp", dataRedisServer, "", []byte(secretKey))
+	// defer sessionStore.Close()
 
 	r := mux.NewRouter()
 	s := r.PathPrefix("/api/v1").Subrouter()

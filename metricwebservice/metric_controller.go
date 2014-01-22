@@ -27,14 +27,19 @@ func MetricIndex(w http.ResponseWriter, r *http.Request) {
 	metricList := strings.Split(metrics, ",")
 	sort.Strings(metricList)
 	var recordList []interface{}
-	dataCon := dataService.Get()
-	defer dataCon.Close()
 	for i, v := range metricList {
 		record := make(map[string]interface{})
 		if i != 0 && metricList[i-1] == v {
 			continue
 		}
-		metricData, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+v, start, end))
+		q := &RedisQuery{
+			Action:        "ZRANGEBYSCORE",
+			Options:       []interface{}{"archive:" + v, start, end},
+			resultChannel: make(chan *QueryResult),
+		}
+		queryservice.queryChannel <- q
+		queryresult := <-q.resultChannel
+		metricData, err := redis.Strings(queryresult.Value, queryresult.Err)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -65,12 +70,22 @@ func MetricCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
-	dataCon := dataService.Get()
-	defer dataCon.Close()
 	for metric, value := range items {
-		v, _ := dataCon.Do("GET", metric)
-		if v != nil {
-			dataCon.Do("HSET", metric, "ttl", value)
+		q := &RedisQuery{
+			Action:        "GET",
+			Options:       []interface{}{metric},
+			resultChannel: make(chan *QueryResult),
+		}
+		queryservice.queryChannel <- q
+		queryresult := <-q.resultChannel
+		if queryresult.Value != nil {
+			q := &RedisQuery{
+				Action:        "HSET",
+				Options:       []interface{}{metric, "ttl", value},
+				resultChannel: make(chan *QueryResult),
+			}
+			queryservice.queryChannel <- q
+			<-q.resultChannel
 		}
 	}
 }
@@ -89,9 +104,14 @@ func MetricShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	recordList := make(map[string]interface{})
-	dataCon := dataService.Get()
-	defer dataCon.Close()
-	metricData, err := redis.Strings(dataCon.Do("ZRANGEBYSCORE", "archive:"+metric, start, end))
+	q := &RedisQuery{
+		Action:        "ZRANGEBYSCORE",
+		Options:       []interface{}{"archive:" + metric, start, end},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult := <-q.resultChannel
+	metricData, err := redis.Strings(queryresult.Value, queryresult.Err)
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -120,11 +140,21 @@ func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
-	dataCon := dataService.Get()
-	defer dataCon.Close()
-	v, _ := dataCon.Do("GET", metric)
-	if v != nil {
-		dataCon.Do("HMSET", metric, "ttl", item.TTL)
+	q := &RedisQuery{
+		Action:        "GET",
+		Options:       []interface{}{metric},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult := <-q.resultChannel
+	if queryresult.Value != nil {
+		q := &RedisQuery{
+			Action:        "HMSET",
+			Options:       []interface{}{metric, "ttl", item.TTL},
+			resultChannel: make(chan *QueryResult),
+		}
+		queryservice.queryChannel <- q
+		<-q.resultChannel
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
@@ -135,15 +165,26 @@ func MetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	metric := mux.Vars(r)["name"]
-	dataCon := dataService.Get()
-	defer dataCon.Close()
-	_, err := dataCon.Do("DEL", "archive:"+metric)
-	if err != nil {
+
+	q := &RedisQuery{
+		Action:        "DEL",
+		Options:       []interface{}{"archive:" + metric},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult := <-q.resultChannel
+	if queryresult.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_, err = dataCon.Do("DEL", metric)
-	if err != nil {
+	q = &RedisQuery{
+		Action:        "DEL",
+		Options:       []interface{}{metric},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult = <-q.resultChannel
+	if queryresult.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
