@@ -1,7 +1,6 @@
 package main
 
 import (
-	metrictools "../"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
@@ -58,7 +57,7 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 		record := make(map[string]interface{})
 		tgname := base64.URLEncoding.EncodeToString([]byte(name))
 		record["name"] = tgname
-		record["values"] = metrictools.GenerateTimeseries(metricData)
+		record["values"] = GenerateTimeseries(metricData)
 		recordList = append(recordList, record)
 		rst := make(map[string]interface{})
 		rst["metrics"] = recordList
@@ -73,7 +72,7 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 
 // TriggerCreate POST /trigger
 func TriggerCreate(w http.ResponseWriter, r *http.Request) {
-	var tg metrictools.Trigger
+	var tg Trigger
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&tg); err != nil {
 		w.WriteHeader(http.StatusBadRequest)

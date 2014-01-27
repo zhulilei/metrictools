@@ -1,7 +1,6 @@
 package main
 
 import (
-	metrictools "../"
 	"encoding/json"
 	"fmt"
 	"github.com/bitly/go-nsq"
@@ -13,36 +12,38 @@ import (
 // MetricDeliver define a metric proccess task
 type MetricDeliver struct {
 	*redis.Pool
-	writer              *nsq.Writer
-	reader              *nsq.Reader
-	triggerTopic        string
-	archiveTopic        string
-	nsqdAddr            string
-	metricTopic         string
-	metricChannel       string
-	nsqlookupdAddresses []string
-	maxInFlight         int
-	exitChannel         chan int
-	msgChannel          chan *metrictools.Message
+	*Setting
+	writer      *nsq.Writer
+	reader      *nsq.Reader
+	exitChannel chan int
+	msgChannel  chan *Message
 }
 
 func (m *MetricDeliver) Run() error {
 	var err error
-	m.writer = nsq.NewWriter(m.nsqdAddr)
-	m.reader, err = nsq.NewReader(m.metricTopic, m.metricChannel)
+	m.writer = nsq.NewWriter(m.NsqdAddress)
+	m.reader, err = nsq.NewReader(m.MetricTopic, m.MetricChannel)
 	if err != nil {
 		return err
 	}
-	m.reader.SetMaxInFlight(m.maxInFlight)
-	for i := 0; i < m.maxInFlight; i++ {
+	m.reader.SetMaxInFlight(m.MaxInFlight)
+	for i := 0; i < m.MaxInFlight; i++ {
 		m.reader.AddHandler(m)
 	}
-	for _, addr := range m.nsqlookupdAddresses {
+	for _, addr := range m.LookupdAddresses {
 		err := m.reader.ConnectToLookupd(addr)
 		if err != nil {
 			return err
 		}
 	}
+	dial := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", m.RedisServer)
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+	m.Pool = redis.NewPool(dial, 3)
 	go m.writeLoop()
 	go m.ScanTrigger()
 	return err
@@ -58,7 +59,7 @@ func (m *MetricDeliver) Stop() {
 // HandleMessage is MetricDeliver's nsq handle function
 func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 	var err error
-	var c []metrictools.CollectdJSON
+	var c []CollectdJSON
 	if err = json.Unmarshal(msg.Body, &c); err != nil {
 		log.Println(err)
 		return nil
@@ -69,7 +70,7 @@ func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 			continue
 		}
 		metrics := v.GenerateMetricData()
-		message := &metrictools.Message{
+		message := &Message{
 			Body:         metrics,
 			ErrorChannel: make(chan error),
 		}
@@ -90,7 +91,7 @@ func (m *MetricDeliver) writeLoop() {
 		case <-m.exitChannel:
 			return
 		case msg := <-m.msgChannel:
-			metrics, ok := msg.Body.([]*metrictools.MetricData)
+			metrics, ok := msg.Body.([]*MetricData)
 			if !ok {
 				log.Println("wrong message:", msg.Body)
 				msg.ErrorChannel <- nil
@@ -122,7 +123,7 @@ func (m *MetricDeliver) writeLoop() {
 					break
 				}
 				if time.Now().Unix()-t >= 600 {
-					m.writer.Publish(m.archiveTopic, []byte(metricName))
+					m.writer.Publish(m.ArchiveTopic, []byte(metricName))
 				}
 				_, err = con.Do("HMSET", metricName, "value", metric.Value, "timestamp", metric.Timestamp, "rate_value", nvalue, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
 				if err != nil {
@@ -141,7 +142,7 @@ func (m *MetricDeliver) writeLoop() {
 	}
 }
 
-func getMetricRate(metric *metrictools.MetricData, con redis.Conn) (float64, error) {
+func getMetricRate(metric *MetricData, con redis.Conn) (float64, error) {
 	var value float64
 	if metric.DataSetType == "counter" || metric.DataSetType == "derive" {
 		rst, err := redis.Values(con.Do("HMGET", metric.Host+"_"+metric.GetMetricName(), "value", "timestamp"))
@@ -190,7 +191,7 @@ func (m *MetricDeliver) ScanTrigger() {
 				if now-last < 61 {
 					continue
 				}
-				_, _, err = m.writer.Publish(m.triggerTopic, []byte(v))
+				_, _, err = m.writer.Publish(m.TriggerTopic, []byte(v))
 			}
 		case <-m.exitChannel:
 			return

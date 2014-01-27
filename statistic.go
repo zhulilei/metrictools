@@ -1,7 +1,6 @@
 package main
 
 import (
-	metrictools "../"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
@@ -19,40 +18,40 @@ import (
 
 // TriggerTask define a trigger statistic task
 type TriggerTask struct {
+	*Setting
 	*redis.Pool
-	writer              *nsq.Writer
-	reader              *nsq.Reader
-	maxInFlight         int
-	triggerTopic        string
-	triggerChannel      string
-	nsqdAddress         string
-	notifyTopic         string
-	nsqdAddr            string
-	nsqlookupdAddresses []string
-	exitChannel         chan int
-	msgChannel          chan *metrictools.Message
-	FullDuration        int64
-	Consensus           int
+	writer      *nsq.Writer
+	reader      *nsq.Reader
+	exitChannel chan int
+	msgChannel  chan *Message
 }
 
 func (m *TriggerTask) Run() error {
 	var err error
-	m.reader, err = nsq.NewReader(m.triggerTopic, m.triggerChannel)
+	m.reader, err = nsq.NewReader(m.TriggerTopic, m.TriggerChannel)
 	if err != nil {
 		return err
 	}
-	m.reader.SetMaxInFlight(m.maxInFlight)
-	for i := 0; i < m.maxInFlight; i++ {
+	m.reader.SetMaxInFlight(m.MaxInFlight)
+	for i := 0; i < m.MaxInFlight; i++ {
 		m.reader.AddHandler(m)
 		go m.calculateTask()
 	}
-	for _, addr := range m.nsqlookupdAddresses {
+	for _, addr := range m.LookupdAddresses {
 		err = m.reader.ConnectToLookupd(addr)
 		if err != nil {
 			return err
 		}
 	}
-	m.writer = nsq.NewWriter(m.nsqdAddr)
+	dial := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", m.RedisServer)
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+	m.Pool = redis.NewPool(dial, 3)
+	m.writer = nsq.NewWriter(m.NsqdAddress)
 	return err
 }
 
@@ -65,7 +64,7 @@ func (m *TriggerTask) Stop() {
 
 // HandleMessage is TriggerTask's nsq handle function
 func (m *TriggerTask) HandleMessage(msg *nsq.Message) error {
-	message := &metrictools.Message{
+	message := &Message{
 		Body:         string(msg.Body),
 		ErrorChannel: make(chan error),
 	}
@@ -101,7 +100,7 @@ func (m *TriggerTask) calculateTask() {
 }
 
 func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
-	var trigger metrictools.Trigger
+	var trigger Trigger
 	var err error
 	trigger.IsExpression, err = redis.Bool(con.Do("HGET", triggerName, "is_e"))
 	if err != nil {
@@ -131,7 +130,7 @@ func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
 func ParseTimeSeries(values []string) []skyline.TimePoint {
 	var rst []skyline.TimePoint
 	for _, val := range values {
-		t, v, err := metrictools.GetTimestampAndValue(val)
+		t, v, err := GetTimestampAndValue(val)
 		if err != nil {
 			continue
 		}
@@ -231,7 +230,7 @@ func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) 
 			rst["url"] = "/api/v1/metric/" + exp
 		}
 		if body, err := json.Marshal(rst); err == nil {
-			m.writer.Publish(m.notifyTopic, body)
+			m.writer.Publish(m.NotifyTopic, body)
 			log.Println(string(body))
 		}
 	}

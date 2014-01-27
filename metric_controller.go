@@ -1,7 +1,6 @@
 package main
 
 import (
-	metrictools "../"
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
@@ -45,7 +44,7 @@ func MetricIndex(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		record["name"] = v
-		record["values"] = metrictools.GenerateTimeseries(metricData)
+		record["values"] = GenerateTimeseries(metricData)
 		recordList = append(recordList, record)
 	}
 	rst := make(map[string]interface{})
@@ -119,7 +118,7 @@ func MetricShow(w http.ResponseWriter, r *http.Request) {
 	}
 	recordList["name"] = metric
 	recordList["url"] = "/api/v1/metric/" + metric
-	recordList["records"] = metrictools.GenerateTimeseries(metricData)
+	recordList["records"] = GenerateTimeseries(metricData)
 	if body, err := json.Marshal(recordList); err == nil {
 		w.Write(body)
 	} else {
@@ -130,7 +129,7 @@ func MetricShow(w http.ResponseWriter, r *http.Request) {
 // MetricUpdate PATCH /metric/{:name}
 func MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
-	var item metrictools.MetricData
+	var item MetricData
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		w.WriteHeader(http.StatusBadRequest)

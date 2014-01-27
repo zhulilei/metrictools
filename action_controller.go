@@ -1,7 +1,6 @@
 package main
 
 import (
-	metrictools "../"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
@@ -39,7 +38,7 @@ func ActionIndex(w http.ResponseWriter, r *http.Request) {
 // ActionCreate POST /trigger/{:triggername}/action
 func ActionCreate(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	var action metrictools.NotifyAction
+	var action NotifyAction
 	if err := json.NewDecoder(r.Body).Decode(&action); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)

@@ -1,7 +1,6 @@
 package main
 
 import (
-	metrictools "../"
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
@@ -147,7 +146,7 @@ func HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			var item metrictools.MetricData
+			var item MetricData
 			_, err = redis.Scan(m, &item.DataSetType, &item.DataSetName, &item.Interval, &item.Host, &item.Plugin, &item.PluginInstance, &item.Type, &item.TypeInstance, &item.TTL)
 			if err != nil {
 				log.Println("failed to scanstruct", err)

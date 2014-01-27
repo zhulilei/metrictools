@@ -5,6 +5,7 @@ import (
 )
 
 type WebQueryPool struct {
+	*Setting
 	*redis.Pool
 	exitChannel  chan int
 	queryChannel chan *RedisQuery
@@ -22,6 +23,14 @@ type QueryResult struct {
 }
 
 func (q *WebQueryPool) Run() {
+	dial := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", q.RedisServer)
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+	q.Pool = redis.NewPool(dial, 3)
 	con := q.Get()
 	defer con.Close()
 	for {

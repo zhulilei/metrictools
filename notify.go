@@ -1,7 +1,6 @@
 package main
 
 import (
-	metrictools "../"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,33 +14,37 @@ import (
 
 // Notify define a notify task
 type Notify struct {
+	*Setting
 	*redis.Pool
-	reader              *nsq.Reader
-	notifyTopic         string
-	notifyChannel       string
-	nsqlookupdAddresses []string
-	maxInFlight         int
-	exitChannel         chan int
-	msgChannel          chan *metrictools.Message
-	EmailAddress        string
+	reader      *nsq.Reader
+	exitChannel chan int
+	msgChannel  chan *Message
 }
 
 func (m *Notify) Run() error {
 	var err error
-	m.reader, err = nsq.NewReader(m.notifyTopic, m.notifyChannel)
+	m.reader, err = nsq.NewReader(m.NotifyTopic, m.NotifyChannel)
 	if err != nil {
 		return err
 	}
-	m.reader.SetMaxInFlight(m.maxInFlight)
-	for i := 0; i < m.maxInFlight; i++ {
+	m.reader.SetMaxInFlight(m.MaxInFlight)
+	for i := 0; i < m.MaxInFlight; i++ {
 		m.reader.AddHandler(m)
 	}
-	for _, addr := range m.nsqlookupdAddresses {
+	for _, addr := range m.LookupdAddresses {
 		err = m.reader.ConnectToLookupd(addr)
 		if err != nil {
 			return err
 		}
 	}
+	dial := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", m.RedisServer)
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+	m.Pool = redis.NewPool(dial, 3)
 	go m.sendNotify()
 	return err
 }
@@ -57,7 +60,7 @@ func (m *Notify) HandleMessage(msg *nsq.Message) error {
 	var notifyMsg map[string]string
 	var err error
 	if err = json.Unmarshal([]byte(msg.Body), &notifyMsg); err == nil {
-		message := &metrictools.Message{
+		message := &Message{
 			Body:         notifyMsg,
 			ErrorChannel: make(chan error),
 		}
@@ -96,7 +99,7 @@ func (m *Notify) sendNotify() {
 				continue
 			}
 			for _, v := range keys {
-				var action metrictools.NotifyAction
+				var action NotifyAction
 				var values []interface{}
 				values, err = redis.Values(con.Do("HMGET", v, "uri", "updated_time", "repeat", "count"))
 				if err != nil {
@@ -114,7 +117,7 @@ func (m *Notify) sendNotify() {
 				uri := strings.Split(action.Uri, ":")
 				switch uri[0] {
 				case "mailto":
-					if err = sendNotifyMail(notifyMsg["trigger_exp"], notifyMsg["time"]+"\n"+notifyMsg["event"]+"\n"+notifyMsg["url"], m.EmailAddress, []string{uri[1]}); err != nil {
+					if err = sendNotifyMail(notifyMsg["trigger_exp"], notifyMsg["time"]+"\n"+notifyMsg["event"]+"\n"+notifyMsg["url"], m.NotifyEmailAddress, []string{uri[1]}); err != nil {
 						log.Println("fail to sendnotifymail", err)
 						break
 					}

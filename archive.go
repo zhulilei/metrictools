@@ -1,7 +1,6 @@
 package main
 
 import (
-	metrictools "../"
 	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
@@ -11,33 +10,38 @@ import (
 
 // DataArchive define data archive task
 type DataArchive struct {
+	*Setting
 	*redis.Pool
-	reader              *nsq.Reader
-	nsqlookupdAddresses []string
-	archiveTopic        string
-	archiveChannel      string
-	maxInFlight         int
-	exitChannel         chan int
-	msgChannel          chan *metrictools.Message
+	reader      *nsq.Reader
+	exitChannel chan int
+	msgChannel  chan *Message
 }
 
 func (m *DataArchive) Run() error {
 	var err error
-	m.reader, err = nsq.NewReader(m.archiveTopic, m.archiveChannel)
+	m.reader, err = nsq.NewReader(m.ArchiveTopic, m.ArchiveChannel)
 	if err != nil {
 		return err
 	}
-	m.reader.SetMaxInFlight(m.maxInFlight)
-	for i := 0; i < m.maxInFlight; i++ {
+	m.reader.SetMaxInFlight(m.MaxInFlight)
+	for i := 0; i < m.MaxInFlight; i++ {
 		m.reader.AddHandler(m)
 	}
-	for _, addr := range m.nsqlookupdAddresses {
+	for _, addr := range m.LookupdAddresses {
 		log.Printf("lookupd addr %s", addr)
 		err := m.reader.ConnectToLookupd(addr)
 		if err != nil {
 			return err
 		}
 	}
+	dial := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", m.RedisServer)
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+	m.Pool = redis.NewPool(dial, 3)
 	go m.archiveData()
 	return err
 }
@@ -50,7 +54,7 @@ func (m *DataArchive) Stop() {
 
 // HandleMessage is DataArchive's nsq handle function
 func (m *DataArchive) HandleMessage(msg *nsq.Message) error {
-	message := &metrictools.Message{
+	message := &Message{
 		Body:         string(msg.Body),
 		ErrorChannel: make(chan error),
 	}
@@ -141,7 +145,7 @@ func compress(metric string, compresstype string, con redis.Conn) error {
 	sumvalue := float64(0)
 	sumtime := int64(0)
 	for _, val := range valueList {
-		t, v, _ := metrictools.GetTimestampAndValue(val)
+		t, v, _ := GetTimestampAndValue(val)
 		sumvalue += v
 		sumtime += t
 	}
