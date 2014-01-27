@@ -1,16 +1,15 @@
 {
-    "lookupd_addresses":"127.0.0.1:4160",
+    "lookupd_addresses":["127.0.0.1:4160"],
     "nsqd_addr":"127.0.0.1:4151",
-    "maxinflight":"200",
+    "maxinflight":200,
     "metric_topic":"metric",
     "trigger_topic":"trigger",
     "trigger_channel":"trigger_ch",
-    "full_duration":"86400",
-    "consensus":"6",
+    "full_duration":86400,
+    "consensus":6,
     "notify_topic":"notify",
     "notify_channel":"notify_ch",
-    "redis_conn_count":"10",
     "redis_server":"127.0.0.1:6379",
-    "web_bind":"127.0.0.1:1234",
+    "listen_address":"127.0.0.1:1234",
     "notify_email_address":"notify@test.org"
 }
