@@ -36,6 +36,7 @@ func (m *TriggerTask) Run() error {
 		return c, err
 	}
 	m.Pool = redis.NewPool(dial, 3)
+	m.writer = nsq.NewWriter(m.NsqdAddress)
 	m.reader, err = nsq.NewReader(m.TriggerTopic, m.TriggerChannel)
 	if err != nil {
 		return err
@@ -51,7 +52,6 @@ func (m *TriggerTask) Run() error {
 			return err
 		}
 	}
-	m.writer = nsq.NewWriter(m.NsqdAddress)
 	return err
 }
 
