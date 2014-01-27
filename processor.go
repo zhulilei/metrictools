@@ -21,6 +21,14 @@ type MetricDeliver struct {
 
 func (m *MetricDeliver) Run() error {
 	var err error
+	dial := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", m.RedisServer)
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+	m.Pool = redis.NewPool(dial, 3)
 	m.writer = nsq.NewWriter(m.NsqdAddress)
 	m.reader, err = nsq.NewReader(m.MetricTopic, m.MetricChannel)
 	if err != nil {
@@ -36,14 +44,6 @@ func (m *MetricDeliver) Run() error {
 			return err
 		}
 	}
-	dial := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", m.RedisServer)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
-	}
-	m.Pool = redis.NewPool(dial, 3)
 	go m.writeLoop()
 	go m.ScanTrigger()
 	return err

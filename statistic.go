@@ -28,6 +28,14 @@ type TriggerTask struct {
 
 func (m *TriggerTask) Run() error {
 	var err error
+	dial := func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", m.RedisServer)
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+	m.Pool = redis.NewPool(dial, 3)
 	m.reader, err = nsq.NewReader(m.TriggerTopic, m.TriggerChannel)
 	if err != nil {
 		return err
@@ -43,14 +51,6 @@ func (m *TriggerTask) Run() error {
 			return err
 		}
 	}
-	dial := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", m.RedisServer)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
-	}
-	m.Pool = redis.NewPool(dial, 3)
 	m.writer = nsq.NewWriter(m.NsqdAddress)
 	return err
 }
