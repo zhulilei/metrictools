@@ -29,7 +29,7 @@ type Setting struct {
 
 // ReadConfig used to read json to config
 func ReadConfig(file string) (*Setting, error) {
-	docMap := make(map[string]interface{})
+	docMap := map[string]interface{}{}
 	configFile, err := os.Open(file)
 	config, err := ioutil.ReadAll(configFile)
 	if err != nil {
