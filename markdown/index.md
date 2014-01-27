@@ -2,46 +2,56 @@
 
 It's distributed system monitoring solution. It support collectd's json format data.
 
-## Metrictools
+## Metrictools Subsystem
 
-### metricprocessor
+### -m process
 
-`metricprocessor` read collectd json data from nsq, parse json and store data into redis.
-it also check metrics' archive time, and send metrics' name to `metricarchive`.
+`processor` module read collectd json data from nsq, parse json and store data into redis.
+it also check metrics' archive time, and send metrics' name to `archive`.
 
-`metricprocessor` scan all records in redis which match `trigger:*`, and send them to `metricstatistic`
+`processor` scan all records in redis which match `trigger:*`, and send them to `metricstatistic`
 
-    collectd -> nsq -> metricprocessor -> redis
+*Date Flow*
 
-### metricarchive
+    collectd -> nsq -> process -> redis
 
-`metricarchive` read metric name from nsq, compress and remove old data.
+### -m archive
 
-    metricprocessor -> nsq -> metricarchive -> redis
+`archive` read metric name from nsq, compress and remove old data.
 
-### metricstatistic
+*Date Flow*
 
-`metricstatistic` read trigger from nsq, then calculate triggers' expression.
+    processor -> nsq -> archive -> redis
+
+### -m statistic
+
+`statistic` read trigger from nsq, then calculate triggers' expression.
 It also use `etsy/skyline` algorithms to check data. If skyline algorithms return true, send data to `metricnotify`.
 
+*Date Flow*
+
     # calculate expression
-    metricprocessor -> nsq -> metricarchive -> redis
+    processor -> nsq -> archive -> redis
     # skyline
-    redis -> metricarchive -> nsq -> metricnotify
+    redis -> archive -> nsq -> notify
 
-### metricwebservice
+### -m webapi
 
-`metricwebservice` is a web api, it provide data from redis.
+`webapi` is a web api, it provide data from redis.
 
-    metricwebservice <-> redis
+*Date Flow*
+
+    webapi <-> redis
 
 See also (github.com/datastream/metricweb)
 
-### metricnotify
+### -m notify
 
-`metricnotify` read data, and send data via email, http etc.
+`notify` read data, and send data via email, http etc.
 
-    metricstatistic -> nsq -> metricnotify -> email/http/im etc.
+*Date Flow*
+
+    statistic -> nsq -> notify -> email/http/im etc.
 
 All these tools communicate data via nsq.
 
@@ -97,34 +107,35 @@ metrictools support [twemproxy](https://github.com/twitter/twemproxy) now.
     vim metrictools.json
 
     {
-        "lookupd_addresses":"127.0.0.1:4160",
-        "nsqd_addr":"127.0.0.1:4151",
-        "maxinflight":"200",
+        "nsqd_addr":"127.0.0.1:4150",
+        "lookupd_addresses":["127.0.0.1:4161"],
         "metric_topic":"metric",
+        "metric_channel":"metric_ch",
         "trigger_topic":"trigger",
         "trigger_channel":"trigger_ch",
+        "archive_topic":"archive",
+        "archive_channel":"archive_ch",
         "notify_topic":"notify",
         "notify_channel":"notify_ch",
-        "redis_conn_count":"10",
-        "config_redis_server":"127.0.0.1:6379",
-        "config_redis_auth":"admin",
-        "data_redis_server":"127.0.0.1:6379",
-        "data_redis_auth":"admin",
-        "web_bind":"127.0.0.1:1234",
-        "notify_email_address":"notify@test.org"
+        "notify_email_address":"notify-noreply@testme.org",
+        "maxinflight":200,
+        "full_duration":86400,
+        "consensus":6,
+        "redis_server":"127.0.0.1:22122",
+        "listen_address":"0.0.0.0:4321"
     }
-
-change `nsq lookupd address` redis_server's ip and auth.
 
 ##### Run metrictools
 
-1. `cd metricprocessor;./metricprocessor -conf ../metrictools.json`
-1. `cd metricstatistic;./metricstatistic -conf ../metrictools.json`
-1. `cd metricwebservice;./metricwebservice -conf ../metrictools.json`
-1. `cd metricarchive;./metricarchive -conf ../metrictools.json`
-1. `cd metricnotify;./metricnotify -conf ../metrictools.json`
+1. `./metrictools -c metrictools.json`
+
+> it will run all module
+
+2. `./metrictools -c metrictools.json -m process -m webapi`
+
+> it will run process module
 
 ## Todo
 
-1. improve metricwebservice
-2. improve anomalous metric detect algorithms
+1. add webapi auth
+1. improve anomalous metric detect algorithms
