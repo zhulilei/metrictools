@@ -38,11 +38,11 @@ func main() {
 	flag.Parse()
 	c, err := ReadConfig(*confFile)
 	if err != nil {
-		log.Fatal("parse config file error", err)
+		log.Fatal("parse config file error: ", err)
 	}
 
-	if len(runModes) < 1 {
-		log.Fatal("need run mode", err)
+	if len(runModes) == 0 {
+		runModes = []string{"archive", "notify", "proccess", "statistic", "webapi"}
 	}
 	var tasks []MetricTask
 	for _, v := range runModes {
@@ -143,7 +143,7 @@ func main() {
 			http.Handle("/", r)
 			go http.ListenAndServe(queryservice.ListenAddress, nil)
 		default:
-			log.Println(v, "is not supported mode")
+			log.Println(v, " is not supported mode")
 		}
 	}
 
