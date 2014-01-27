@@ -3,9 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/gorilla/mux"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -57,6 +55,7 @@ func main() {
 				log.Fatal("fail to run metric archive task", err)
 			}
 			tasks = append(tasks, a)
+			log.Println("start archive task")
 		case "notify":
 			n := &Notify{
 				Setting:     c,
@@ -67,6 +66,7 @@ func main() {
 				log.Fatal("fail to run metric notify task", err)
 			}
 			tasks = append(tasks, n)
+			log.Println("start notify task")
 		case "process":
 			p := &MetricDeliver{
 				Setting:     c,
@@ -77,6 +77,7 @@ func main() {
 				log.Fatal("fail to run metric process task", err)
 			}
 			tasks = append(tasks, p)
+			log.Println("start process task")
 		case "statistic":
 			s := &TriggerTask{
 				Setting:     c,
@@ -86,6 +87,8 @@ func main() {
 			if err := s.Run(); err != nil {
 				log.Fatal("fail to run metric statistic task", err)
 			}
+			tasks = append(tasks, s)
+			log.Println("start statistic task")
 		case "webapi":
 			queryservice = &WebQueryPool{
 				Setting:      c,
@@ -93,55 +96,8 @@ func main() {
 				queryChannel: make(chan *RedisQuery),
 			}
 			go queryservice.Run()
-			r := mux.NewRouter()
-			s := r.PathPrefix("/api/v1").Subrouter()
-
-			s.HandleFunc("/metric", MetricIndex).
-				Methods("GET")
-
-			s.HandleFunc("/metric", MetricCreate).
-				Methods("POST").
-				Headers("Content-Type", "application/json")
-
-			s.HandleFunc("/metric/{name}", MetricShow).
-				Methods("GET")
-
-			s.HandleFunc("/metric/{name}", MetricUpdate).
-				Methods("PATCH").
-				Headers("Content-Type", "application/json")
-
-			s.HandleFunc("/metric/{name}", MetricDelete).
-				Methods("DELETE")
-
-			s.HandleFunc("/host", HostIndex).
-				Methods("GET")
-			s.HandleFunc("/host/{name}", HostShow).
-				Methods("GET")
-			s.HandleFunc("/host/{name}", HostDelete).
-				Methods("DELETE")
-
-			s.HandleFunc("/host/{host}/metric", HostMetricIndex).
-				Methods("GET")
-			s.HandleFunc("/host/{host}/metric", MetricUpdate).
-				Methods("PATCH").
-				Headers("Content-Type", "application/json")
-			s.HandleFunc("/host/{host}/metric/{name}", HostMetricDelete).Methods("DELETE")
-
-			s.HandleFunc("/trigger", TriggerCreate).
-				Methods("POST").
-				Headers("Content-Type", "application/json")
-			s.HandleFunc("/trigger/{name}", TriggerShow).
-				Methods("GET")
-			s.HandleFunc("/trigger/{name}", TriggerDelete).
-				Methods("DELETE")
-
-			s.HandleFunc("/trigger/{trigger}/action", ActionCreate).Methods("POST").Headers("Content-Type", "application/json")
-			s.HandleFunc("/trigger/{trigger}/action", ActionIndex).
-				Methods("GET")
-			s.HandleFunc("/trigger/{trigger}/action/{name}", ActionDelete).Methods("DELETE")
-
-			http.Handle("/", r)
-			go http.ListenAndServe(queryservice.ListenAddress, nil)
+			tasks = append(tasks, queryservice)
+			log.Println("start webapi")
 		default:
 			log.Println(v, " is not supported mode")
 		}
