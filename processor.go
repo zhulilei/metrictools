@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// MetricDeliver define a metric proccess task
+// MetricDeliver define a metric process task
 type MetricDeliver struct {
 	*redis.Pool
 	*Setting

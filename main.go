@@ -34,7 +34,7 @@ type MetricTask interface {
 }
 
 func main() {
-	flag.Var(&runModes, "m", "List of node modes: archive|notify|proccess|statistic|webapi")
+	flag.Var(&runModes, "m", "List of node modes: archive|notify|process|statistic|webapi")
 	flag.Parse()
 	c, err := ReadConfig(*confFile)
 	if err != nil {
@@ -42,7 +42,7 @@ func main() {
 	}
 
 	if len(runModes) == 0 {
-		runModes = []string{"archive", "notify", "proccess", "statistic", "webapi"}
+		runModes = []string{"archive", "notify", "process", "statistic", "webapi"}
 	}
 	var tasks []MetricTask
 	for _, v := range runModes {
@@ -67,14 +67,14 @@ func main() {
 				log.Fatal("fail to run metric notify task", err)
 			}
 			tasks = append(tasks, n)
-		case "proccess":
+		case "process":
 			p := &MetricDeliver{
 				Setting:     c,
 				exitChannel: make(chan int),
 				msgChannel:  make(chan *Message),
 			}
 			if err := p.Run(); err != nil {
-				log.Fatal("fail to run metric proccess task", err)
+				log.Fatal("fail to run metric process task", err)
 			}
 			tasks = append(tasks, p)
 		case "statistic":
