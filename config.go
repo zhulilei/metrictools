@@ -25,6 +25,7 @@ type Setting struct {
 	Consensus          int      `jpath:"consensus"`
 	MaxInFlight        int      `jpath:"maxinflight"`
 	ListenAddress      string   `jpath:"listen_address"`
+	SessionName        string   `jpath:"session_name"`
 }
 
 // ReadConfig used to read json to config

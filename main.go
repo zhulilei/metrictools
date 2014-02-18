@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/datastream/sessions"
 	"log"
 	"os"
 	"os/signal"
@@ -14,6 +15,8 @@ var (
 )
 
 var queryservice *WebQueryPool
+
+var sessionservice *sessions.RedisStore
 
 type stringArray []string
 
@@ -97,7 +100,11 @@ func main() {
 			}
 			go queryservice.Run()
 			tasks = append(tasks, queryservice)
-			log.Println("start webapi")
+			log.Println("start webapi queryservice")
+			sessionservice = sessions.NewRedisStore("tcp", queryservice.RedisServer, "")
+			go sessionservice.Run()
+			tasks = append(tasks, sessionservice)
+			log.Println("start webapi sessionservice")
 		default:
 			log.Println(v, " is not supported mode")
 		}

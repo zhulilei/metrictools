@@ -216,22 +216,35 @@ func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) 
 		skylineTrigger = append(skylineTrigger, "HistogramBins")
 	}
 	if (8 - len(skylineTrigger)) <= threshold {
-		rst := make(map[string]string)
-		rst["time"] = time.Now().Format("2006-01-02 15:04:05")
-		rst["event"] = strings.Join(skylineTrigger, ", ")
-		h := sha1.New()
-		h.Write([]byte(exp))
-		name := base64.URLEncoding.EncodeToString(h.Sum(nil))
-		rst["trigger"] = name
-		rst["trigger_exp"] = exp
-		if isExpression {
-			rst["url"] = "/api/v1/trigger/" + name
-		} else {
-			rst["url"] = "/api/v1/metric/" + exp
+		raw_trigger_history, _ := redis.Bytes(con.Do("GET", "trigger_history:"+exp))
+		var trigger_history []skyline.TimePoint
+		if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
+			return err
 		}
-		if body, err := json.Marshal(rst); err == nil {
-			m.writer.Publish(m.NotifyTopic, body)
-			log.Println(string(body))
+		isan, t := skyline.IsAnomalouslyAnomalous(trigger_history, timeseries[len(timeseries)-1])
+		if len(t) > 0 {
+			body, err := json.Marshal(t)
+			if err == nil {
+				_, err = con.Do("SET", "trigger_history:"+exp, body)
+			}
+			if err != nil {
+				return err
+			}
+		}
+		if isan {
+			rst := make(map[string]string)
+			rst["time"] = time.Now().Format("2006-01-02 15:04:05")
+			rst["event"] = strings.Join(skylineTrigger, ", ")
+			h := sha1.New()
+			h.Write([]byte(exp))
+			name := base64.URLEncoding.EncodeToString(h.Sum(nil))
+			rst["trigger"] = name
+			rst["trigger_exp"] = exp
+			rst["url"] = "/api/v1/triggerhistory/" + name
+			if body, err := json.Marshal(rst); err == nil {
+				m.writer.Publish(m.NotifyTopic, body)
+				log.Println(string(body))
+			}
 		}
 	}
 	if len(skylineTrigger) > 4 {
