@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"github.com/datastream/skyline"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
@@ -210,5 +211,47 @@ func TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Failed to delete trigger"))
 	} else {
 		w.Write([]byte("delete successful"))
+	}
+}
+
+// TriggerHistoryShow /triggerhistory/#{name}
+func TriggerHistoryShow(w http.ResponseWriter, r *http.Request) {
+	tg := mux.Vars(r)["name"]
+	n, err := base64.URLEncoding.DecodeString(tg)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	name := string(n)
+	q := &RedisQuery{
+		Action:        "GET",
+		Options:       []interface{}{"trigger_history:" + name},
+		resultChannel: make(chan *QueryResult),
+	}
+	queryservice.queryChannel <- q
+	queryresult := <-q.resultChannel
+	raw_trigger_history, err := redis.Bytes(queryresult.Value, queryresult.Err)
+	var trigger_history []skyline.TimePoint
+	if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Failed find trigger history"))
+		return
+	}
+	var timeserires [][]interface{}
+	for _, val := range trigger_history {
+		timeserires = append(timeserires, []interface{}{val.Timestamp, val.Value})
+	}
+	var recordList []interface{}
+	record := make(map[string]interface{})
+	record["name"] = tg
+	record["values"] = timeserires
+	recordList = append(recordList, record)
+	rst := make(map[string]interface{})
+	rst["metrics"] = recordList
+	rst["url"] = "/api/v1/triggerhistory/" + tg
+	if body, err := json.Marshal(rst); err == nil {
+		w.Write(body)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 }

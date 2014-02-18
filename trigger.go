@@ -225,7 +225,7 @@ func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) 
 		if len(t) > 0 {
 			body, err := json.Marshal(t)
 			if err == nil {
-				_, err = con.Do("SET", "trigger_history:"+exp, body)
+				_, err = con.Do("SET", "trigger_history:"+exp, body, "EX", 24*3600)
 			}
 			if err != nil {
 				return err

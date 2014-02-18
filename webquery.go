@@ -75,6 +75,8 @@ func (q *WebQueryPool) Run() {
 		Methods("GET")
 	s.HandleFunc("/trigger/{name}", TriggerDelete).
 		Methods("DELETE")
+	s.HandleFunc("/triggerhistory/{name}", TriggerHistoryShow).
+		Methods("GET")
 	// /trigger/{}/action
 	s.HandleFunc("/trigger/{trigger}/action", ActionCreate).Methods("POST").Headers("Content-Type", "application/json")
 	s.HandleFunc("/trigger/{trigger}/action", ActionIndex).
