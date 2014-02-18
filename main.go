@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/datastream/sessions"
 	"log"
 	"os"
@@ -18,35 +17,22 @@ var queryservice *WebQueryPool
 
 var sessionservice *sessions.RedisStore
 
-type stringArray []string
-
-func (s *stringArray) Set(value string) error {
-	*s = append(*s, value)
-	return nil
-}
-func (s *stringArray) String() string {
-	return fmt.Sprintf("%s", *s)
-}
-
-var runModes stringArray
-
 type MetricTask interface {
 	Stop()
 }
 
 func main() {
-	flag.Var(&runModes, "m", "List of node modes: archive|notify|process|statistic|webapi")
 	flag.Parse()
 	c, err := ReadConfig(*confFile)
 	if err != nil {
 		log.Fatal("parse config file error: ", err)
 	}
 
-	if len(runModes) == 0 {
-		runModes = []string{"archive", "notify", "process", "statistic", "webapi"}
+	if len(c.Modes) == 0 {
+		c.Modes = []string{"archive", "notify", "process", "statistic", "webapi"}
 	}
 	var tasks []MetricTask
-	for _, v := range runModes {
+	for _, v := range c.Modes {
 		switch v {
 		case "archive":
 			a := &DataArchive{

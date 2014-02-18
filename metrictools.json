@@ -15,4 +15,5 @@
     "consensus":6,
     "maxinflight":200,
     "listen_address":"127.0.0.1:1234",
+    "modes":["archive", "notify", "process", "statistic", "webapi"]
 }
