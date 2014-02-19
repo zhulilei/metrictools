@@ -4,7 +4,7 @@ It's distributed system monitoring solution. It support collectd's json format d
 
 ## Metrictools Subsystem
 
-### -m process
+### process
 
 `processor` module read collectd json data from nsq, parse json and store data into redis.
 it also check metrics' archive time, and send metrics' name to `archive`.
@@ -15,7 +15,7 @@ it also check metrics' archive time, and send metrics' name to `archive`.
 
     collectd -> nsq -> process -> redis
 
-### -m archive
+### archive
 
 `archive` read metric name from nsq, compress and remove old data.
 
@@ -23,7 +23,7 @@ it also check metrics' archive time, and send metrics' name to `archive`.
 
     processor -> nsq -> archive -> redis
 
-### -m statistic
+### statistic
 
 `statistic` read trigger from nsq, then calculate triggers' expression.
 It also use `etsy/skyline` algorithms to check data. If skyline algorithms return true, send data to `metricnotify`.
@@ -35,7 +35,7 @@ It also use `etsy/skyline` algorithms to check data. If skyline algorithms retur
     # skyline
     redis -> archive -> nsq -> notify
 
-### -m webapi
+### webapi
 
 `webapi` is a web api, it provide data from redis.
 
@@ -45,7 +45,7 @@ It also use `etsy/skyline` algorithms to check data. If skyline algorithms retur
 
 See also (github.com/datastream/metricweb)
 
-### -m notify
+### notify
 
 `notify` read data, and send data via email, http etc.
 
@@ -128,12 +128,6 @@ metrictools support [twemproxy](https://github.com/twitter/twemproxy) now.
 ##### Run metrictools
 
 1. `./metrictools -c metrictools.json`
-
-> it will run all module
-
-2. `./metrictools -c metrictools.json -m process -m webapi`
-
-> it will run process module
 
 ## Todo
 
