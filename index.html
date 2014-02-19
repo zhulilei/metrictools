@@ -32,7 +32,7 @@
 
 <h2>Metrictools Subsystem</h2>
 
-<h3>-m process</h3>
+<h3>process</h3>
 
 <p><code>processor</code> module read collectd json data from nsq, parse json and store data into redis.
 it also check metrics&rsquo; archive time, and send metrics&rsquo; name to <code>archive</code>.</p>
@@ -44,7 +44,7 @@ it also check metrics&rsquo; archive time, and send metrics&rsquo; name to <code
 <pre><code>collectd -&gt; nsq -&gt; process -&gt; redis
 </code></pre>
 
-<h3>-m archive</h3>
+<h3>archive</h3>
 
 <p><code>archive</code> read metric name from nsq, compress and remove old data.</p>
 
@@ -53,7 +53,7 @@ it also check metrics&rsquo; archive time, and send metrics&rsquo; name to <code
 <pre><code>processor -&gt; nsq -&gt; archive -&gt; redis
 </code></pre>
 
-<h3>-m statistic</h3>
+<h3>statistic</h3>
 
 <p><code>statistic</code> read trigger from nsq, then calculate triggers&rsquo; expression.
 It also use <code>etsy/skyline</code> algorithms to check data. If skyline algorithms return true, send data to <code>metricnotify</code>.</p>
@@ -66,7 +66,7 @@ processor -&gt; nsq -&gt; archive -&gt; redis
 redis -&gt; archive -&gt; nsq -&gt; notify
 </code></pre>
 
-<h3>-m webapi</h3>
+<h3>webapi</h3>
 
 <p><code>webapi</code> is a web api, it provide data from redis.</p>
 
@@ -77,7 +77,7 @@ redis -&gt; archive -&gt; nsq -&gt; notify
 
 <p>See also (github.com/datastream/metricweb)</p>
 
-<h3>-m notify</h3>
+<h3>notify</h3>
 
 <p><code>notify</code> read data, and send data via email, http etc.</p>
 
@@ -135,6 +135,90 @@ service redis-server start
 /usr/local/bin/redis-server
 </code></pre>
 
+<h4>data struct in redis</h4>
+
+<p><code>SMEMBERS hosts</code></p>
+
+<pre><code>1) 192.169.21.1
+2) 192.169.21.2
+...
+</code></pre>
+
+<p><code>SMEMBERS 192.169.21.1</code></p>
+
+<pre><code>1) 192.169.21.2_cpu7_interrupt
+2) 192.169.21.2_cpu27_steal
+...
+</code></pre>
+
+<p><code>HGETALL 192.169.21.2_interface_eth2.if_errors.rx</code></p>
+
+<pre><code>1) &quot;value&quot;
+2) &quot;0&quot;
+3) &quot;timestamp&quot;
+4) &quot;1392798179&quot;
+5) &quot;rate_value&quot;
+6) &quot;0&quot;
+7) &quot;dstype&quot;
+8) &quot;derive&quot;
+9) &quot;dsname&quot;
+10) &quot;rx&quot;
+11) &quot;interval&quot;
+12) &quot;60&quot;
+13) &quot;host&quot;
+14) &quot;192.168.21.2&quot;
+15) &quot;plugin&quot;
+16) &quot;interface&quot;
+17) &quot;plugin_instance&quot;
+18) &quot;eth2&quot;
+19) &quot;type&quot;
+20) &quot;if_errors&quot;
+21) &quot;type_instance&quot;
+22) &quot;&quot;
+23) &quot;ttl&quot;
+24) &quot;10800&quot;
+25) &quot;archivetime&quot;
+26) &quot;1392797701&quot;
+27) &quot;5mins&quot;
+28) &quot;1390006167&quot;
+29) &quot;10mins&quot;
+30) &quot;1391983767&quot;
+31) &quot;15mins&quot;
+32) &quot;1392192867&quot;
+</code></pre>
+
+<p><code>SMEMBERS triggers</code></p>
+
+<pre><code>1) 192.169.21.2_cpu7_interrupt
+2) 192.169.21.2_cpu2_interrupt
+3) 192.169.21.2_cpu2_interrupt+192.169.21.2_cpu5_interrupt
+</code></pre>
+
+<p><code>ZRANGEBYSCORE archive:192.169.21.2_cpu2_interrupt</code></p>
+
+<pre><code>1) &quot;1392192867:1&quot;
+2) &quot;1392192927:1&quot;
+...
+</code></pre>
+
+<p><code>ZRANGEBYSCORE archive:192.169.21.2_cpu2_interrupt+192.169.21.2_cpu5_interrupt</code></p>
+
+<pre><code>1) &quot;1392192867:4&quot;
+2) &quot;1392192927:4&quot;
+</code></pre>
+
+<p><code>SMEMBERS 192.169.21.2_cpu2_interrupt+192.169.21.2_cpu5_interrupt:actions</code></p>
+
+<pre><code>1) &quot;uri&quot;
+2) &quot;mailto:xxx@xxx.com&quot;
+3) &quot;updated_time&quot;
+4) &quot;1390006167&quot;
+5) &quot;repeat&quot;
+6) &quot;3&quot;
+7) &quot;count&quot;
+8) &quot;0&quot;
+</code></pre>
+
 <h4>twemproxy</h4>
 
 <p>metrictools support <a href="https://github.com/twitter/twemproxy">twemproxy</a> now.</p>
@@ -146,22 +230,23 @@ cd metrictools;make
 vim metrictools.json
 
 {
-    &quot;nsqd_addr&quot;:&quot;127.0.0.1:4150&quot;,
-    &quot;lookupd_addresses&quot;:[&quot;127.0.0.1:4161&quot;],
-    &quot;metric_topic&quot;:&quot;metric&quot;,
-    &quot;metric_channel&quot;:&quot;metric_ch&quot;,
-    &quot;trigger_topic&quot;:&quot;trigger&quot;,
-    &quot;trigger_channel&quot;:&quot;trigger_ch&quot;,
-    &quot;archive_topic&quot;:&quot;archive&quot;,
-    &quot;archive_channel&quot;:&quot;archive_ch&quot;,
-    &quot;notify_topic&quot;:&quot;notify&quot;,
-    &quot;notify_channel&quot;:&quot;notify_ch&quot;,
-    &quot;notify_email_address&quot;:&quot;notify-noreply@testme.org&quot;,
-    &quot;maxinflight&quot;:200,
-    &quot;full_duration&quot;:86400,
-    &quot;consensus&quot;:6,
-    &quot;redis_server&quot;:&quot;127.0.0.1:22122&quot;,
-    &quot;listen_address&quot;:&quot;0.0.0.0:4321&quot;
+  &quot;nsqd_addr&quot;:&quot;127.0.0.1:4151&quot;,
+  &quot;lookupd_addresses&quot;:[&quot;127.0.0.1:4160&quot;],
+  &quot;metric_topic&quot;:&quot;metric&quot;,
+  &quot;metric_channel&quot;:&quot;metric_ch&quot;,
+  &quot;trigger_topic&quot;:&quot;trigger&quot;,
+  &quot;trigger_channel&quot;:&quot;trigger_ch&quot;,
+  &quot;archive_topic&quot;:&quot;archive&quot;,
+  &quot;archive_channel&quot;:&quot;archive_ch&quot;,
+  &quot;notify_topic&quot;:&quot;notify&quot;,
+  &quot;notify_channel&quot;:&quot;notify_ch&quot;,
+  &quot;notify_email_address&quot;:&quot;notify@test.org&quot;
+  &quot;redis_server&quot;:&quot;127.0.0.1:6379&quot;,
+  &quot;full_duration&quot;:86400,
+  &quot;consensus&quot;:6,
+  &quot;maxinflight&quot;:200,
+  &quot;listen_address&quot;:&quot;127.0.0.1:1234&quot;,
+  &quot;modes&quot;:[&quot;archive&quot;, &quot;notify&quot;, &quot;process&quot;, &quot;statistic&quot;, &quot;webapi&quot;]
 }
 </code></pre>
 
@@ -170,18 +255,6 @@ vim metrictools.json
 <ol>
 <li><code>./metrictools -c metrictools.json</code></li>
 </ol>
-
-<blockquote>
-<p>it will run all module</p>
-</blockquote>
-
-<ol>
-<li><code>./metrictools -c metrictools.json -m process -m webapi</code></li>
-</ol>
-
-<blockquote>
-<p>it will run process module</p>
-</blockquote>
 
 <h2>Todo</h2>
 
