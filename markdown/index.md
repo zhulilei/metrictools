@@ -96,6 +96,83 @@ on mac ox x
     brew install redis-server
     /usr/local/bin/redis-server
 
+#### data struct in redis
+
+`SMEMBERS hosts`
+
+    1) 192.169.21.1
+    2) 192.169.21.2
+    ...
+
+`SMEMBERS 192.169.21.1`
+
+    1) 192.169.21.2_cpu7_interrupt
+    2) 192.169.21.2_cpu27_steal
+    ...
+
+`HGETALL 192.169.21.2_interface_eth2.if_errors.rx`
+
+    1) "value"
+    2) "0"
+    3) "timestamp"
+    4) "1392798179"
+    5) "rate_value"
+    6) "0"
+    7) "dstype"
+    8) "derive"
+    9) "dsname"
+    10) "rx"
+    11) "interval"
+    12) "60"
+    13) "host"
+    14) "192.168.21.2"
+    15) "plugin"
+    16) "interface"
+    17) "plugin_instance"
+    18) "eth2"
+    19) "type"
+    20) "if_errors"
+    21) "type_instance"
+    22) ""
+    23) "ttl"
+    24) "10800"
+    25) "archivetime"
+    26) "1392797701"
+    27) "5mins"
+    28) "1390006167"
+    29) "10mins"
+    30) "1391983767"
+    31) "15mins"
+    32) "1392192867"
+
+`SMEMBERS triggers`
+
+    1) 192.169.21.2_cpu7_interrupt
+    2) 192.169.21.2_cpu2_interrupt
+    3) 192.169.21.2_cpu2_interrupt+192.169.21.2_cpu5_interrupt
+
+`ZRANGEBYSCORE archive:192.169.21.2_cpu2_interrupt`
+
+    1) "1392192867:1"
+    2) "1392192927:1"
+    ...
+
+`ZRANGEBYSCORE archive:192.169.21.2_cpu2_interrupt+192.169.21.2_cpu5_interrupt`
+
+    1) "1392192867:4"
+    2) "1392192927:4"
+
+`SMEMBERS 192.169.21.2_cpu2_interrupt+192.169.21.2_cpu5_interrupt:actions`
+
+    1) "uri"
+    2) "mailto:xxx@xxx.com"
+    3) "updated_time"
+    4) "1390006167"
+    5) "repeat"
+    6) "3"
+    7) "count"
+    8) "0"
+
 #### twemproxy
 
 metrictools support [twemproxy](https://github.com/twitter/twemproxy) now.
@@ -107,22 +184,23 @@ metrictools support [twemproxy](https://github.com/twitter/twemproxy) now.
     vim metrictools.json
 
     {
-        "nsqd_addr":"127.0.0.1:4150",
-        "lookupd_addresses":["127.0.0.1:4161"],
-        "metric_topic":"metric",
-        "metric_channel":"metric_ch",
-        "trigger_topic":"trigger",
-        "trigger_channel":"trigger_ch",
-        "archive_topic":"archive",
-        "archive_channel":"archive_ch",
-        "notify_topic":"notify",
-        "notify_channel":"notify_ch",
-        "notify_email_address":"notify-noreply@testme.org",
-        "maxinflight":200,
-        "full_duration":86400,
-        "consensus":6,
-        "redis_server":"127.0.0.1:22122",
-        "listen_address":"0.0.0.0:4321"
+      "nsqd_addr":"127.0.0.1:4151",
+      "lookupd_addresses":["127.0.0.1:4160"],
+      "metric_topic":"metric",
+      "metric_channel":"metric_ch",
+      "trigger_topic":"trigger",
+      "trigger_channel":"trigger_ch",
+      "archive_topic":"archive",
+      "archive_channel":"archive_ch",
+      "notify_topic":"notify",
+      "notify_channel":"notify_ch",
+      "notify_email_address":"notify@test.org"
+      "redis_server":"127.0.0.1:6379",
+      "full_duration":86400,
+      "consensus":6,
+      "maxinflight":200,
+      "listen_address":"127.0.0.1:1234",
+      "modes":["archive", "notify", "process", "statistic", "webapi"]
     }
 
 ##### Run metrictools
