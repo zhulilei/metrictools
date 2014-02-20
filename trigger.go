@@ -116,7 +116,11 @@ func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
 			return err
 		}
 		t := time.Now().Unix()
-		body := fmt.Sprintf("%d:%.2f", t, v)
+		body, err := KeyValueEncode(t, v)
+		if err != nil {
+			log.Println("encode data failed:", err)
+			return err
+		}
 		_, err = con.Do("ZADD", "archive:"+trigger.Name, t, body)
 		_, err = con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-m.FullDuration-600)
 		if err != nil {
@@ -130,7 +134,7 @@ func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
 func ParseTimeSeries(values []string) []skyline.TimePoint {
 	var rst []skyline.TimePoint
 	for _, val := range values {
-		t, v, err := GetTimestampAndValue(val)
+		t, v, err := KeyValueDecode([]byte(val))
 		if err != nil {
 			continue
 		}

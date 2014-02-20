@@ -1,11 +1,11 @@
 package main
 
 import (
-	"errors"
+	"bytes"
+	"code.google.com/p/goprotobuf/proto"
+	"encoding/binary"
 	"log"
 	"regexp"
-	"strconv"
-	"strings"
 )
 
 // MetricData will be stored in redis.
@@ -64,27 +64,11 @@ func (m *MetricData) GetMetricName() string {
 	return metricName
 }
 
-// GetTimestampAndValue return timestamp and value
-func GetTimestampAndValue(key string) (int64, float64, error) {
-	body := string(key)
-	kv := strings.Split(body, ":")
-	var t int64
-	var v float64
-	var err error
-	if len(kv) == 2 {
-		t, err = strconv.ParseInt(kv[0], 10, 64)
-		v, err = strconv.ParseFloat(kv[1], 64)
-	} else {
-		err = errors.New("wrong data")
-	}
-	return t, v, err
-}
-
 // GenerateTimeseries return metricdata's timestamp and value
 func GenerateTimeseries(metricData []string) [][]interface{} {
 	var timeserires [][]interface{}
 	for _, val := range metricData {
-		timestamp, value, err := GetTimestampAndValue(val)
+		timestamp, value, err := KeyValueDecode([]byte(val))
 		if err != nil {
 			log.Println("invalid data", val)
 			continue
@@ -97,4 +81,31 @@ func GenerateTimeseries(metricData []string) [][]interface{} {
 type Message struct {
 	Body         interface{}
 	ErrorChannel chan error
+}
+
+func KeyValueEncode(key int64, value float64) ([]byte, error) {
+	var err error
+	var record []byte
+	buf := new(bytes.Buffer)
+	err = binary.Write(buf, binary.LittleEndian, value)
+	if err == nil {
+		kv := &KeyValue{
+			Timestamp: proto.Int64(key),
+			Value:     buf.Bytes(),
+		}
+		record, err = proto.Marshal(kv)
+	}
+	return record, err
+}
+
+func KeyValueDecode(record []byte) (int64, float64, error) {
+	var kv KeyValue
+	var err error
+	var value float64
+	err = proto.Unmarshal(record, &kv)
+	if err == nil {
+		buf := bytes.NewReader(kv.GetValue())
+		err = binary.Read(buf, binary.LittleEndian, &value)
+	}
+	return kv.GetTimestamp(), value, err
 }

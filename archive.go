@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
@@ -145,13 +144,16 @@ func compress(metric string, compresstype string, con redis.Conn) error {
 	sumvalue := float64(0)
 	sumtime := int64(0)
 	for _, val := range valueList {
-		t, v, _ := GetTimestampAndValue(val)
+		t, v, _ := KeyValueDecode([]byte(val))
 		sumvalue += v
 		sumtime += t
 	}
 	size := len(valueList)
 	if size > 0 && size != 1 {
-		body := fmt.Sprintf("%d:%.2f", sumtime/int64(size), sumvalue/float64(size))
+		body, err := KeyValueEncode(sumtime/int64(size), sumvalue/float64(size))
+		if err != nil {
+			return err
+		}
 		_, err = con.Do("ZADD", metricset, sumtime/int64(size), body)
 		if err != nil {
 			return err

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
@@ -109,9 +108,14 @@ func (m *MetricDeliver) writeLoop() {
 						break
 					}
 				}
-				record := fmt.Sprintf("%d:%.2f", metric.Timestamp, nvalue)
+				record, err := KeyValueEncode(metric.Timestamp, nvalue)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
 				metricName := metric.Host + "_" + metric.GetMetricName()
 				_, err = con.Do("ZADD", "archive:"+metricName, metric.Timestamp, record)
+
 				if err != nil {
 					log.Println("zadd error:", err)
 					break
