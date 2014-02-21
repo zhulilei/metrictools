@@ -98,13 +98,17 @@ func (m *MetricDeliver) writeLoop() {
 			}
 			for _, metric := range metrics {
 				var nvalue float64
+				metricName := metric.Host + "_" + metric.GetMetricName()
 				nvalue, err = getMetricRate(metric, con)
 				if err != nil {
-					if err.Error() == "ignore" {
-						continue
+					if err == redis.ErrNil {
+						con.Send("HMSET", metricName, "value", metric.Value, "timestamp", metric.Timestamp, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance, "ttl", metric.TTL)
+						con.Send("SADD", "host:"+metric.Host, metricName)
+						con.Flush()
+						con.Receive()
+						_, err = con.Receive()
 					}
-					if err != redis.ErrNil {
-						log.Println("fail to get rate value:", err)
+					if err != nil {
 						break
 					}
 				}
@@ -113,7 +117,6 @@ func (m *MetricDeliver) writeLoop() {
 					log.Println(err)
 					continue
 				}
-				metricName := metric.Host + "_" + metric.GetMetricName()
 				_, err = con.Do("ZADD", "archive:"+metricName, metric.Timestamp, record)
 
 				if err != nil {
@@ -129,13 +132,6 @@ func (m *MetricDeliver) writeLoop() {
 				if time.Now().Unix()-t >= 600 {
 					m.writer.Publish(m.ArchiveTopic, []byte(metricName))
 				}
-				_, err = con.Do("HMSET", metricName, "value", metric.Value, "timestamp", metric.Timestamp, "rate_value", nvalue, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance)
-				if err != nil {
-					log.Println("hmset record error:", metricName, err)
-					break
-				}
-				_, err = con.Do("HSETNX", metricName, "ttl", metric.TTL)
-				_, err = con.Do("SADD", "host:"+metric.Host, metricName)
 			}
 			if err != redis.ErrNil {
 				con.Close()
@@ -148,26 +144,27 @@ func (m *MetricDeliver) writeLoop() {
 
 func getMetricRate(metric *MetricData, con redis.Conn) (float64, error) {
 	var value float64
+	name := metric.Host + "_" + metric.GetMetricName()
+	rst, err := redis.Values(con.Do("HMGET", name, "value", "timestamp"))
+	if err != nil {
+		return 0, err
+	}
+	var t int64
+	var v float64
+	_, err = redis.Scan(rst, &v, &t)
+	if err != nil {
+		return 0, redis.ErrNil
+	}
 	if metric.DataSetType == "counter" || metric.DataSetType == "derive" {
-		rst, err := redis.Values(con.Do("HMGET", metric.Host+"_"+metric.GetMetricName(), "value", "timestamp"))
-		if err != nil {
-			return 0, err
-		}
-		var t int64
-		var v float64
-		_, err = redis.Scan(rst, &v, &t)
-		if err == nil {
-			value = (metric.Value - v) / float64(metric.Timestamp-t)
-		} else {
-			value = metric.Value
-		}
+		value = (metric.Value - v) / float64(metric.Timestamp-t)
 		if value < 0 {
 			value = 0
 		}
 	} else {
 		value = metric.Value
 	}
-	return value, nil
+	_, err = con.Do("HSET", name, "rate_value", value)
+	return value, err
 }
 
 // ScanTrigger will find out all trigger which not updated in 60s
