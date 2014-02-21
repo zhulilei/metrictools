@@ -103,7 +103,7 @@ func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
 	var trigger Trigger
 	var err error
 	trigger.IsExpression, err = redis.Bool(con.Do("HGET", triggerName, "is_e"))
-	if err != nil {
+	if err != nil && err != redis.ErrNil {
 		log.Println("get trigger failed:", triggerName, err)
 		return err
 	}
