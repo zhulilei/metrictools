@@ -13,7 +13,7 @@ import (
 )
 
 // TriggerShow  GET /trigger/{:name}
-func TriggerShow(w http.ResponseWriter, r *http.Request) {
+func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	tg := mux.Vars(r)["name"]
 	starttime := r.FormValue("starttime")
@@ -29,27 +29,15 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := string(n)
-	q := &RedisQuery{
-		Action:        "HGET",
-		Options:       []interface{}{name, "is_e"},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult := <-q.resultChannel
-	_, err = redis.String(queryresult.Value, queryresult.Err)
+	con := q.Pool.Get()
+	defer con.Close()
+	_, err = redis.String(con.Do("HGET", name, "is_e"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
 		var recordList []interface{}
-		q := &RedisQuery{
-			Action:        "ZRANGEBYSCORE",
-			Options:       []interface{}{"archive:" + name, start, end},
-			resultChannel: make(chan *QueryResult),
-		}
-		queryservice.queryChannel <- q
-		queryresult := <-q.resultChannel
-		metricData, err := redis.Strings(queryresult.Value, queryresult.Err)
+		metricData, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+name, start, end))
 		if err != nil {
 			log.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -72,7 +60,7 @@ func TriggerShow(w http.ResponseWriter, r *http.Request) {
 }
 
 // TriggerCreate POST /trigger
-func TriggerCreate(w http.ResponseWriter, r *http.Request) {
+func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	var tg Trigger
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&tg); err != nil {
@@ -83,34 +71,20 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	tg.Name = strings.Trim(tg.Name, " ")
 	tg.IsExpression, _ = regexp.MatchString(`(\+|-|\*|/)`, tg.Name)
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	q := &RedisQuery{
-		Action:        "HGET",
-		Options:       []interface{}{tg.Name, "role"},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult := <-q.resultChannel
-	_, err := redis.String(queryresult.Value, queryresult.Err)
+	con := q.Pool.Get()
+	defer con.Close()
+	_, err := redis.String(con.Do("HGET", tg.Name, "role"))
 	if err == nil {
 		w.WriteHeader(http.StatusNotAcceptable)
 		w.Write([]byte(tg.Name + " exists"))
 		return
 	}
-	q = &RedisQuery{
-		Action:        "HMSET",
-		Options:       []interface{}{tg.Name, "is_e", tg.IsExpression, "role", tg.Role},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	<-q.resultChannel
-	q = &RedisQuery{
-		Action:        "SADD",
-		Options:       []interface{}{"triggers", tg.Name},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult = <-q.resultChannel
-	if queryresult.Err != nil {
+	con.Send("HMSET", tg.Name, "is_e", tg.IsExpression, "role", tg.Role)
+	con.Send("SADD", "triggers", tg.Name)
+	con.Flush()
+	con.Receive()
+	_, err = con.Receive()
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
@@ -126,7 +100,7 @@ func TriggerCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 // TriggerDelete DELETE /trigger/{:name}
-func TriggerDelete(w http.ResponseWriter, r *http.Request) {
+func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 	tg := mux.Vars(r)["name"]
 	n, err := base64.URLEncoding.DecodeString(tg)
 	if err != nil {
@@ -134,63 +108,30 @@ func TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := string(n)
-	q := &RedisQuery{
-		Action:        "HGET",
-		Options:       []interface{}{name, "is_e"},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult := <-q.resultChannel
-	isExpression, err := redis.Bool(queryresult.Value, queryresult.Err)
+	con := q.Pool.Get()
+	defer con.Close()
+	isExpression, err := redis.Bool(con.Do("HGET", name, "is_e"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if isExpression {
-		q := &RedisQuery{
-			Action:        "DEL",
-			Options:       []interface{}{"archive:" + name},
-			resultChannel: make(chan *QueryResult),
-		}
-		queryservice.queryChannel <- q
-		<-q.resultChannel
-		q = &RedisQuery{
-			Action:        "DEL",
-			Options:       []interface{}{name},
-			resultChannel: make(chan *QueryResult),
-		}
-		queryservice.queryChannel <- q
-		queryresult = <-q.resultChannel
-		if queryresult.Err != nil {
+		con.Send("DEL", "archive:"+name)
+		con.Send("DEL", name)
+		con.Flush()
+		con.Receive()
+		_, err = con.Receive()
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	} else {
-		q = &RedisQuery{
-			Action:        "HDEL",
-			Options:       []interface{}{name, "is_e", "role"},
-			resultChannel: make(chan *QueryResult),
-		}
-		queryservice.queryChannel <- q
-		<-q.resultChannel
+		con.Do("HDEL", name, "is_e", "role")
 	}
-	q = &RedisQuery{
-		Action:        "SMEMBERS",
-		Options:       []interface{}{name + ":actions"},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult = <-q.resultChannel
-	keys, err := redis.Strings(queryresult.Value, queryresult.Err)
+	keys, err := redis.Strings(con.Do("SMEMBERS", name+":actions"))
 	for _, v := range keys {
-		q = &RedisQuery{
-			Action:        "DEL",
-			Options:       []interface{}{v},
-			resultChannel: make(chan *QueryResult),
-		}
-		queryservice.queryChannel <- q
-		queryresult = <-q.resultChannel
-		if queryresult.Err != nil {
+		_, err = con.Do("DEL", v)
+		if err != nil {
 			break
 		}
 	}
@@ -199,14 +140,8 @@ func TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Failed to delete trigger"))
 		return
 	}
-	q = &RedisQuery{
-		Action:        "SREM",
-		Options:       []interface{}{"triggers", name},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult = <-q.resultChannel
-	if queryresult.Err != nil {
+	_, err = con.Do("SREM", "triggers", name)
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))
 	} else {
@@ -215,7 +150,7 @@ func TriggerDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // TriggerHistoryShow /triggerhistory/#{name}
-func TriggerHistoryShow(w http.ResponseWriter, r *http.Request) {
+func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) {
 	tg := mux.Vars(r)["name"]
 	n, err := base64.URLEncoding.DecodeString(tg)
 	if err != nil {
@@ -223,14 +158,8 @@ func TriggerHistoryShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := string(n)
-	q := &RedisQuery{
-		Action:        "GET",
-		Options:       []interface{}{"trigger_history:" + name},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult := <-q.resultChannel
-	raw_trigger_history, err := redis.Bytes(queryresult.Value, queryresult.Err)
+	con := q.Pool.Get()
+	raw_trigger_history, err := redis.Bytes(con.Do("GET", "trigger_history:"+name))
 	var trigger_history []skyline.TimePoint
 	if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

@@ -10,7 +10,7 @@ import (
 )
 
 // ActionIndex GET /trigger/{:triggername}/action
-func ActionIndex(w http.ResponseWriter, r *http.Request) {
+func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	trigger := mux.Vars(r)["trigger"]
 	t, err := base64.URLEncoding.DecodeString(trigger)
@@ -19,24 +19,20 @@ func ActionIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg := string(t)
-	q := &RedisQuery{
-		Action:        "SMEMBERS",
-		Options:       []interface{}{tg + ":actions"},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult := <-q.resultChannel
-	if queryresult.Err != nil {
+	con := q.Pool.Get()
+	value, err := con.Do("SMEMBERS", tg+":actions")
+	con.Close()
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {
-		body, _ := json.Marshal(queryresult.Value)
+		body, _ := json.Marshal(value)
 		w.Write(body)
 	}
 }
 
 // ActionCreate POST /trigger/{:triggername}/action
-func ActionCreate(w http.ResponseWriter, r *http.Request) {
+func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var action NotifyAction
 	if err := json.NewDecoder(r.Body).Decode(&action); err != nil {
@@ -52,34 +48,19 @@ func ActionCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg := string(t)
-	q := &RedisQuery{
-		Action:        "HGET",
-		Options:       []interface{}{tg, "role"},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult := <-q.resultChannel
-	if _, err := redis.String(queryresult.Value, queryresult.Err); err != nil {
+	con := q.Pool.Get()
+	defer con.Close()
+	if _, err := redis.String(con.Do("HGET", tg, "role")); err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	name := base64.URLEncoding.EncodeToString([]byte(action.Uri))
-	q = &RedisQuery{
-		Action:        "HMSET",
-		Options:       []interface{}{tg + ":" + name, "repeat", action.Repeat, "uri", action.Uri},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	<-q.resultChannel
-
-	q = &RedisQuery{
-		Action:        "SADD",
-		Options:       []interface{}{tg + ":actions", tg + ":" + name},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult = <-q.resultChannel
-	if queryresult.Err != nil {
+	con.Send("HMSET", tg+":"+name, "repeat", action.Repeat, "uri", action.Uri)
+	con.Send("SADD", tg+":actions", tg+":"+name)
+	con.Flush()
+	con.Receive()
+	_, err = con.Receive()
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
@@ -96,7 +77,7 @@ func ActionCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 // ActionDelete DELETE /trigger/{:triggername}/action/{:name}
-func ActionDelete(w http.ResponseWriter, r *http.Request) {
+func (q *WebService) ActionDelete(w http.ResponseWriter, r *http.Request) {
 	trigger := mux.Vars(r)["trigger"]
 	t, err := base64.URLEncoding.DecodeString(trigger)
 	if err != nil {
@@ -105,21 +86,14 @@ func ActionDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	tg := string(t)
 	name := mux.Vars(r)["name"]
-	q := &RedisQuery{
-		Action:        "DEL",
-		Options:       []interface{}{tg + ":" + name},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	<-q.resultChannel
-	q = &RedisQuery{
-		Action:        "SREM",
-		Options:       []interface{}{tg + ":actions", tg + ":" + name},
-		resultChannel: make(chan *QueryResult),
-	}
-	queryservice.queryChannel <- q
-	queryresult := <-q.resultChannel
-	if queryresult.Err != nil {
+	con := q.Pool.Get()
+	defer con.Close()
+	con.Send("DEL", tg+":"+name)
+	con.Send("SREM", tg+":actions", tg+":"+name)
+	con.Flush()
+	con.Receive()
+	_, err = con.Receive()
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {

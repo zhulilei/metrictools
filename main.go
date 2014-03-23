@@ -13,8 +13,6 @@ var (
 	confFile = flag.String("c", "metrictools.json", "metrictools config file")
 )
 
-var queryservice *WebQueryPool
-
 var sessionservice *sessions.RedisStore
 
 type MetricTask interface {
@@ -79,17 +77,11 @@ func main() {
 			tasks = append(tasks, s)
 			log.Println("start statistic task")
 		case "webapi":
-			queryservice = &WebQueryPool{
-				Setting:      c,
-				exitChannel:  make(chan int),
-				queryChannel: make(chan *RedisQuery),
+			w := &WebService{
+				Setting: c,
 			}
-			go queryservice.Run()
-			tasks = append(tasks, queryservice)
-			log.Println("start webapi queryservice")
-			sessionservice = sessions.NewRedisStore("tcp", queryservice.RedisServer, "")
+			sessionservice = sessions.NewRedisStore("tcp", w.RedisServer, "")
 			go sessionservice.Run()
-			tasks = append(tasks, sessionservice)
 			log.Println("start webapi sessionservice")
 		default:
 			log.Println(v, " is not supported mode")
