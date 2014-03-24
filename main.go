@@ -80,6 +80,7 @@ func main() {
 			w := &WebService{
 				Setting: c,
 			}
+			go w.Run()
 			sessionservice = sessions.NewRedisStore("tcp", w.RedisServer, "")
 			go sessionservice.Run()
 			log.Println("start webapi sessionservice")
