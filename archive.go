@@ -81,7 +81,7 @@ func (m *DataArchive) archiveData() {
 			if stat > 0 {
 				last = current - stat
 			} else {
-				last = current - 300
+				last = current - 14400
 			}
 			if stat == -1 {
 				last = current - 60*24*3600
