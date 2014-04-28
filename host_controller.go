@@ -93,32 +93,15 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 		var rst []interface{}
 		sort.Strings(metricList)
 		for _, v := range metricList {
-			m, err := redis.Values(con.Do("HMGET", v, "dstype", "dsname", "interval", "host", "plugin", "plugin_instance", "type", "type_instance", "ttl"))
+			ttl, err := redis.Int(con.Do("HGET", v, "ttl"))
 			if err != nil {
 				log.Println("failed to hgetall", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			var item MetricData
-			_, err = redis.Scan(m, &item.DataSetType, &item.DataSetName, &item.Interval, &item.Host, &item.Plugin, &item.PluginInstance, &item.Type, &item.TypeInstance, &item.TTL)
-			if err != nil {
-				log.Println("failed to scanstruct", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
 			metric := make(map[string]interface{})
-			name := item.Host + "_" + item.GetMetricName()
-			metric["name"] = name
-			metric["host"] = item.Host
-			metric["plugin"] = item.Plugin
-			metric["plugin_instance"] = item.PluginInstance
-			metric["type"] = item.Type
-			metric["type_instance"] = item.TypeInstance
-			metric["interval"] = item.Interval
-			metric["dsname"] = item.DataSetName
-			metric["dstype"] = item.DataSetType
-			metric["ttl"] = item.TTL
-			metric["url"] = "/api/v1/metric/" + name
+			metric["ttl"] = ttl
+			metric["url"] = "/api/v1/metric/" + v
 			rst = append(rst, metric)
 		}
 		if body, err := json.Marshal(rst); err == nil {

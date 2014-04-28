@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 type WebService struct {
 	*Setting
 	*redis.Pool
+	writer *nsq.Writer
 }
 
 func (q *WebService) Run() {
@@ -20,9 +22,13 @@ func (q *WebService) Run() {
 		return c, err
 	}
 	q.Pool = redis.NewPool(dial, 3)
+	q.writer = nsq.NewWriter(q.NsqdAddress)
 	r := mux.NewRouter()
 	s := r.PathPrefix("/api/v1").Subrouter()
 
+	s.HandleFunc("/collect", q.Collectd).
+		Methods("POST").
+		Headers("Content-Type", "application/json")
 	// /metric
 	s.HandleFunc("/metric", q.MetricIndex).
 		Methods("GET")
@@ -71,4 +77,8 @@ func (q *WebService) Run() {
 
 	http.Handle("/", r)
 	http.ListenAndServe(q.ListenAddress, nil)
+}
+func (q *WebService) Stop() {
+	q.writer.Stop()
+	q.Pool.Close()
 }

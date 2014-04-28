@@ -5,23 +5,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/binary"
 	"log"
-	"regexp"
 )
-
-// MetricData will be stored in redis.
-type MetricData struct {
-	Value          float64 `json:"value", redis:"value"`
-	DataSetType    string  `json:"dstype", redis:"dstype"`
-	DataSetName    string  `json:"dsname", redis:"dsname"`
-	Timestamp      int64   `json:"timestamp", redis:"timestamp"`
-	Interval       float64 `json:"interval", redis:"interval"`
-	Host           string  `json:"host", redis:"host"`
-	Plugin         string  `json:"plugin", redis:"plugin"`
-	PluginInstance string  `json:"plugin_instance", redis:"plugin_instance"`
-	Type           string  `json:"type" redis:"type"`
-	TypeInstance   string  `json:"type_instance", redis:"type_instance"`
-	TTL            int     `json:"ttl", redis:"ttl"`
-}
 
 // Trigger define a statistic expression
 type Trigger struct {
@@ -36,32 +20,6 @@ type NotifyAction struct {
 	UpdateTime int64  `json:"update_time", redis:"update_time"`
 	Repeat     int    `json:"repeat", redis:"repeat"`
 	Count      int    `json:"count", redis:"count"`
-}
-
-// GetMetricName return metricdata name
-func (m *MetricData) GetMetricName() string {
-	metricName := m.Plugin
-	if len(m.PluginInstance) > 0 {
-		if matched, _ := regexp.MatchString(`^\d+$`, m.PluginInstance); matched {
-			metricName += m.PluginInstance
-		} else {
-			metricName += "_" + m.PluginInstance
-		}
-	}
-	if len(m.Type) > 0 && m.Type != m.Plugin {
-		metricName += "." + m.Type
-	}
-	if len(m.TypeInstance) > 0 {
-		if matched, _ := regexp.MatchString(`^\d+$`, m.TypeInstance); matched {
-			metricName += m.TypeInstance
-		} else {
-			metricName += "_" + m.TypeInstance
-		}
-	}
-	if m.DataSetName != "value" {
-		metricName += "." + m.DataSetName
-	}
-	return metricName
 }
 
 // GenerateTimeseries return metricdata's timestamp and value

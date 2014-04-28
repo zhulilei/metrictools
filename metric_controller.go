@@ -109,7 +109,7 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 // MetricUpdate PATCH /metric/{:name}
 func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
-	var item MetricData
+	item := make(map[string]int)
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -122,7 +122,7 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	con := q.Pool.Get()
 	_, err := con.Do("GET", metric)
 	if err != nil {
-		con.Do("HSET", metric, "ttl", item.TTL)
+		con.Do("HSET", metric, "ttl", item["ttl"])
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}

@@ -83,6 +83,7 @@ func main() {
 			go w.Run()
 			sessionservice = sessions.NewRedisStore("tcp", w.RedisServer, "")
 			go sessionservice.Run()
+			tasks = append(tasks, w)
 			log.Println("start webapi sessionservice")
 		default:
 			log.Println(v, " is not supported mode")

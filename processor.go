@@ -1,10 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -57,32 +58,18 @@ func (m *MetricDeliver) Stop() {
 
 // HandleMessage is MetricDeliver's nsq handle function
 func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
-	var err error
-	var c []CollectdJSON
-	if err = json.Unmarshal(msg.Body, &c); err != nil {
-		log.Println(err)
-		return nil
+	message := &Message{
+		Body:         msg.Body,
+		ErrorChannel: make(chan error),
 	}
-	for _, v := range c {
-		if len(v.Values) != len(v.DataSetNames) || len(v.Values) != len(v.DataSetTypes) {
-			log.Println("json data error:", string(msg.Body))
-			continue
-		}
-		metrics := v.GenerateMetricData()
-		message := &Message{
-			Body:         metrics,
-			ErrorChannel: make(chan error),
-		}
-		m.msgChannel <- message
-		if err := <-message.ErrorChannel; err != nil {
-			return err
-		}
+	m.msgChannel <- message
+	if err := <-message.ErrorChannel; err != nil {
+		return err
 	}
 	return nil
 }
 
 func (m *MetricDeliver) writeLoop() {
-	var err error
 	con := m.Get()
 	defer con.Close()
 	for {
@@ -90,81 +77,38 @@ func (m *MetricDeliver) writeLoop() {
 		case <-m.exitChannel:
 			return
 		case msg := <-m.msgChannel:
-			metrics, ok := msg.Body.([]*MetricData)
+			metric, ok := msg.Body.([]byte)
 			if !ok {
 				log.Println("wrong message:", msg.Body)
 				msg.ErrorChannel <- nil
 				continue
 			}
-			for _, metric := range metrics {
-				var nvalue float64
-				metricName := metric.Host + "_" + metric.GetMetricName()
-				nvalue, err = getMetricRate(metric, con)
-				if err != nil {
-					if err == redis.ErrNil {
-						con.Send("HMSET", metricName, "value", metric.Value, "timestamp", metric.Timestamp, "dstype", metric.DataSetType, "dsname", metric.DataSetName, "interval", metric.Interval, "host", metric.Host, "plugin", metric.Plugin, "plugin_instance", metric.PluginInstance, "type", metric.Type, "type_instance", metric.TypeInstance, "ttl", metric.TTL)
-						con.Send("SADD", "host:"+metric.Host, metricName)
-						con.Flush()
-						con.Receive()
-						_, err = con.Receive()
-					}
-					if err != nil {
-						break
-					}
-				}
-				record, err := KeyValueEncode(metric.Timestamp, nvalue)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				_, err = con.Do("ZADD", "archive:"+metricName, metric.Timestamp, record)
-
-				if err != nil {
-					log.Println("zadd error:", err)
-					break
-				}
-				var t int64
-				t, err = redis.Int64(con.Do("HGET", metricName, "archivetime"))
-				if err != nil && err != redis.ErrNil {
-					log.Println("fail to get archivetime:", err)
-					break
-				}
-				if time.Now().Unix()-t >= 600 {
-					m.writer.Publish(m.ArchiveTopic, []byte(metricName))
-				}
+			data := strings.Split(string(metric), " ")
+			t, _ := strconv.ParseInt(data[2], 10, 64)
+			v, _ := strconv.ParseFloat(data[1], 64)
+			record, err := KeyValueEncode(t, v)
+			if err != nil {
+				log.Println(err)
+				continue
 			}
-			if err != redis.ErrNil {
+			con.Send("ZADD", "archive:"+data[0], t, record)
+			con.Send("HGET", data[0], "archivetime")
+			con.Flush()
+			con.Receive()
+			_, err = con.Receive()
+			if err != nil && err != redis.ErrNil {
 				con.Close()
 				con = m.Get()
 			}
+			if err == redis.ErrNil {
+				err = nil
+			}
 			msg.ErrorChannel <- err
+			if time.Now().Unix()-t >= 600 {
+				m.writer.Publish(m.ArchiveTopic, []byte(data[0]))
+			}
 		}
 	}
-}
-
-func getMetricRate(metric *MetricData, con redis.Conn) (float64, error) {
-	var value float64
-	name := metric.Host + "_" + metric.GetMetricName()
-	rst, err := redis.Values(con.Do("HMGET", name, "value", "timestamp"))
-	if err != nil {
-		return 0, err
-	}
-	var t int64
-	var v float64
-	_, err = redis.Scan(rst, &v, &t)
-	if err != nil {
-		return 0, redis.ErrNil
-	}
-	if metric.DataSetType == "counter" || metric.DataSetType == "derive" {
-		value = (metric.Value - v) / float64(metric.Timestamp-t)
-		if value < 0 {
-			value = 0
-		}
-	} else {
-		value = metric.Value
-	}
-	_, err = con.Do("HSET", name, "rate_value", value)
-	return value, err
 }
 
 // ScanTrigger will find out all trigger which not updated in 60s
