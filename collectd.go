@@ -1,13 +1,11 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"net/http"
 	"regexp"
-	"strings"
 )
 
 // CollectdJSON is collectd's json data format
@@ -76,23 +74,12 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
-	auth := r.Header.Get("Authorization")
-	idents := strings.Split(auth, " ")
-	if len(idents) < 2 || idents[0] != "Basic" {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
-		w.WriteHeader(http.StatusUnauthorized)
+	con := q.Get()
+	defer con.Close()
+	user := checkbasicauth(w, r, con)
+	if len(user) == 0 {
 		return
 	}
-	userId, _ := base64.StdEncoding.DecodeString(idents[1])
-	idents = strings.Split(string(userId), ":")
-	if len(idents) != 2 {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	user := idents[0]
-	// passwd := idents[1]
-	// Todo check against user/passwd
 	var dataset []CollectdJSON
 	defer r.Body.Close()
 	err := json.NewDecoder(r.Body).Decode(&dataset)
@@ -100,8 +87,6 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	con := q.Get()
-	defer con.Close()
 	for _, c := range dataset {
 		for i := range c.Values {
 			key := user + "_" + c.GetMetricName(i)
