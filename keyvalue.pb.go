@@ -14,9 +14,9 @@ var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type KeyValue struct {
-	Timestamp        *int64 `protobuf:"varint,1,opt,name=timestamp" json:"timestamp,omitempty"`
-	Value            []byte `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
-	XXX_unrecognized []byte `json:"-"`
+	Timestamp        *int64   `protobuf:"varint,1,opt,name=timestamp" json:"timestamp,omitempty"`
+	Value            *float64 `protobuf:"fixed64,2,opt,name=value" json:"value,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
 }
 
 func (m *KeyValue) Reset()         { *m = KeyValue{} }
@@ -30,11 +30,11 @@ func (m *KeyValue) GetTimestamp() int64 {
 	return 0
 }
 
-func (m *KeyValue) GetValue() []byte {
-	if m != nil {
-		return m.Value
+func (m *KeyValue) GetValue() float64 {
+	if m != nil && m.Value != nil {
+		return *m.Value
 	}
-	return nil
+	return 0
 }
 
 func init() {

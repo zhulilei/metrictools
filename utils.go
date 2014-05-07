@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"code.google.com/p/goprotobuf/proto"
-	"encoding/binary"
 	"log"
 )
 
@@ -42,28 +40,16 @@ type Message struct {
 }
 
 func KeyValueEncode(key int64, value float64) ([]byte, error) {
-	var err error
-	var record []byte
-	buf := new(bytes.Buffer)
-	err = binary.Write(buf, binary.LittleEndian, value)
-	if err == nil {
-		kv := &KeyValue{
-			Timestamp: proto.Int64(key),
-			Value:     buf.Bytes(),
-		}
-		record, err = proto.Marshal(kv)
+	kv := &KeyValue{
+		Timestamp: proto.Int64(key),
+		Value:     proto.Float64(value),
 	}
+	record, err := proto.Marshal(kv)
 	return record, err
 }
 
 func KeyValueDecode(record []byte) (int64, float64, error) {
 	var kv KeyValue
-	var err error
-	var value float64
-	err = proto.Unmarshal(record, &kv)
-	if err == nil {
-		buf := bytes.NewReader(kv.GetValue())
-		err = binary.Read(buf, binary.LittleEndian, &value)
-	}
-	return kv.GetTimestamp(), value, err
+	err := proto.Unmarshal(record, &kv)
+	return kv.GetTimestamp(), kv.GetValue(), err
 }

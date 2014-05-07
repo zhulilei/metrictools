@@ -95,7 +95,7 @@ func (m *MetricDeliver) writeLoop() {
 			con.Send("HGET", data[0], "archivetime")
 			con.Flush()
 			con.Receive()
-			_, err = con.Receive()
+			t, err = redis.Int64(con.Receive())
 			if err != nil && err != redis.ErrNil {
 				con.Close()
 				con = m.Get()
@@ -104,7 +104,7 @@ func (m *MetricDeliver) writeLoop() {
 				err = nil
 			}
 			msg.ErrorChannel <- err
-			if time.Now().Unix()-t >= 600 {
+			if time.Now().Unix()-t >= 600 && err == nil {
 				m.writer.Publish(m.ArchiveTopic, []byte(data[0]))
 			}
 		}
