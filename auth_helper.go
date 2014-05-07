@@ -25,7 +25,7 @@ func checkbasicauth(w http.ResponseWriter, r *http.Request, con redis.Conn) stri
 	}
 	user = idents[0]
 	password := idents[1]
-	i, err := redis.Int(con.Do("HMGET", "user:"+user, password))
+	i, err := redis.Int(con.Do("HGET", "user:"+user, password))
 	if err != nil || i != 1 {
 		user = ""
 	}
