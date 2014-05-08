@@ -27,12 +27,17 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 	sort.Strings(metricList)
 	var recordList []interface{}
 	con := q.Pool.Get()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	for i, v := range metricList {
 		record := make(map[string]interface{})
 		if i != 0 && metricList[i-1] == v {
 			continue
 		}
-		metricData, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+v, start, end))
+		metricData, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+user+"_"+v, start, end))
 		if err != nil {
 			log.Println(err)
 			continue
@@ -66,7 +71,13 @@ func (q *WebService) MetricCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 	con := q.Pool.Get()
 	defer con.Close()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	for metric, value := range items {
+		metric = user + "_" + metric
 		_, err := con.Do("GET", metric)
 		if err != nil {
 			con.Do("HSET", metric, "ttl", value)
@@ -89,7 +100,12 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	recordList := make(map[string]interface{})
 	con := q.Pool.Get()
-	metricData, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+metric, start, end))
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	metricData, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+user+"_"+metric, start, end))
 	con.Close()
 	if err != nil {
 		log.Println(err)
@@ -120,6 +136,12 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	con := q.Pool.Get()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	metric = user + "_" + metric
 	_, err := con.Do("GET", metric)
 	if err != nil {
 		con.Do("HSET", metric, "ttl", item["ttl"])
@@ -135,6 +157,12 @@ func (q *WebService) MetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	metric := mux.Vars(r)["name"]
 	con := q.Pool.Get()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	metric = user + "_" + metric
 	con.Send("DEL", "archive:"+metric)
 	con.Send("DEL", metric)
 	con.Flush()

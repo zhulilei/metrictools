@@ -20,8 +20,18 @@ func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	tg := string(t)
 	con := q.Pool.Get()
+	defer con.Close()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	owner, err := redis.String(con.Do("HGET", tg, "owner"))
+	if user != owner {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 	value, err := con.Do("SMEMBERS", tg+":actions")
-	con.Close()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -50,6 +60,16 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 	tg := string(t)
 	con := q.Pool.Get()
 	defer con.Close()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	owner, err := redis.String(con.Do("HGET", tg, "owner"))
+	if user != owner {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 	if _, err := redis.String(con.Do("HGET", tg, "role")); err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -88,6 +108,16 @@ func (q *WebService) ActionDelete(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	con := q.Pool.Get()
 	defer con.Close()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	owner, err := redis.String(con.Do("HGET", tg, "owner"))
+	if user != owner {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 	con.Send("DEL", tg+":"+name)
 	con.Send("SREM", tg+":actions", tg+":"+name)
 	con.Flush()

@@ -76,8 +76,10 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
 	con := q.Get()
 	defer con.Close()
-	user := checkbasicauth(w, r, con)
+	user := checkbasicauth(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 	var dataset []CollectdJSON
@@ -98,7 +100,7 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			con.Send("HMSET", key, "rate_value", nValue, "value", c.Values[i], "timestamp", t)
-			con.Send("SADD", "host:"+c.Host, key)
+			con.Send("SADD", "host:"+user+"_"+c.Host, key)
 			con.Flush()
 			con.Receive()
 			_, err = con.Receive()

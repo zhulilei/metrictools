@@ -2,25 +2,22 @@ package main
 
 import (
 	"encoding/base64"
+	"github.com/datastream/aws"
 	"github.com/garyburd/redigo/redis"
 	"net/http"
 	"strings"
 )
 
-func checkbasicauth(w http.ResponseWriter, r *http.Request, con redis.Conn) string {
+func checkbasicauth(r *http.Request, con redis.Conn) string {
 	var user string
-	auth := r.Header.Get("Authorization")
+	auth := r.Header.Get("authorization")
 	idents := strings.Split(auth, " ")
 	if len(idents) < 2 || idents[0] != "Basic" {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
-		w.WriteHeader(http.StatusUnauthorized)
 		return user
 	}
 	userId, _ := base64.StdEncoding.DecodeString(idents[1])
 	idents = strings.Split(string(userId), ":")
 	if len(idents) != 2 {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
-		w.WriteHeader(http.StatusUnauthorized)
 		return user
 	}
 	user = idents[0]
@@ -29,5 +26,25 @@ func checkbasicauth(w http.ResponseWriter, r *http.Request, con redis.Conn) stri
 	if err != nil || i != 1 {
 		user = ""
 	}
+	return user
+}
+
+func checkSign(r *http.Request, con redis.Conn) string {
+	var user string
+	s, auth, err := sign4.GetSignature(r)
+	if err != nil {
+		return user
+	}
+	userinfo, _ := redis.Strings(con.Do("HMGET", "access_key:"+s.AccessKey, "user", "secretkey"))
+	if len(userinfo) != 2 {
+		return user
+	}
+	s.SecretKey = userinfo[1]
+	s.SignRequest(r)
+	authheader := r.Header.Get("authorization")
+	if auth != authheader {
+		return user
+	}
+	user = userinfo[0]
 	return user
 }

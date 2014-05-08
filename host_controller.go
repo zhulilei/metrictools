@@ -17,7 +17,12 @@ func (q *WebService) HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	con := q.Pool.Get()
 	defer con.Close()
-	hosts, _ := redis.Strings(con.Do("SMEMBERS", "hosts"))
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	hosts, _ := redis.Strings(con.Do("SMEMBERS", "hosts:"+user))
 	var rst []interface{}
 	for _, host := range hosts {
 		query := make(map[string]interface{})
@@ -37,7 +42,12 @@ func (q *WebService) HostShow(w http.ResponseWriter, r *http.Request) {
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	con := q.Pool.Get()
 	defer con.Close()
-	_, err := redis.Strings(con.Do("SMEMBERS", "host:"+host))
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	_, err := redis.Strings(con.Do("SMEMBERS", "host:"+user+"_"+host))
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
 		query := make(map[string]interface{})
@@ -58,7 +68,12 @@ func (q *WebService) HostDelete(w http.ResponseWriter, r *http.Request) {
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	con := q.Pool.Get()
 	defer con.Close()
-	metricList, err := redis.Strings(con.Do("SMEMBERS", "host:"+host))
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	metricList, err := redis.Strings(con.Do("SMEMBERS", "host:"+user+"_"+host))
 	if err == nil {
 		for _, v := range metricList {
 			con.Send("DEL", v)
@@ -88,19 +103,26 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	con := q.Pool.Get()
 	defer con.Close()
-	metricList, err := redis.Strings(con.Do("SMEMBERS", "host:"+host))
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	metricList, err := redis.Strings(con.Do("SMEMBERS", "host:"+user+"_"+host))
+	size := len(user)
 	if err == nil {
 		var rst []interface{}
 		sort.Strings(metricList)
 		for _, v := range metricList {
 			ttl, err := redis.Int(con.Do("HGET", v, "ttl"))
-			if err != nil {
+			if err != nil && err != redis.ErrNil {
 				log.Println("failed to hgetall", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			metric := make(map[string]interface{})
 			metric["ttl"] = ttl
+			v = v[size+1:]
 			metric["url"] = "/api/v1/metric/" + v
 			rst = append(rst, metric)
 		}
@@ -122,9 +144,14 @@ func (q *WebService) HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
 	con := q.Pool.Get()
 	defer con.Close()
-	con.Send("SREM", "host:"+host, metric)
-	con.Send("DEL", "archive:"+metric)
-	con.Send("DEL", metric)
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	con.Send("SREM", "host:"+user+"_"+host, metric)
+	con.Send("DEL", "archive:"+user+"_"+metric)
+	con.Send("DEL", user+"_"+metric)
 	con.Flush()
 	con.Receive()
 	con.Receive()

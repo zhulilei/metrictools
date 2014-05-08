@@ -31,11 +31,18 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 	name := string(n)
 	con := q.Pool.Get()
 	defer con.Close()
-	_, err = redis.String(con.Do("HGET", name, "is_e"))
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	owner, err := redis.String(con.Do("HGET", name, "owner"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
-	} else {
+		return
+	}
+	if user == owner {
 		var recordList []interface{}
 		metricData, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+name, start, end))
 		if err != nil {
@@ -45,7 +52,7 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 		}
 		record := make(map[string]interface{})
 		tgname := base64.URLEncoding.EncodeToString([]byte(name))
-		record["name"] = tgname
+		record["name"] = name
 		record["values"] = GenerateTimeseries(metricData)
 		recordList = append(recordList, record)
 		rst := make(map[string]interface{})
@@ -69,17 +76,23 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg.Name = strings.Trim(tg.Name, " ")
+	tgname := base64.URLEncoding.EncodeToString([]byte(tg.Name))
 	tg.IsExpression, _ = regexp.MatchString(`(\+|-|\*|/)`, tg.Name)
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	con := q.Pool.Get()
 	defer con.Close()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	_, err := redis.String(con.Do("HGET", tg.Name, "role"))
 	if err == nil {
 		w.WriteHeader(http.StatusNotAcceptable)
 		w.Write([]byte(tg.Name + " exists"))
 		return
 	}
-	con.Send("HMSET", tg.Name, "is_e", tg.IsExpression, "role", tg.Role)
+	con.Send("HMSET", tg.Name, "is_e", tg.IsExpression, "role", tg.Role, "owner", user)
 	con.Send("SADD", "triggers", tg.Name)
 	con.Flush()
 	con.Receive()
@@ -89,7 +102,7 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Failed insert"))
 	} else {
 		t := make(map[string]string)
-		t["name"] = base64.URLEncoding.EncodeToString([]byte(tg.Name))
+		t["name"] = tgname
 		t["url"] = "/api/v1/trigger/" + t["name"]
 		if body, err := json.Marshal(t); err == nil {
 			w.Write(body)
@@ -110,9 +123,19 @@ func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 	name := string(n)
 	con := q.Pool.Get()
 	defer con.Close()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	owner, _ := redis.String(con.Do("HGET", name, "owner"))
 	isExpression, err := redis.Bool(con.Do("HGET", name, "is_e"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if owner != user {
+		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 	if isExpression {
@@ -159,6 +182,16 @@ func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) 
 	}
 	name := string(n)
 	con := q.Pool.Get()
+	user := checkSign(r, con)
+	if len(user) == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	owner, _ := redis.String(con.Do("HGET", name, "owner"))
+	if owner != user {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 	raw_trigger_history, err := redis.Bytes(con.Do("GET", "trigger_history:"+name))
 	var trigger_history []skyline.TimePoint
 	if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
