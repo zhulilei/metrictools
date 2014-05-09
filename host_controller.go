@@ -131,6 +131,7 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 			metric["type"] = tp
 			metric["ttl"] = ttl
 			v = v[size+1:]
+			metric["name"] = v
 			metric["url"] = "/api/v1/metric/" + v
 			rst = append(rst, metric)
 		}

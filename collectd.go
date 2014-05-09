@@ -31,8 +31,14 @@ func (c *CollectdJSON) GetMetricName(index int) string {
 			metricName += "_" + c.PluginInstance
 		}
 	}
-	if len(c.Type) > 0 && c.Type != c.Plugin {
-		metricName += "." + c.Type
+	tSize := len(c.Type)
+	pSize := len(c.Plugin)
+	if tSize > 0 {
+		if pSize <= tSize && c.Type[:pSize] == c.Plugin {
+			metricName += c.Type[pSize:]
+		} else {
+			metricName += "." + c.Type
+		}
 	}
 	if len(c.TypeInstance) > 0 {
 		if matched, _ := regexp.MatchString(`^\d+$`, c.TypeInstance); matched {
