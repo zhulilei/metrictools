@@ -21,8 +21,9 @@ func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 	tg := string(t)
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -60,8 +61,9 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 	tg := string(t)
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -108,8 +110,9 @@ func (q *WebService) ActionDelete(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}

@@ -17,8 +17,9 @@ func (q *WebService) HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -42,7 +43,7 @@ func (q *WebService) HostShow(w http.ResponseWriter, r *http.Request) {
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -68,8 +69,9 @@ func (q *WebService) HostDelete(w http.ResponseWriter, r *http.Request) {
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -103,8 +105,9 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -144,8 +147,9 @@ func (q *WebService) HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}

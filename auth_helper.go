@@ -8,10 +8,10 @@ import (
 	"strings"
 )
 
-func checkbasicauth(r *http.Request, con redis.Conn) string {
+func basicAuth(r *http.Request, con redis.Conn) string {
 	var user string
-	auth := r.Header.Get("authorization")
-	idents := strings.Split(auth, " ")
+	authorizationHeader := r.Header.Get("authorization")
+	idents := strings.Split(authorizationHeader, " ")
 	if len(idents) < 2 || idents[0] != "Basic" {
 		return user
 	}
@@ -29,7 +29,7 @@ func checkbasicauth(r *http.Request, con redis.Conn) string {
 	return user
 }
 
-func checkSign(r *http.Request, con redis.Conn) string {
+func awsSignv4(r *http.Request, con redis.Conn) string {
 	var user string
 	s, auth, err := sign4.GetSignature(r)
 	if err != nil {
@@ -47,4 +47,16 @@ func checkSign(r *http.Request, con redis.Conn) string {
 	}
 	user = userinfo[0]
 	return user
+}
+
+func loginFilter(r *http.Request, con redis.Conn) string {
+	authorizationHeader := r.Header.Get("authorization")
+	idents := strings.Split(authorizationHeader, " ")
+	if idents[0] == "Basic" {
+		return basicAuth(r, con)
+	}
+	if idents[0] == "AWS4-HMAC-SHA256" {
+		return awsSignv4(r, con)
+	}
+	return ""
 }

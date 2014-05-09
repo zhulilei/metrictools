@@ -27,8 +27,9 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 	sort.Strings(metricList)
 	var recordList []interface{}
 	con := q.Pool.Get()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -71,8 +72,9 @@ func (q *WebService) MetricCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -100,8 +102,9 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	recordList := make(map[string]interface{})
 	con := q.Pool.Get()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -136,8 +139,9 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	con := q.Pool.Get()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -157,8 +161,9 @@ func (q *WebService) MetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	metric := mux.Vars(r)["name"]
 	con := q.Pool.Get()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}

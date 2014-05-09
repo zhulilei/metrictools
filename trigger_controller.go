@@ -31,8 +31,9 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 	name := string(n)
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -81,8 +82,9 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -123,8 +125,9 @@ func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 	name := string(n)
 	con := q.Pool.Get()
 	defer con.Close()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -182,8 +185,9 @@ func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) 
 	}
 	name := string(n)
 	con := q.Pool.Get()
-	user := checkSign(r, con)
+	user := loginFilter(r, con)
 	if len(user) == 0 {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}

@@ -76,7 +76,7 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
 	con := q.Get()
 	defer con.Close()
-	user := checkbasicauth(r, con)
+	user := basicAuth(r, con)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
