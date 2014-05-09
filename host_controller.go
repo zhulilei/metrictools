@@ -119,11 +119,16 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 		for _, v := range metricList {
 			ttl, err := redis.Int(con.Do("HGET", v, "ttl"))
 			if err != nil && err != redis.ErrNil {
-				log.Println("failed to hgetall", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			tp, err := redis.Int(con.Do("HGET", v, "type"))
+			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			metric := make(map[string]interface{})
+			metric["type"] = tp
 			metric["ttl"] = ttl
 			v = v[size+1:]
 			metric["url"] = "/api/v1/metric/" + v

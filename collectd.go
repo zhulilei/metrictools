@@ -99,7 +99,7 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			con.Send("HMSET", key, "rate_value", nValue, "value", c.Values[i], "timestamp", t)
+			con.Send("HMSET", key, "rate_value", nValue, "value", c.Values[i], "timestamp", t, "type", c.Type)
 			con.Send("SADD", "host:"+user+"_"+c.Host, key)
 			con.Flush()
 			con.Receive()
