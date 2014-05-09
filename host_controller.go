@@ -122,7 +122,7 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			tp, err := redis.Int(con.Do("HGET", v, "type"))
+			tp, err := redis.String(con.Do("HGET", v, "type"))
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
