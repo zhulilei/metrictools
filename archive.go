@@ -144,9 +144,9 @@ func compress(metric string, compresstype string, con redis.Conn) error {
 	sumvalue := float64(0)
 	sumtime := int64(0)
 	for _, val := range valueList {
-		t, v, _ := KeyValueDecode([]byte(val))
-		sumvalue += v
-		sumtime += t
+		kv, _ := KeyValueDecode([]byte(val))
+		sumvalue += kv.GetValue()
+		sumtime += kv.GetTimestamp()
 	}
 	size := len(valueList)
 	if size > 0 && size != 1 {

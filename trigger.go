@@ -134,13 +134,13 @@ func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
 func ParseTimeSeries(values []string) []skyline.TimePoint {
 	var rst []skyline.TimePoint
 	for _, val := range values {
-		t, v, err := KeyValueDecode([]byte(val))
+		kv, err := KeyValueDecode([]byte(val))
 		if err != nil {
 			continue
 		}
 		timepoint := skyline.TimePoint{
-			Timestamp: t,
-			Value:     v,
+			Timestamp: kv.GetTimestamp(),
+			Value:     kv.GetValue(),
 		}
 		rst = append(rst, timepoint)
 	}

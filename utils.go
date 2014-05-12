@@ -24,12 +24,12 @@ type NotifyAction struct {
 func GenerateTimeseries(metricData []string) [][]interface{} {
 	var timeserires [][]interface{}
 	for _, val := range metricData {
-		timestamp, value, err := KeyValueDecode([]byte(val))
+		kv, err := KeyValueDecode([]byte(val))
 		if err != nil {
 			log.Println("invalid data", val)
 			continue
 		}
-		timeserires = append(timeserires, []interface{}{timestamp, value})
+		timeserires = append(timeserires, []interface{}{kv.GetTimestamp(), kv.GetValue()})
 	}
 	return timeserires
 }
@@ -48,8 +48,8 @@ func KeyValueEncode(key int64, value float64) ([]byte, error) {
 	return record, err
 }
 
-func KeyValueDecode(record []byte) (int64, float64, error) {
+func KeyValueDecode(record []byte) (KeyValue, error) {
 	var kv KeyValue
 	err := proto.Unmarshal(record, &kv)
-	return kv.GetTimestamp(), kv.GetValue(), err
+	return kv, err
 }
