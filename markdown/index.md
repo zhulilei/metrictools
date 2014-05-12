@@ -13,7 +13,7 @@ it also check metrics' archive time, and send metrics' name to `archive`.
 
 *Date Flow*
 
-    collectd -> nsq -> process -> redis
+    collectd -> webapi -> nsq -> process -> redis
 
 ### archive
 
@@ -118,32 +118,16 @@ on mac ox x
     4) "1392798179"
     5) "rate_value"
     6) "0"
-    7) "dstype"
-    8) "derive"
-    9) "dsname"
-    10) "rx"
-    11) "interval"
-    12) "60"
-    13) "host"
-    14) "192.168.21.2"
-    15) "plugin"
-    16) "interface"
-    17) "plugin_instance"
-    18) "eth2"
-    19) "type"
-    20) "if_errors"
-    21) "type_instance"
-    22) ""
-    23) "ttl"
-    24) "10800"
-    25) "archivetime"
-    26) "1392797701"
-    27) "5mins"
-    28) "1390006167"
-    29) "10mins"
-    30) "1391983767"
-    31) "15mins"
-    32) "1392192867"
+    7) "ttl"
+    8) "10800"
+    9) "archivetime"
+    10) "1392797701"
+    11) "5mins"
+    12) "1390006167"
+    13) "10mins"
+    14) "1391983767"
+    15) "15mins"
+    16) "1392192867"
 
 `SMEMBERS triggers`
 
@@ -209,5 +193,5 @@ metrictools support [twemproxy](https://github.com/twitter/twemproxy) now.
 
 ## Todo
 
-1. add webapi auth
 1. improve anomalous metric detect algorithms
+1. improve data record, reduce redis data size

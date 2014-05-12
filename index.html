@@ -41,7 +41,7 @@ it also check metrics&rsquo; archive time, and send metrics&rsquo; name to <code
 
 <p><em>Date Flow</em></p>
 
-<pre><code>collectd -&gt; nsq -&gt; process -&gt; redis
+<pre><code>collectd -&gt; webapi -&gt; nsq -&gt; process -&gt; redis
 </code></pre>
 
 <h3>archive</h3>
@@ -159,32 +159,16 @@ service redis-server start
 4) &quot;1392798179&quot;
 5) &quot;rate_value&quot;
 6) &quot;0&quot;
-7) &quot;dstype&quot;
-8) &quot;derive&quot;
-9) &quot;dsname&quot;
-10) &quot;rx&quot;
-11) &quot;interval&quot;
-12) &quot;60&quot;
-13) &quot;host&quot;
-14) &quot;192.168.21.2&quot;
-15) &quot;plugin&quot;
-16) &quot;interface&quot;
-17) &quot;plugin_instance&quot;
-18) &quot;eth2&quot;
-19) &quot;type&quot;
-20) &quot;if_errors&quot;
-21) &quot;type_instance&quot;
-22) &quot;&quot;
-23) &quot;ttl&quot;
-24) &quot;10800&quot;
-25) &quot;archivetime&quot;
-26) &quot;1392797701&quot;
-27) &quot;5mins&quot;
-28) &quot;1390006167&quot;
-29) &quot;10mins&quot;
-30) &quot;1391983767&quot;
-31) &quot;15mins&quot;
-32) &quot;1392192867&quot;
+7) &quot;ttl&quot;
+8) &quot;10800&quot;
+9) &quot;archivetime&quot;
+10) &quot;1392797701&quot;
+11) &quot;5mins&quot;
+12) &quot;1390006167&quot;
+13) &quot;10mins&quot;
+14) &quot;1391983767&quot;
+15) &quot;15mins&quot;
+16) &quot;1392192867&quot;
 </code></pre>
 
 <p><code>SMEMBERS triggers</code></p>
@@ -259,8 +243,8 @@ vim metrictools.json
 <h2>Todo</h2>
 
 <ol>
-<li>add webapi auth</li>
 <li>improve anomalous metric detect algorithms</li>
+<li>improve data record, reduce redis data size</li>
 </ol>
       </section>
     </div>
