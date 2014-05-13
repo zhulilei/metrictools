@@ -112,6 +112,9 @@ func compress(metric string, values []byte, atime int64, ttl int64, interval int
 	var count int
 	var data []byte
 	for i := 0; i < size; i += 18 {
+		if (i + 18) > size {
+			break
+		}
 		kv, _ := KeyValueDecode([]byte(values[i : i+18]))
 		offsize := kv.GetTimestamp() - p.GetTimestamp()
 		if offsize > interval {
@@ -122,16 +125,14 @@ func compress(metric string, values []byte, atime int64, ttl int64, interval int
 					return err
 				}
 				count = 0
+				sumvalue = 0
+				sumtime = 0
 				data = append(data, body...)
 			}
-		} else {
-			sumvalue += kv.GetValue()
-			sumtime += kv.GetTimestamp()
-			count++
 		}
-		if i+18 >= size {
-			break
-		}
+		sumvalue += kv.GetValue()
+		sumtime += kv.GetTimestamp()
+		count++
 	}
 	con.Send("SET", metric, data)
 	con.Send("EXPIRE", metric, ttl)
