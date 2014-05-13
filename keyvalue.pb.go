@@ -14,7 +14,7 @@ var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type KeyValue struct {
-	Timestamp        *int64   `protobuf:"varint,1,opt,name=timestamp" json:"timestamp,omitempty"`
+	Timestamp        *int64   `protobuf:"fixed64,1,opt,name=timestamp" json:"timestamp,omitempty"`
 	Value            *float64 `protobuf:"fixed64,2,opt,name=value" json:"value,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }

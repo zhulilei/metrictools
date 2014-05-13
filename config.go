@@ -22,6 +22,7 @@ type Setting struct {
 	NotifyEmailAddress string   `jpath:"notify_email_address"`
 	RedisServer        string   `jpath:"redis_server"`
 	FullDuration       int64    `jpath:"full_duration"`
+	MinDuration        int64    `jpath:"min_duration"`
 	Consensus          int      `jpath:"consensus"`
 	MaxInFlight        int      `jpath:"maxinflight"`
 	ListenAddress      string   `jpath:"listen_address"`

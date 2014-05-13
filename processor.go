@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
@@ -91,8 +92,9 @@ func (m *MetricDeliver) writeLoop() {
 				log.Println(err)
 				continue
 			}
-			con.Send("ZADD", "archive:"+data[0], t, record)
-			con.Send("HGET", data[0], "archivetime")
+			con.Send("APPEND", fmt.Sprintf("archive:%s:%d", data[0], t/14400), record)
+			//con.Send("ZADD", "archive:"+data[0], t, record)
+			con.Send("HGET", data[0], "atime")
 			con.Flush()
 			con.Receive()
 			t, err = redis.Int64(con.Receive())
@@ -104,7 +106,7 @@ func (m *MetricDeliver) writeLoop() {
 				err = nil
 			}
 			msg.ErrorChannel <- err
-			if time.Now().Unix()-t >= 600 && err == nil {
+			if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
 				m.writer.Publish(m.ArchiveTopic, []byte(data[0]))
 			}
 		}

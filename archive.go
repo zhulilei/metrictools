@@ -1,10 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
-	"time"
 )
 
 // DataArchive define data archive task
@@ -75,95 +75,68 @@ func (m *DataArchive) archiveData() {
 				msg.ErrorChannel <- nil
 				continue
 			}
-			stat, _ := redis.Int64(con.Do("HGET", metricName, "ttl"))
-			var last int64
-			current := time.Now().Unix()
-			if stat > 0 {
-				last = current - stat
-			} else {
-				last = current - 14400
-			}
-			if stat == -1 {
-				last = current - 60*24*3600
-			}
-			metric := "archive:" + metricName
-			_, err := con.Do("ZREMRANGEBYSCORE", metric, 0, last)
-			if err != nil {
-				log.Println("failed to remove old data:", metric, err)
+			ttl, _ := redis.Int64(con.Do("HGET", metricName, "ttl"))
+			atime, _ := redis.Int64(con.Do("HGET", metricName, "atime"))
+			m1 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24)/m.MinDuration)
+			m2 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24*3)/m.MinDuration)
+			m3 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24*7)/m.MinDuration)
+			values, err := redis.Strings(con.Do("MGET", m1, m2, m3))
+			if err != nil && err != redis.ErrNil {
 				msg.ErrorChannel <- err
 				continue
 			}
-			_, err = con.Do("HSET", metricName, "archivetime", time.Now().Unix())
-			compress(metricName, "5mins", con)
-			compress(metricName, "10mins", con)
-			compress(metricName, "15mins", con)
+			err = compress(m1, []byte(values[0]), atime, ttl-3600*24, 300, con)
+			if err != nil {
+				msg.ErrorChannel <- err
+				continue
+			}
+			err = compress(m2, []byte(values[1]), atime, ttl-3600*24*3, 600, con)
+			if err != nil {
+				msg.ErrorChannel <- err
+				continue
+			}
+			err = compress(m3, []byte(values[2]), atime, ttl-3600*24*7, 900, con)
+			if err == nil {
+				_, err = con.Do("HSET", metricName, "atime", atime+1)
+			}
 			msg.ErrorChannel <- err
 		}
 	}
 }
 
-func compress(metric string, compresstype string, con redis.Conn) error {
-	t, err := redis.Int64(con.Do("HGET", metric, compresstype))
-	if err != nil && err != redis.ErrNil {
-		log.Println("failed to get compress time", err)
-		return err
-	}
-	var interval int64
-	now := time.Now().Unix()
-	switch compresstype {
-	case "5mins":
-		if t == 0 {
-			t = now - 3600*24*3
-		}
-		interval = 300
-		if t > (now - 3610*24) {
-			return nil
-		}
-	case "10mins":
-		if t == 0 {
-			t = now - 3600*24*7
-		}
-		interval = 600
-		if t > (now - 3600*24*3) {
-			return nil
-		}
-	case "15mins":
-		if t == 0 {
-			t = now - 3600*24*15
-		}
-		interval = 900
-		if t > (now - 3600*24*7) {
-			return nil
-		}
-	}
-	metricset := "archive:" + metric
-	valueList, err := redis.Strings(con.Do("ZRANGEBYSCORE", metricset, t, t+interval))
-	if err != nil {
-		return err
-	}
+func compress(metric string, values []byte, atime int64, ttl int64, interval int64, con redis.Conn) error {
 	sumvalue := float64(0)
 	sumtime := int64(0)
-	for _, val := range valueList {
-		kv, _ := KeyValueDecode([]byte(val))
-		sumvalue += kv.GetValue()
-		sumtime += kv.GetTimestamp()
+	size := len(values)
+	var p KeyValue
+	var count int
+	var data []byte
+	for i := 0; i < size; i += 18 {
+		kv, _ := KeyValueDecode([]byte(values[i : i+18]))
+		offsize := kv.GetTimestamp() - p.GetTimestamp()
+		if offsize > interval {
+			p = kv
+			if count != 0 {
+				body, err := KeyValueEncode(sumtime/int64(count), sumvalue/float64(count))
+				if err != nil {
+					return err
+				}
+				count = 0
+				data = append(data, body...)
+			}
+		} else {
+			sumvalue += kv.GetValue()
+			sumtime += kv.GetTimestamp()
+			count++
+		}
+		if i+18 >= size {
+			break
+		}
 	}
-	size := len(valueList)
-	if size > 0 && size != 1 {
-		body, err := KeyValueEncode(sumtime/int64(size), sumvalue/float64(size))
-		if err != nil {
-			return err
-		}
-		_, err = con.Do("ZADD", metricset, sumtime/int64(size), body)
-		if err != nil {
-			return err
-		}
-		_, err = con.Do("ZREMRANGEBYSCORE", metricset, t, t+interval)
-		if err != nil {
-			log.Println("failed to remove old data", err)
-			return err
-		}
-	}
-	_, err = con.Do("HSET", metric, compresstype, t+interval)
+	con.Send("SET", metric, data)
+	con.Send("EXPIRE", metric, ttl)
+	con.Flush()
+	con.Receive()
+	_, err := con.Receive()
 	return err
 }
