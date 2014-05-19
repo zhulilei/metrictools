@@ -111,6 +111,10 @@ func compress(metric string, values []byte, atime int64, ttl int64, interval int
 	var p KeyValue
 	var count int
 	var data []byte
+	if ttl <= 0 {
+		_, err := con.Do("DEL", metric)
+		return err
+	}
 	for i := 0; i < size; i += 18 {
 		if (i + 18) > size {
 			break
