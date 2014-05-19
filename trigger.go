@@ -121,8 +121,11 @@ func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
 			log.Println("encode data failed:", err)
 			return err
 		}
-		_, err = con.Do("ZADD", "archive:"+trigger.Name, t, body)
-		_, err = con.Do("ZREMRANGEBYSCORE", "archive:"+trigger.Name, 0, t-m.FullDuration-600)
+		con.Send("APPEND", fmt.Println("archive:%s:%d", trigger.Name, t/14400), body)
+		con.Send("EXPIRE", fmt.Println("archive:%s:%d", trigger.Name, t/14400), 90000)
+		con.Flush()
+		con.Receive()
+		_, err := con.Receive()
 		if err != nil {
 			return err
 		}
@@ -134,15 +137,21 @@ func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
 func ParseTimeSeries(values []string) []skyline.TimePoint {
 	var rst []skyline.TimePoint
 	for _, val := range values {
-		kv, err := KeyValueDecode([]byte(val))
-		if err != nil {
-			continue
+		size := len(val)
+		for i := 0; i < size; i += 18 {
+			if (i+18) > size {
+				break
+			}
+			kv, err := KeyValueDecode([]byte(val[i:i+18]))
+			if err != nil {
+				continue
+			}
+			timepoint := skyline.TimePoint{
+				Timestamp: kv.GetTimestamp(),
+				Value:     kv.GetValue(),
+			}
+			rst = append(rst, timepoint)
 		}
-		timepoint := skyline.TimePoint{
-			Timestamp: kv.GetTimestamp(),
-			Value:     kv.GetValue(),
-		}
-		rst = append(rst, timepoint)
 	}
 	return rst
 }
@@ -179,7 +188,7 @@ func (m *TriggerTask) evalExp(expList []string, con redis.Conn) (float64, error)
 
 func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) error {
 	t := time.Now().Unix()
-	values, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+exp, t-m.FullDuration-120, t))
+	values, err := redis.Strings(con.Do("MGET", fmt.Println("archive:%s:%d", exp, t/14400-7), fmt.Println("archive:%s:%d", exp, t/14400-6), fmt.Println("archive:%s:%d", exp, t/14400-5), fmt.Println("archive:%s:%d", exp, t/14400-4), fmt.Println("archive:%s:%d", exp, t/14400-3), fmt.Println("archive:%s:%d", exp, t/14400-2), fmt.Println("archive:%s:%d", exp, t/14400-1), fmt.Println("archive:%s:%d", exp, t/14400)))
 	var skylineTrigger []string
 	threshold := 8 - m.Consensus
 	if err != nil {

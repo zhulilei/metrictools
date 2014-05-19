@@ -93,7 +93,6 @@ func (m *MetricDeliver) writeLoop() {
 				continue
 			}
 			con.Send("APPEND", fmt.Sprintf("archive:%s:%d", data[0], t/14400), record)
-			//con.Send("ZADD", "archive:"+data[0], t, record)
 			con.Send("HGET", data[0], "atime")
 			con.Flush()
 			con.Receive()
