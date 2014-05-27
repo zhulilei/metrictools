@@ -46,7 +46,6 @@ func (m *MetricDeliver) Run() error {
 		}
 	}
 	go m.writeLoop()
-	go m.ScanTrigger()
 	return err
 }
 
@@ -108,39 +107,6 @@ func (m *MetricDeliver) writeLoop() {
 			if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
 				m.writer.Publish(m.ArchiveTopic, []byte(data[0]))
 			}
-		}
-	}
-}
-
-// ScanTrigger will find out all trigger which not updated in 60s
-func (m *MetricDeliver) ScanTrigger() {
-	ticker := time.Tick(time.Second * 30)
-	con := m.Get()
-	defer con.Close()
-	for {
-		select {
-		case <-ticker:
-			keys, err := redis.Strings(con.Do("SMEMBERS", "triggers"))
-			if err != nil {
-				if err != redis.ErrNil {
-					con.Close()
-					con = m.Get()
-				}
-				continue
-			}
-			now := time.Now().Unix()
-			for _, v := range keys {
-				last, err := redis.Int64(con.Do("HGET", v, "last"))
-				if err != nil && err != redis.ErrNil {
-					continue
-				}
-				if now-last < 61 {
-					continue
-				}
-				_, _, err = m.writer.Publish(m.TriggerTopic, []byte(v))
-			}
-		case <-m.exitChannel:
-			return
 		}
 	}
 }

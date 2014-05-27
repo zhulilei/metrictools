@@ -67,9 +67,9 @@ func main() {
 			log.Println("start process task")
 		case "statistic":
 			s := &TriggerTask{
-				Setting:     c,
-				exitChannel: make(chan int),
-				msgChannel:  make(chan *Message),
+				Setting:        c,
+				exitChannel:    make(chan int),
+				triggerChannel: make(chan string),
 			}
 			if err := s.Run(); err != nil {
 				log.Fatal("fail to run metric statistic task", err)

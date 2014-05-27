@@ -20,10 +20,10 @@ import (
 type TriggerTask struct {
 	*Setting
 	*redis.Pool
-	writer      *nsq.Writer
-	reader      *nsq.Reader
-	exitChannel chan int
-	msgChannel  chan *Message
+	writer         *nsq.Writer
+	reader         *nsq.Reader
+	exitChannel    chan int
+	triggerChannel chan string
 }
 
 func (m *TriggerTask) Run() error {
@@ -37,21 +37,7 @@ func (m *TriggerTask) Run() error {
 	}
 	m.Pool = redis.NewPool(dial, 3)
 	m.writer = nsq.NewWriter(m.NsqdAddress)
-	m.reader, err = nsq.NewReader(m.TriggerTopic, m.TriggerChannel)
-	if err != nil {
-		return err
-	}
-	m.reader.SetMaxInFlight(m.MaxInFlight)
-	for i := 0; i < m.MaxInFlight; i++ {
-		m.reader.AddHandler(m)
-		go m.calculateTask()
-	}
-	for _, addr := range m.LookupdAddresses {
-		err = m.reader.ConnectToLookupd(addr)
-		if err != nil {
-			return err
-		}
-	}
+	go m.ScanTrigger()
 	return err
 }
 
@@ -62,14 +48,37 @@ func (m *TriggerTask) Stop() {
 	m.Pool.Close()
 }
 
-// HandleMessage is TriggerTask's nsq handle function
-func (m *TriggerTask) HandleMessage(msg *nsq.Message) error {
-	message := &Message{
-		Body:         string(msg.Body),
-		ErrorChannel: make(chan error),
+// ScanTrigger will find out all trigger which not updated in 60s
+func (m *TriggerTask) ScanTrigger() {
+	ticker := time.Tick(time.Second * 30)
+	con := m.Get()
+	defer con.Close()
+	for {
+		select {
+		case <-ticker:
+			keys, err := redis.Strings(con.Do("SMEMBERS", "triggers"))
+			if err != nil {
+				if err != redis.ErrNil {
+					con.Close()
+					con = m.Get()
+				}
+				continue
+			}
+			now := time.Now().Unix()
+			for _, v := range keys {
+				last, err := redis.Int64(con.Do("HGET", v, "last"))
+				if err != nil && err != redis.ErrNil {
+					continue
+				}
+				if now-last < 61 {
+					continue
+				}
+				m.triggerChannel <- v
+			}
+		case <-m.exitChannel:
+			return
+		}
 	}
-	m.msgChannel <- message
-	return <-message.ErrorChannel
 }
 
 func (m *TriggerTask) calculateTask() {
@@ -79,22 +88,15 @@ func (m *TriggerTask) calculateTask() {
 		select {
 		case <-m.exitChannel:
 			return
-		case msg := <-m.msgChannel:
+		case name := <-m.triggerChannel:
 			now := time.Now().Unix()
-			name, ok := msg.Body.(string)
-			if !ok {
-				fmt.Println("message error:", msg.Body)
-				msg.ErrorChannel <- nil
-				continue
-			}
 			if _, err := con.Do("HSET", name, "last", now); err != nil {
 				con.Close()
 				con = m.Get()
-				msg.ErrorChannel <- err
 				continue
 			}
 			err := m.calculate(name, con)
-			msg.ErrorChannel <- err
+			log.Println("calculate failed", err)
 		}
 	}
 }
@@ -146,11 +148,7 @@ func ParseTimeSeries(values []string) []skyline.TimePoint {
 			if err != nil {
 				continue
 			}
-			timepoint := skyline.TimePoint{
-				Timestamp: kv.GetTimestamp(),
-				Value:     kv.GetValue(),
-			}
-			rst = append(rst, timepoint)
+			rst = append(rst, &kv)
 		}
 	}
 	return rst
@@ -199,7 +197,7 @@ func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) 
 		log.Println(exp, " is empty")
 		return nil
 	}
-	timeSize := timeseries[len(timeseries)-1].Timestamp - timeseries[0].Timestamp
+	timeSize := timeseries[len(timeseries)-1].GetTimestamp() - timeseries[0].GetTimestamp()
 	if timeSize < m.FullDuration {
 		log.Println("incomplete data", exp, timeSize)
 		return nil

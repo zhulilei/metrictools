@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"github.com/datastream/skyline"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
@@ -197,7 +196,7 @@ func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	raw_trigger_history, err := redis.Bytes(con.Do("GET", "trigger_history:"+name))
-	var trigger_history []skyline.TimePoint
+	var trigger_history []KeyValue
 	if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed find trigger history"))
@@ -205,7 +204,7 @@ func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) 
 	}
 	var timeserires [][]interface{}
 	for _, val := range trigger_history {
-		timeserires = append(timeserires, []interface{}{val.Timestamp, val.Value})
+		timeserires = append(timeserires, []interface{}{val.GetTimestamp(), val.GetValue()})
 	}
 	var recordList []interface{}
 	record := make(map[string]interface{})
