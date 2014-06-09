@@ -124,6 +124,7 @@ func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
 			return err
 		}
 		con.Send("APPEND", fmt.Sprintf("archive:%s:%d", trigger.Name, t/14400), body)
+		// ttl ?
 		con.Send("EXPIRE", fmt.Sprintf("archive:%s:%d", trigger.Name, t/14400), 90000)
 		con.Flush()
 		con.Receive()
@@ -236,7 +237,7 @@ func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) 
 		if len(t) > 0 {
 			body, err := json.Marshal(t)
 			if err == nil {
-				_, err = con.Do("SET", "trigger_history:"+exp, body, "EX", 24*3600)
+				_, err = con.Do("SET", "trigger_history:"+exp, body)
 			}
 			if err != nil {
 				return err
