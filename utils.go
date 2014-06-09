@@ -2,7 +2,7 @@ package main
 
 import (
 	"code.google.com/p/goprotobuf/proto"
-	"log"
+	"github.com/datastream/skyline"
 )
 
 // Trigger define a statistic expression
@@ -21,14 +21,9 @@ type NotifyAction struct {
 }
 
 // GenerateTimeseries return metricdata's timestamp and value
-func GenerateTimeseries(metricData []string) [][]interface{} {
+func GenerateTimeseries(metricData []skyline.TimePoint) [][]interface{} {
 	var timeserires [][]interface{}
-	for _, val := range metricData {
-		kv, err := KeyValueDecode([]byte(val))
-		if err != nil {
-			log.Println("invalid data", val)
-			continue
-		}
+	for _, kv := range metricData {
 		timeserires = append(timeserires, []interface{}{kv.GetTimestamp(), kv.GetValue()})
 	}
 	return timeserires

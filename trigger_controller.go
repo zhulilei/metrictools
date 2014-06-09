@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
@@ -44,12 +45,17 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 	}
 	if user == owner {
 		var recordList []interface{}
-		metricData, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+name, start, end))
-		if err != nil {
-			log.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+		var data []string
+		for i := start/14400; i <= end/14400; i ++ {
+			values, err := redis.String(con.Do("GET", fmt.Sprintf("archive:%s:%d", user+"_"+name, i)))
+			if err != nil {
+				log.Println(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			data = append(data, values)
 		}
+		metricData := ParseTimeSeries(data)
 		record := make(map[string]interface{})
 		tgname := base64.URLEncoding.EncodeToString([]byte(name))
 		record["name"] = name

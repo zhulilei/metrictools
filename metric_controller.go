@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
@@ -38,11 +39,16 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 		if i != 0 && metricList[i-1] == v {
 			continue
 		}
-		metricData, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+user+"_"+v, start, end))
-		if err != nil {
-			log.Println(err)
-			continue
+		var data []string
+		for i := start/14400; i <= end/14400; i ++ {
+			values, err := redis.String(con.Do("GET", fmt.Sprintf("archive:%s:%d", user+"_"+v, i)))
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			data = append(data, values)
 		}
+		metricData := ParseTimeSeries(data)
 		record["name"] = v
 		record["values"] = GenerateTimeseries(metricData)
 		recordList = append(recordList, record)
@@ -108,13 +114,18 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	metricData, err := redis.Strings(con.Do("ZRANGEBYSCORE", "archive:"+user+"_"+metric, start, end))
-	con.Close()
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	var data []string
+	for i := start/14400; i <= end/14400; i ++ {
+		values, err := redis.String(con.Do("GET", fmt.Sprintf("archive:%s:%d", user+"_"+metric, i)))
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		data = append(data, values)
 	}
+	metricData := ParseTimeSeries(data)
+	con.Close()
 	recordList["name"] = metric
 	recordList["url"] = "/api/v1/metric/" + metric
 	recordList["records"] = GenerateTimeseries(metricData)
@@ -156,6 +167,7 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 // MetricDelete DELETE /metric/{:name}
+// Todo
 func (q *WebService) MetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
