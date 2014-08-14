@@ -8,6 +8,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"net/smtp"
+	"os"
 	"strings"
 	"time"
 )
@@ -16,7 +17,7 @@ import (
 type Notify struct {
 	*Setting
 	*redis.Pool
-	reader      *nsq.Reader
+	consumer    *nsq.Consumer
 	exitChannel chan int
 	msgChannel  chan *Message
 }
@@ -31,26 +32,26 @@ func (m *Notify) Run() error {
 		return c, err
 	}
 	m.Pool = redis.NewPool(dial, 3)
-	m.reader, err = nsq.NewReader(m.NotifyTopic, m.NotifyChannel)
+	hostname, err := os.Hostname()
+	cfg := nsq.NewConfig()
+	cfg.Set("user_agent", fmt.Sprintf("metric_notify/%s", hostname))
+	cfg.Set("snappy", true)
+	cfg.Set("max_in_flight", m.MaxInFlight)
+	m.consumer, err = nsq.NewConsumer(m.NotifyTopic, m.NotifyChannel, cfg)
 	if err != nil {
 		return err
 	}
-	m.reader.SetMaxInFlight(m.MaxInFlight)
-	for i := 0; i < m.MaxInFlight; i++ {
-		m.reader.AddHandler(m)
-	}
-	for _, addr := range m.LookupdAddresses {
-		err = m.reader.ConnectToLookupd(addr)
-		if err != nil {
-			return err
-		}
+	m.consumer.AddConcurrentHandlers(m, m.MaxInFlight)
+	err = m.consumer.ConnectToNSQLookupds(m.LookupdAddresses)
+	if err != nil {
+		return err
 	}
 	go m.sendNotify()
 	return err
 }
 
 func (m *Notify) Stop() {
-	m.reader.Stop()
+	m.consumer.Stop()
 	close(m.exitChannel)
 	m.Pool.Close()
 }

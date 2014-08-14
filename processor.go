@@ -5,6 +5,7 @@ import (
 	"github.com/bitly/go-nsq"
 	"github.com/garyburd/redigo/redis"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -14,8 +15,8 @@ import (
 type MetricDeliver struct {
 	*redis.Pool
 	*Setting
-	writer      *nsq.Writer
-	reader      *nsq.Reader
+	consumer    *nsq.Consumer
+	producer    *nsq.Producer
 	exitChannel chan int
 	msgChannel  chan *Message
 }
@@ -30,29 +31,32 @@ func (m *MetricDeliver) Run() error {
 		return c, err
 	}
 	m.Pool = redis.NewPool(dial, 3)
-	m.writer = nsq.NewWriter(m.NsqdAddress)
-	m.reader, err = nsq.NewReader(m.MetricTopic, m.MetricChannel)
+	cfg := nsq.NewConfig()
+	hostname, err := os.Hostname()
+	cfg.Set("user_agent", fmt.Sprintf("metric_processor/%s", hostname))
+	cfg.Set("snappy", true)
+	cfg.Set("max_in_flight", m.MaxInFlight)
+	m.producer, err = nsq.NewProducer(m.NsqdAddress, cfg)
 	if err != nil {
 		return err
 	}
-	m.reader.SetMaxInFlight(m.MaxInFlight)
-	for i := 0; i < m.MaxInFlight; i++ {
-		m.reader.AddHandler(m)
+	m.consumer, err = nsq.NewConsumer(m.MetricTopic, m.MetricChannel, cfg)
+	if err != nil {
+		return err
 	}
-	for _, addr := range m.LookupdAddresses {
-		err := m.reader.ConnectToLookupd(addr)
-		if err != nil {
-			return err
-		}
+	m.consumer.AddConcurrentHandlers(m, m.MaxInFlight)
+	err = m.consumer.ConnectToNSQLookupds(m.LookupdAddresses)
+	if err != nil {
+		return err
 	}
 	go m.writeLoop()
 	return err
 }
 
 func (m *MetricDeliver) Stop() {
-	m.reader.Stop()
+	m.consumer.Stop()
 	close(m.exitChannel)
-	m.writer.Stop()
+	m.producer.Stop()
 	m.Pool.Close()
 }
 
@@ -105,7 +109,7 @@ func (m *MetricDeliver) writeLoop() {
 			}
 			msg.ErrorChannel <- err
 			if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
-				m.writer.Publish(m.ArchiveTopic, []byte(data[0]))
+				m.producer.Publish(m.ArchiveTopic, []byte(data[0]))
 			}
 		}
 	}

@@ -40,7 +40,7 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		var data []string
-		for i := start/14400; i <= end/14400; i ++ {
+		for i := start / 14400; i <= end/14400; i++ {
 			values, err := redis.String(con.Do("GET", fmt.Sprintf("archive:%s:%d", user+"_"+v, i)))
 			if err != nil {
 				log.Println(err)
@@ -115,7 +115,7 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var data []string
-	for i := start/14400; i <= end/14400; i ++ {
+	for i := start / 14400; i <= end/14400; i++ {
 		values, err := redis.String(con.Do("GET", fmt.Sprintf("archive:%s:%d", user+"_"+metric, i)))
 		if err != nil {
 			log.Println(err)

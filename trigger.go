@@ -11,6 +11,7 @@ import (
 	"github.com/datastream/skyline"
 	"github.com/garyburd/redigo/redis"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -20,8 +21,7 @@ import (
 type TriggerTask struct {
 	*Setting
 	*redis.Pool
-	writer         *nsq.Writer
-	reader         *nsq.Reader
+	producer       *nsq.Producer
 	exitChannel    chan int
 	triggerChannel chan string
 }
@@ -36,15 +36,21 @@ func (m *TriggerTask) Run() error {
 		return c, err
 	}
 	m.Pool = redis.NewPool(dial, 3)
-	m.writer = nsq.NewWriter(m.NsqdAddress)
-	go m.ScanTrigger()
+	hostname, err := os.Hostname()
+	cfg := nsq.NewConfig()
+	cfg.Set("user_agent", fmt.Sprintf("metric_trigger/%s", hostname))
+	cfg.Set("snappy", true)
+	cfg.Set("max_in_flight", m.MaxInFlight)
+	m.producer, err = nsq.NewProducer(m.NsqdAddress, cfg)
+	if err == nil {
+		go m.ScanTrigger()
+	}
 	return err
 }
 
 func (m *TriggerTask) Stop() {
-	m.reader.Stop()
 	close(m.exitChannel)
-	m.writer.Stop()
+	m.producer.Stop()
 	m.Pool.Close()
 }
 
@@ -254,7 +260,7 @@ func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) 
 			rst["trigger_exp"] = exp
 			rst["url"] = "/api/v1/triggerhistory/" + name
 			if body, err := json.Marshal(rst); err == nil {
-				m.writer.Publish(m.NotifyTopic, body)
+				m.producer.Publish(m.NotifyTopic, body)
 				log.Println(string(body))
 			}
 		}
