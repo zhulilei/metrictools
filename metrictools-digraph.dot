@@ -1,0 +1,37 @@
+digraph {
+        subgraph cluster_0 {
+                label="servers' collectd";
+                node1, node2
+        }
+        subgraph cluster_1 {
+                label="ELB/http";
+                LB1, LB2
+        }
+        node1 -> LB1[label="http json",weight="1"];
+        node1 -> LB2[label="http json",weight="1"];
+        node2 -> LB1[label="http json",weight="1"];
+        node2 -> LB2[label="http json",weight="1"];
+        LB1 -> NSQ[label="http json",weight="1"];
+        LB2 -> NSQ[label="http json",weight="1"];
+        subgraph cluster_2 {
+                label="Metrictools";
+                processor,trigger,archive,notify,web
+        }
+        subgraph cluster_4 {
+                label="redis cluster";
+                redis_node1, redis_node2
+        }
+        NSQ -> processor[label="topic:metric",weight="1"];
+        processor -> NSQ[label="topic:archive",weight="1"];
+        NSQ -> archive[label="topic:archive",weight="1"];
+        processor -> twemproxy_cluster[label="archive:%s:%d",weight="1"];
+        archive -> twemproxy_cluster[label="archive:%s:%d",weight="1"];
+        twemproxy_cluster -> trigger[label="triggers",weight="1"];
+        twemproxy_cluster -> redis_node1[label="redis",weight="1"];
+        twemproxy_cluster -> redis_node2[label="redis",weight="1"];
+        trigger -> NSQ[label="topic:notify",weight="1"];
+        NSQ -> notify[label="topic:notify",weight="1"];
+        notify -> twemproxy_cluster[label="trigger:actions",weight="1"];
+        web -> twemproxy_cluster[label="add trigger", weight="1"];
+        user -> web[label="web access", weight="1"];
+}

@@ -2,6 +2,7 @@
 
 It's distributed system monitoring solution. It support collectd's json format data.
 
+![metrictools](images/metrictools-struct.png)
 ## Metrictools Subsystem
 
 ### process
