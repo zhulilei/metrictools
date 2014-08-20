@@ -11,8 +11,8 @@ digraph {
         node1 -> LB2[label="http json",weight="1"];
         node2 -> LB1[label="http json",weight="1"];
         node2 -> LB2[label="http json",weight="1"];
-        LB1 -> NSQ[label="http json",weight="1"];
-        LB2 -> NSQ[label="http json",weight="1"];
+        LB1 -> web[label="http json",weight="1"];
+        LB2 -> web[label="http json",weight="1"];
         subgraph cluster_2 {
                 label="Metrictools";
                 processor,trigger,archive,notify,web
@@ -33,5 +33,6 @@ digraph {
         NSQ -> notify[label="topic:notify",weight="1"];
         notify -> twemproxy_cluster[label="trigger:actions",weight="1"];
         web -> twemproxy_cluster[label="add trigger", weight="1"];
+        web -> NSQ[label="topic:metric", weight="1"];
         user -> web[label="web access", weight="1"];
 }
