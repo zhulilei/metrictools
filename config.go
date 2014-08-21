@@ -44,5 +44,11 @@ func ReadConfig(file string) (*Setting, error) {
 	}
 	setting := &Setting{}
 	err = mapstructure.DecodePath(docMap, setting)
+	if setting.MinDuration == 0 {
+		setting.MinDuration = 3600 * 3
+	}
+	if setting.FullDuration == 0 {
+		setting.MinDuration = 3600 * 24
+	}
 	return setting, err
 }
