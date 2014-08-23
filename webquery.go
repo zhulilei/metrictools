@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/garyburd/redigo/redis"
+	"github.com/fzzy/radix/extra/pool"
 	"github.com/gorilla/mux"
 	"net/http"
 	"os"
@@ -11,28 +11,27 @@ import (
 
 type WebService struct {
 	*Setting
-	*redis.Pool
+	*pool.Pool
 	producer *nsq.Producer
 }
 
-func (q *WebService) Run() {
+func (q *WebService) Run() error {
 	var err error
-	dial := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", q.RedisServer)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
+	q.Pool, err = pool.NewPool("tcp", q.RedisServer, 5)
+	if err != nil {
+		return err
 	}
-	q.Pool = redis.NewPool(dial, 3)
-	cfg := nsq.NewConfig()
 	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+	cfg := nsq.NewConfig()
 	cfg.Set("user_agent", fmt.Sprintf("metric_web/%s", hostname))
 	cfg.Set("snappy", true)
 	cfg.Set("max_in_flight", q.MaxInFlight)
 	q.producer, err = nsq.NewProducer(q.NsqdAddress, cfg)
 	if err != nil {
-		return
+		return err
 	}
 	r := mux.NewRouter()
 	s := r.PathPrefix("/api/v1").Subrouter()
@@ -88,8 +87,9 @@ func (q *WebService) Run() {
 
 	http.Handle("/", r)
 	http.ListenAndServe(q.ListenAddress, nil)
+	return nil
 }
 func (q *WebService) Stop() {
 	q.producer.Stop()
-	q.Pool.Close()
+	q.Pool.Empty()
 }

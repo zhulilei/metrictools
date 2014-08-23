@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/garyburd/redigo/redis"
+	"github.com/fzzy/radix/extra/pool"
 	"log"
 	"os"
 	"strconv"
@@ -13,7 +13,7 @@ import (
 
 // MetricDeliver define a metric process task
 type MetricDeliver struct {
-	*redis.Pool
+	*pool.Pool
 	*Setting
 	consumer    *nsq.Consumer
 	producer    *nsq.Producer
@@ -23,16 +23,15 @@ type MetricDeliver struct {
 
 func (m *MetricDeliver) Run() error {
 	var err error
-	dial := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", m.RedisServer)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
+	m.Pool, err = pool.NewPool("tcp", m.RedisServer, 5)
+	if err != nil {
+		return err
 	}
-	m.Pool = redis.NewPool(dial, 3)
-	cfg := nsq.NewConfig()
 	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+	cfg := nsq.NewConfig()
 	cfg.Set("user_agent", fmt.Sprintf("metric_processor/%s", hostname))
 	cfg.Set("snappy", true)
 	cfg.Set("max_in_flight", m.MaxInFlight)
@@ -57,7 +56,7 @@ func (m *MetricDeliver) Stop() {
 	m.consumer.Stop()
 	close(m.exitChannel)
 	m.producer.Stop()
-	m.Pool.Close()
+	m.Pool.Empty()
 }
 
 // HandleMessage is MetricDeliver's nsq handle function
@@ -74,8 +73,11 @@ func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *MetricDeliver) writeLoop() {
-	con := m.Get()
-	defer con.Close()
+	client, err := m.Get()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer m.Put(client)
 	for {
 		select {
 		case <-m.exitChannel:
@@ -95,19 +97,21 @@ func (m *MetricDeliver) writeLoop() {
 				log.Println(err)
 				continue
 			}
-			con.Send("APPEND", fmt.Sprintf("archive:%s:%d", data[0], t/14400), record)
-			con.Send("HGET", data[0], "atime")
-			con.Flush()
-			con.Receive()
-			t, err = redis.Int64(con.Receive())
-			if err != nil && err != redis.ErrNil {
-				con.Close()
-				con = m.Get()
+			client.Append("APPEND", fmt.Sprintf("archive:%s:%d", data[0], t/14400), record)
+			client.Append("HGET", data[0], "atime")
+			reply := client.GetReply()
+			if reply.Err != nil {
+				client.Close()
+				client, _ = m.Get()
 			}
-			if err == redis.ErrNil {
+			msg.ErrorChannel <- reply.Err
+			reply = client.GetReply()
+			if reply.Err != nil {
+				continue
+			} else {
+				t, err = reply.Int64()
 				err = nil
 			}
-			msg.ErrorChannel <- err
 			if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
 				m.producer.Publish(m.ArchiveTopic, []byte(data[0]))
 			}

@@ -9,7 +9,8 @@ import (
 	"github.com/bitly/go-nsq"
 	"github.com/datastream/cal"
 	"github.com/datastream/skyline"
-	"github.com/garyburd/redigo/redis"
+	"github.com/fzzy/radix/extra/pool"
+	"github.com/fzzy/radix/redis"
 	"log"
 	"os"
 	"strconv"
@@ -20,7 +21,7 @@ import (
 // TriggerTask define a trigger statistic task
 type TriggerTask struct {
 	*Setting
-	*redis.Pool
+	*pool.Pool
 	producer       *nsq.Producer
 	exitChannel    chan int
 	triggerChannel chan string
@@ -28,15 +29,14 @@ type TriggerTask struct {
 
 func (m *TriggerTask) Run() error {
 	var err error
-	dial := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", m.RedisServer)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
+	m.Pool, err = pool.NewPool("tcp", m.RedisServer, 5)
+	if err != nil {
+		return err
 	}
-	m.Pool = redis.NewPool(dial, 3)
 	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
 	cfg := nsq.NewConfig()
 	cfg.Set("user_agent", fmt.Sprintf("metric_trigger/%s", hostname))
 	cfg.Set("snappy", true)
@@ -51,29 +51,37 @@ func (m *TriggerTask) Run() error {
 func (m *TriggerTask) Stop() {
 	close(m.exitChannel)
 	m.producer.Stop()
-	m.Pool.Close()
+	m.Pool.Empty()
 }
 
 // ScanTrigger will find out all trigger which not updated in 60s
 func (m *TriggerTask) ScanTrigger() {
 	ticker := time.Tick(time.Second * 30)
-	con := m.Get()
-	defer con.Close()
+	client, err := m.Get()
+	if err != nil {
+		return
+	}
+	defer m.Put(client)
 	for {
 		select {
 		case <-ticker:
-			keys, err := redis.Strings(con.Do("SMEMBERS", "triggers"))
-			if err != nil {
-				if err != redis.ErrNil {
-					con.Close()
-					con = m.Get()
-				}
+			reply := client.Cmd("SMEMBERS", "triggers")
+			if reply.Err != nil {
+				client.Close()
+				client, _ = m.Get()
 				continue
 			}
+			keys, _ := reply.List()
 			now := time.Now().Unix()
 			for _, v := range keys {
-				last, err := redis.Int64(con.Do("HGET", v, "last"))
-				if err != nil && err != redis.ErrNil {
+				reply = client.Cmd("HGET", v, "last")
+				if reply.Err != nil {
+					client.Close()
+					client, _ = m.Get()
+					continue
+				}
+				last, err := reply.Int64()
+				if err != nil {
 					continue
 				}
 				if now-last < 61 {
@@ -88,37 +96,41 @@ func (m *TriggerTask) ScanTrigger() {
 }
 
 func (m *TriggerTask) calculateTask() {
-	con := m.Get()
-	defer con.Close()
+	client, err := m.Get()
+	if err != nil {
+		return
+	}
+	defer m.Put(client)
 	for {
 		select {
 		case <-m.exitChannel:
 			return
 		case name := <-m.triggerChannel:
 			now := time.Now().Unix()
-			if _, err := con.Do("HSET", name, "last", now); err != nil {
-				con.Close()
-				con = m.Get()
+			if reply := client.Cmd("HSET", name, "last", now); reply.Err != nil {
+				client.Close()
+				client, _ = m.Get()
 				continue
 			}
-			err := m.calculate(name, con)
+			err := m.calculate(name, client)
 			log.Println("calculate failed", err)
 		}
 	}
 }
 
-func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
+func (m *TriggerTask) calculate(triggerName string, client *redis.Client) error {
 	var trigger Trigger
 	var err error
-	trigger.IsExpression, err = redis.Bool(con.Do("HGET", triggerName, "is_e"))
-	if err != nil && err != redis.ErrNil {
+	reply := client.Cmd("HGET", triggerName, "is_e")
+	if reply.Err != nil {
 		log.Println("get trigger failed:", triggerName, err)
-		return err
+		return reply.Err
 	}
+	trigger.IsExpression, err = reply.Bool()
 	trigger.Name = triggerName
 	if trigger.IsExpression {
 		expList := cal.Parser(trigger.Name)
-		v, err := m.evalExp(expList, con)
+		v, err := m.evalExp(expList, client)
 		if err != nil {
 			log.Println("calculate failed:", trigger.Name, err)
 			return err
@@ -129,17 +141,16 @@ func (m *TriggerTask) calculate(triggerName string, con redis.Conn) error {
 			log.Println("encode data failed:", err)
 			return err
 		}
-		con.Send("APPEND", fmt.Sprintf("archive:%s:%d", trigger.Name, t/14400), body)
+		client.Append("APPEND", fmt.Sprintf("archive:%s:%d", trigger.Name, t/14400), body)
 		// ttl ?
-		con.Send("EXPIRE", fmt.Sprintf("archive:%s:%d", trigger.Name, t/14400), 90000)
-		con.Flush()
-		con.Receive()
-		_, err = con.Receive()
-		if err != nil {
-			return err
+		client.Append("EXPIRE", fmt.Sprintf("archive:%s:%d", trigger.Name, t/14400), 90000)
+		client.GetReply()
+		reply = client.GetReply()
+		if reply.Err != nil {
+			return reply.Err
 		}
 	}
-	return m.checkvalue(trigger.Name, trigger.IsExpression, con)
+	return m.checkvalue(trigger.Name, trigger.IsExpression, client)
 }
 
 // ParseTimeSeries convert redis value to skyline's data format
@@ -161,22 +172,24 @@ func ParseTimeSeries(values []string) []skyline.TimePoint {
 	return rst
 }
 
-func (m *TriggerTask) evalExp(expList []string, con redis.Conn) (float64, error) {
+func (m *TriggerTask) evalExp(expList []string, client *redis.Client) (float64, error) {
 	kv := make(map[string]interface{})
 	exp := ""
 	current := time.Now().Unix()
 	for _, item := range expList {
 		var v float64
-		t := time.Now().Unix()
-		values, err := redis.Values(con.Do("HMGET", item, "rate_value", "timestamp"))
-		if err == nil {
-			_, err = redis.Scan(values, &v, &t)
-			if err != nil {
-				return 0, err
-			}
+		reply := client.Cmd("HMGET", item, "rate_value", "timestamp")
+		if reply.Err != nil {
+			return 0, reply.Err
 		}
-		if err == redis.ErrNil {
-			v, err = strconv.ParseFloat(item, 64)
+		values, err := reply.List()
+		v, err = strconv.ParseFloat(item, 64)
+		if err != nil {
+			v, _ = strconv.ParseFloat(values[0], 64)
+		}
+		t, err := strconv.ParseInt(values[1], 0, 64)
+		if err != nil {
+			t = time.Now().Unix()
 		}
 		if (current - t) > 60 {
 			return 0, errors.New(item + "'s data are too old")
@@ -191,13 +204,16 @@ func (m *TriggerTask) evalExp(expList []string, con redis.Conn) (float64, error)
 	return rst, err
 }
 
-func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) error {
+func (m *TriggerTask) checkvalue(exp string, isExpression bool, client *redis.Client) error {
 	t := time.Now().Unix()
-	values, err := redis.Strings(con.Do("MGET", fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400)))
+	reply := client.Cmd("MGET", fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400))
+	if reply.Err != nil {
+		return nil
+	}
+	values, err := reply.List()
 	var skylineTrigger []string
 	threshold := 8 - m.Consensus
 	if err != nil {
-		return nil
 	}
 	timeseries := ParseTimeSeries(values)
 	if len(timeseries) == 0 {
@@ -234,7 +250,8 @@ func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) 
 		skylineTrigger = append(skylineTrigger, "HistogramBins")
 	}
 	if (8 - len(skylineTrigger)) <= threshold {
-		raw_trigger_history, _ := redis.Bytes(con.Do("GET", "trigger_history:"+exp))
+		reply := client.Cmd("GET", "trigger_history:"+exp)
+		raw_trigger_history, _ := reply.Bytes()
 		var trigger_history []skyline.TimePoint
 		if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
 			return err
@@ -243,7 +260,8 @@ func (m *TriggerTask) checkvalue(exp string, isExpression bool, con redis.Conn) 
 		if len(t) > 0 {
 			body, err := json.Marshal(t)
 			if err == nil {
-				_, err = con.Do("SET", "trigger_history:"+exp, body)
+				reply := client.Cmd("SET", "trigger_history:"+exp, body)
+				err = reply.Err
 			}
 			if err != nil {
 				return err

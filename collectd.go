@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/garyburd/redigo/redis"
+	"github.com/fzzy/radix/redis"
 	"net/http"
 	"regexp"
+	"strconv"
 )
 
 // CollectdJSON is collectd's json data format
@@ -53,17 +54,18 @@ func (c *CollectdJSON) GetMetricName(index int) string {
 	return metricName
 }
 
-func getMetricRate(key string, value float64, timestamp int64, dataType string, con redis.Conn) (float64, error) {
+func getMetricRate(key string, value float64, timestamp int64, dataType string, client *redis.Client) (float64, error) {
 	var nValue float64
-	rst, err := redis.Values(con.Do("HMGET", key, "value", "timestamp"))
+	rst, err := client.Cmd("HMGET", key, "value", "timestamp").List()
 	if err != nil {
 		return 0, err
 	}
 	var t int64
 	var v float64
-	_, err = redis.Scan(rst, &v, &t)
+	t, _ = strconv.ParseInt(rst[0], 0, 64)
+	v, err = strconv.ParseFloat(rst[1], 64)
 	if err != nil {
-		return 0, redis.ErrNil
+		return 0, err
 	}
 	if dataType == "counter" || dataType == "derive" {
 		nValue = (value - v) / float64(timestamp-t)
@@ -80,9 +82,13 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
-	con := q.Get()
-	defer con.Close()
-	user := basicAuth(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := basicAuth(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -90,7 +96,7 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 	}
 	var dataset []CollectdJSON
 	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&dataset)
+	err = json.NewDecoder(r.Body).Decode(&dataset)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -99,18 +105,17 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 		for i := range c.Values {
 			key := user + "_" + c.GetMetricName(i)
 			t := int64(c.Timestamp)
-			nValue, _ := getMetricRate(key, c.Values[i], t, c.DataSetTypes[i], con)
+			nValue, _ := getMetricRate(key, c.Values[i], t, c.DataSetTypes[i], client)
 			err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %.2f %d", key, nValue, t)))
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			con.Send("HMSET", key, "rate_value", nValue, "value", c.Values[i], "timestamp", t, "type", c.Type)
-			con.Send("SADD", "host:"+user+"_"+c.Host, key)
-			con.Flush()
-			con.Receive()
-			_, err = con.Receive()
-			if err != nil {
+			client.Append("HMSET", key, "rate_value", nValue, "value", c.Values[i], "timestamp", t, "type", c.Type)
+			client.Append("SADD", "host:"+user+"_"+c.Host, key)
+			client.GetReply()
+			reply := client.GetReply()
+			if reply.Err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}

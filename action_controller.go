@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -19,20 +18,31 @@ func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg := string(t)
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	owner, err := redis.String(con.Do("HGET", tg, "owner"))
+	reply := client.Cmd("HGET", tg, "owner")
+	if reply.Err != nil {
+		client.Close()
+		client, _ = q.Pool.Get()
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	owner, err := reply.Str()
 	if user != owner {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	value, err := con.Do("SMEMBERS", tg+":actions")
+	value, err := client.Cmd("SMEMBERS", tg+":actions").Str()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -59,30 +69,40 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg := string(t)
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	owner, err := redis.String(con.Do("HGET", tg, "owner"))
+	reply := client.Cmd("HGET", tg, "owner")
+	if reply.Err != nil {
+		client.Close()
+		client, _ = q.Pool.Get()
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	owner, err := reply.Str()
 	if user != owner {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	if _, err := redis.String(con.Do("HGET", tg, "role")); err != nil {
+	if _, err := client.Cmd("HGET", tg, "role").Str(); err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	name := base64.URLEncoding.EncodeToString([]byte(action.Uri))
-	con.Send("HMSET", tg+":"+name, "repeat", action.Repeat, "uri", action.Uri)
-	con.Send("SADD", tg+":actions", tg+":"+name)
-	con.Flush()
-	con.Receive()
-	_, err = con.Receive()
-	if err != nil {
+	client.Append("HMSET", tg+":"+name, "repeat", action.Repeat, "uri", action.Uri)
+	client.Append("SADD", tg+":actions", tg+":"+name)
+	client.GetReply()
+	reply = client.GetReply()
+	if reply.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
@@ -108,25 +128,28 @@ func (q *WebService) ActionDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	tg := string(t)
 	name := mux.Vars(r)["name"]
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	owner, err := redis.String(con.Do("HGET", tg, "owner"))
+	owner, err := client.Cmd("HGET", tg, "owner").Str()
 	if user != owner {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	con.Send("DEL", tg+":"+name)
-	con.Send("SREM", tg+":actions", tg+":"+name)
-	con.Flush()
-	con.Receive()
-	_, err = con.Receive()
-	if err != nil {
+	client.Append("DEL", tg+":"+name)
+	client.Append("SREM", tg+":actions", tg+":"+name)
+	client.GetReply()
+	reply := client.GetReply()
+	if reply.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 	} else {

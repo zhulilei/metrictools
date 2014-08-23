@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -15,15 +14,19 @@ func (q *WebService) HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	hosts, _ := redis.Strings(con.Do("SMEMBERS", "hosts:"+user))
+	hosts, _ := client.Cmd("SMEMBERS", "hosts:"+user).List()
 	var rst []interface{}
 	for _, host := range hosts {
 		query := make(map[string]interface{})
@@ -41,15 +44,19 @@ func (q *WebService) HostShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	_, err := redis.Strings(con.Do("SMEMBERS", "host:"+user+"_"+host))
-	if err == nil {
+	reply := client.Cmd("SMEMBERS", "host:"+user+"_"+host)
+	if reply.Err == nil {
 		w.WriteHeader(http.StatusOK)
 		query := make(map[string]interface{})
 		query["name"] = host
@@ -67,29 +74,32 @@ func (q *WebService) HostDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	metricList, err := redis.Strings(con.Do("SMEMBERS", "host:"+user+"_"+host))
+	metricList, err := client.Cmd("SMEMBERS", "host:"+user+"_"+host).List()
 	if err == nil {
 		for _, v := range metricList {
-			con.Send("DEL", v)
-			con.Send("DEL", "archive:"+v)
-			con.Flush()
-			con.Receive()
-			_, err = con.Receive()
-			if err != nil {
+			client.Append("DEL", v)
+			client.Append("DEL", "archive:"+v)
+			client.GetReply()
+			reply := client.GetReply()
+			if reply.Err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 		}
-		_, err = con.Do("DEL", "host:"+host)
-		if err != nil {
+		reply := client.Cmd("DEL", "host:"+host)
+		if reply.Err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -103,26 +113,31 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	metricList, err := redis.Strings(con.Do("SMEMBERS", "host:"+user+"_"+host))
+	metricList, err := client.Cmd("SMEMBERS", "host:"+user+"_"+host).List()
 	size := len(user)
 	if err == nil {
 		var rst []interface{}
 		sort.Strings(metricList)
 		for _, v := range metricList {
-			ttl, err := redis.Int(con.Do("HGET", v, "ttl"))
-			if err != nil && err != redis.ErrNil {
+			reply := client.Cmd("HGET", v, "ttl")
+			if reply.Err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			tp, err := redis.String(con.Do("HGET", v, "type"))
+			ttl, err := reply.Int()
+			tp, err := client.Cmd("HGET", v, "type").List()
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -151,22 +166,25 @@ func (q *WebService) HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	metric := mux.Vars(r)["name"]
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	con.Send("SREM", "host:"+user+"_"+host, metric)
-	con.Send("DEL", "archive:"+user+"_"+metric)
-	con.Send("DEL", user+"_"+metric)
-	con.Flush()
-	con.Receive()
-	con.Receive()
-	_, err := con.Receive()
-	if err != nil {
+	client.Append("SREM", "host:"+user+"_"+host, metric)
+	client.Append("DEL", "archive:"+user+"_"+metric)
+	client.Append("DEL", user+"_"+metric)
+	client.GetReply()
+	client.GetReply()
+	reply := client.GetReply()
+	if reply.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

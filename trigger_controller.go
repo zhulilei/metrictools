@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -29,15 +28,19 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := string(n)
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	owner, err := redis.String(con.Do("HGET", name, "owner"))
+	owner, err := client.Cmd("HGET", name, "owner").Str()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -47,7 +50,7 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 		var recordList []interface{}
 		var data []string
 		for i := start / 14400; i <= end/14400; i++ {
-			values, err := redis.String(con.Do("GET", fmt.Sprintf("archive:%s:%d", user+"_"+name, i)))
+			values, err := client.Cmd("GET", fmt.Sprintf("archive:%s:%d", user+"_"+name, i)).Str()
 			if err != nil {
 				log.Println(err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -85,26 +88,29 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	tgname := base64.URLEncoding.EncodeToString([]byte(tg.Name))
 	tg.IsExpression, _ = regexp.MatchString(`(\+|-|\*|/)`, tg.Name)
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	_, err := redis.String(con.Do("HGET", tg.Name, "role"))
-	if err == nil {
+	reply := client.Cmd("HGET", tg.Name, "role")
+	if reply.Err == nil {
 		w.WriteHeader(http.StatusNotAcceptable)
 		w.Write([]byte(tg.Name + " exists"))
 		return
 	}
-	con.Send("HMSET", tg.Name, "is_e", tg.IsExpression, "role", tg.Role, "owner", user)
-	con.Send("SADD", "triggers", tg.Name)
-	con.Flush()
-	con.Receive()
-	_, err = con.Receive()
-	if err != nil {
+	client.Append("HMSET", tg.Name, "is_e", tg.IsExpression, "role", tg.Role, "owner", user)
+	client.Append("SADD", "triggers", tg.Name)
+	client.GetReply()
+	reply = client.GetReply()
+	if reply.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
@@ -128,16 +134,20 @@ func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := string(n)
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer q.Pool.Put(client)
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	owner, _ := redis.String(con.Do("HGET", name, "owner"))
-	isExpression, err := redis.Bool(con.Do("HGET", name, "is_e"))
+	owner, _ := client.Cmd("HGET", name, "owner").Str()
+	isExpression, err := client.Cmd("HGET", name, "is_e").Bool()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -147,22 +157,22 @@ func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isExpression {
-		con.Send("DEL", "archive:"+name)
-		con.Send("DEL", name)
-		con.Flush()
-		con.Receive()
-		_, err = con.Receive()
-		if err != nil {
+		client.Append("DEL", "archive:"+name)
+		client.Append("DEL", name)
+		client.GetReply()
+		reply := client.GetReply()
+		if reply.Err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	} else {
-		con.Do("HDEL", name, "is_e", "role")
+		client.Cmd("HDEL", name, "is_e", "role")
 	}
-	keys, err := redis.Strings(con.Do("SMEMBERS", name+":actions"))
+	keys, err := client.Cmd("SMEMBERS", name+":actions").List()
 	for _, v := range keys {
-		_, err = con.Do("DEL", v)
-		if err != nil {
+		reply := client.Cmd("DEL", v)
+		if reply.Err != nil {
+			err = reply.Err
 			break
 		}
 	}
@@ -171,8 +181,8 @@ func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Failed to delete trigger"))
 		return
 	}
-	_, err = con.Do("SREM", "triggers", name)
-	if err != nil {
+	reply := client.Cmd("SREM", "triggers", name)
+	if reply.Err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))
 	} else {
@@ -189,19 +199,23 @@ func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	name := string(n)
-	con := q.Pool.Get()
-	user := loginFilter(r, con)
+	client, err := q.Pool.Get()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	owner, _ := redis.String(con.Do("HGET", name, "owner"))
+	owner, _ := client.Cmd("HGET", name, "owner").Str()
 	if owner != user {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	raw_trigger_history, err := redis.Bytes(con.Do("GET", "trigger_history:"+name))
+	raw_trigger_history, err := client.Cmd("GET", "trigger_history:"+name).Bytes()
 	var trigger_history []KeyValue
 	if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

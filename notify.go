@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/garyburd/redigo/redis"
+	"github.com/fzzy/radix/extra/pool"
 	"log"
 	"net/smtp"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -16,7 +17,7 @@ import (
 // Notify define a notify task
 type Notify struct {
 	*Setting
-	*redis.Pool
+	*pool.Pool
 	consumer    *nsq.Consumer
 	exitChannel chan int
 	msgChannel  chan *Message
@@ -24,15 +25,14 @@ type Notify struct {
 
 func (m *Notify) Run() error {
 	var err error
-	dial := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", m.RedisServer)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
+	m.Pool, err = pool.NewPool("tcp", m.RedisServer, 5)
+	if err != nil {
+		return err
 	}
-	m.Pool = redis.NewPool(dial, 3)
 	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
 	cfg := nsq.NewConfig()
 	cfg.Set("user_agent", fmt.Sprintf("metric_notify/%s", hostname))
 	cfg.Set("snappy", true)
@@ -53,7 +53,7 @@ func (m *Notify) Run() error {
 func (m *Notify) Stop() {
 	m.consumer.Stop()
 	close(m.exitChannel)
-	m.Pool.Close()
+	m.Pool.Empty()
 }
 
 // HandleMessage is Notify's nsq handle function
@@ -73,9 +73,11 @@ func (m *Notify) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *Notify) sendNotify() {
-	con := m.Get()
-	defer con.Close()
-	var err error
+	client, err := m.Get()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer m.Put(client)
 	for {
 		select {
 		case <-m.exitChannel:
@@ -88,29 +90,30 @@ func (m *Notify) sendNotify() {
 				continue
 			}
 			var keys []string
-			keys, err = redis.Strings(con.Do("SMEMBERS", notifyMsg["trigger_exp"]+":actions"))
-			if err != nil {
-				if err == redis.ErrNil {
-					log.Println("no action for", notifyMsg["trigger_exp"])
-				} else {
-					con.Close()
-					con = m.Get()
-				}
+			reply := client.Cmd("SMEMBERS", notifyMsg["trigger_exp"]+":actions")
+			if reply.Err != nil {
+				client.Close()
+				client, _ = m.Get()
 				msg.ErrorChannel <- nil
 				continue
 			}
+			keys, err = reply.List()
+			if err != nil {
+				log.Println("no action for", notifyMsg["trigger_exp"], err)
+			}
 			for _, v := range keys {
 				var action NotifyAction
-				var values []interface{}
-				values, err = redis.Values(con.Do("HMGET", v, "uri", "updated_time", "repeat", "count"))
-				if err != nil {
+				var values []string
+				reply := client.Cmd("HMGET", v, "uri", "updated_time", "repeat", "count")
+				if reply.Err != nil {
 					log.Println("failed to get ", v)
 					break
 				}
-				_, err = redis.Scan(values, &action.Uri, &action.UpdateTime, &action.Repeat, &action.Count)
-				if err != nil {
-					continue
-				}
+				values, _ = reply.List()
+				action.Uri = values[0]
+				action.UpdateTime, _ = strconv.ParseInt(values[1], 0, 64)
+				action.Repeat, _ = strconv.Atoi(values[2])
+				action.Count, _ = strconv.Atoi(values[4])
 				n := time.Now().Unix()
 				if ((n - action.UpdateTime) < 600) && (action.Repeat >= action.Count) {
 					continue
@@ -125,14 +128,15 @@ func (m *Notify) sendNotify() {
 				default:
 					log.Println(notifyMsg)
 				}
-				_, err = con.Do("HMSET", v, "updated_time", n, "count", action.Count+1)
-				if err != nil {
+				reply = client.Cmd("HMSET", v, "updated_time", n, "count", action.Count+1)
+				if reply.Err != nil {
+					err = reply.Err
 					break
 				}
 			}
 			if err != nil {
-				con.Close()
-				con = m.Get()
+				client.Close()
+				client, _ = m.Get()
 			}
 			msg.ErrorChannel <- nil
 		}
