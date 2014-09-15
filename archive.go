@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/fzzy/radix/extra/pool"
 	"github.com/fzzy/radix/redis"
 	"log"
 	"os"
@@ -12,18 +11,12 @@ import (
 // DataArchive define data archive task
 type DataArchive struct {
 	*Setting
-	*pool.Pool
 	consumer    *nsq.Consumer
 	exitChannel chan int
 	msgChannel  chan *Message
 }
 
 func (m *DataArchive) Run() error {
-	var err error
-	m.Pool, err = pool.NewPool("tcp", m.RedisServer, 5)
-	if err != nil {
-		return err
-	}
 	hostname, err := os.Hostname()
 	if err != nil {
 		return err
@@ -48,7 +41,6 @@ func (m *DataArchive) Run() error {
 func (m *DataArchive) Stop() {
 	m.consumer.Stop()
 	close(m.exitChannel)
-	m.Pool.Empty()
 }
 
 // HandleMessage is DataArchive's nsq handle function
@@ -62,11 +54,8 @@ func (m *DataArchive) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *DataArchive) archiveData() {
-	client, err := m.Get()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer m.Put(client)
+	client, _ := redis.Dial(m.Network, m.RedisServer)
+	defer client.Close()
 	for {
 		select {
 		case <-m.exitChannel:
@@ -86,7 +75,7 @@ func (m *DataArchive) archiveData() {
 			reply := client.Cmd("MGET", m1, m2, m3)
 			if reply.Err != nil {
 				client.Close()
-				client, _ = m.Get()
+				client, _ = redis.Dial(m.Network, m.RedisServer)
 				msg.ErrorChannel <- reply.Err
 				continue
 			}

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/fzzy/radix/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -26,12 +27,12 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 	metricList := strings.Split(metrics, ",")
 	sort.Strings(metricList)
 	var recordList []interface{}
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -79,12 +80,12 @@ func (q *WebService) MetricCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -114,11 +115,12 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	recordList := make(map[string]interface{})
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -136,7 +138,6 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 		data = append(data, value)
 	}
 	metricData := ParseTimeSeries(data)
-	defer q.Pool.Put(client)
 	recordList["name"] = metric
 	recordList["url"] = "/api/v1/metric/" + metric
 	recordList["records"] = GenerateTimeseries(metricData)
@@ -160,12 +161,12 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -187,12 +188,12 @@ func (q *WebService) MetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	metric := mux.Vars(r)["name"]
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")

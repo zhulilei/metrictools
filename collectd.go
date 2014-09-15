@@ -82,12 +82,12 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := basicAuth(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/fzzy/radix/extra/pool"
+	"github.com/fzzy/radix/redis"
 	"log"
 	"net/smtp"
 	"os"
@@ -17,18 +17,12 @@ import (
 // Notify define a notify task
 type Notify struct {
 	*Setting
-	*pool.Pool
 	consumer    *nsq.Consumer
 	exitChannel chan int
 	msgChannel  chan *Message
 }
 
 func (m *Notify) Run() error {
-	var err error
-	m.Pool, err = pool.NewPool("tcp", m.RedisServer, 5)
-	if err != nil {
-		return err
-	}
 	hostname, err := os.Hostname()
 	if err != nil {
 		return err
@@ -53,7 +47,6 @@ func (m *Notify) Run() error {
 func (m *Notify) Stop() {
 	m.consumer.Stop()
 	close(m.exitChannel)
-	m.Pool.Empty()
 }
 
 // HandleMessage is Notify's nsq handle function
@@ -73,11 +66,8 @@ func (m *Notify) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *Notify) sendNotify() {
-	client, err := m.Get()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer m.Put(client)
+	client, err := redis.Dial(m.Network, m.RedisServer)
+	defer client.Close()
 	for {
 		select {
 		case <-m.exitChannel:
@@ -93,7 +83,7 @@ func (m *Notify) sendNotify() {
 			reply := client.Cmd("SMEMBERS", notifyMsg["trigger_exp"]+":actions")
 			if reply.Err != nil {
 				client.Close()
-				client, _ = m.Get()
+				client, _ = redis.Dial(m.Network, m.RedisServer)
 				msg.ErrorChannel <- nil
 				continue
 			}
@@ -136,7 +126,7 @@ func (m *Notify) sendNotify() {
 			}
 			if err != nil {
 				client.Close()
-				client, _ = m.Get()
+				client, _ = redis.Dial(m.Network, m.RedisServer)
 			}
 			msg.ErrorChannel <- nil
 		}

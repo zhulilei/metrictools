@@ -9,7 +9,6 @@ import (
 	"github.com/bitly/go-nsq"
 	"github.com/datastream/cal"
 	"github.com/datastream/skyline"
-	"github.com/fzzy/radix/extra/pool"
 	"github.com/fzzy/radix/redis"
 	"log"
 	"os"
@@ -21,18 +20,13 @@ import (
 // TriggerTask define a trigger statistic task
 type TriggerTask struct {
 	*Setting
-	*pool.Pool
+	client         *redis.Client
 	producer       *nsq.Producer
 	exitChannel    chan int
 	triggerChannel chan string
 }
 
 func (m *TriggerTask) Run() error {
-	var err error
-	m.Pool, err = pool.NewPool("tcp", m.RedisServer, 5)
-	if err != nil {
-		return err
-	}
 	hostname, err := os.Hostname()
 	if err != nil {
 		return err
@@ -44,6 +38,7 @@ func (m *TriggerTask) Run() error {
 	m.producer, err = nsq.NewProducer(m.NsqdAddress, cfg)
 	if err == nil {
 		go m.ScanTrigger()
+		go m.calculateTask()
 	}
 	return err
 }
@@ -51,24 +46,20 @@ func (m *TriggerTask) Run() error {
 func (m *TriggerTask) Stop() {
 	close(m.exitChannel)
 	m.producer.Stop()
-	m.Pool.Empty()
 }
 
 // ScanTrigger will find out all trigger which not updated in 60s
 func (m *TriggerTask) ScanTrigger() {
 	ticker := time.Tick(time.Second * 30)
-	client, err := m.Get()
-	if err != nil {
-		return
-	}
-	defer m.Put(client)
+	client, _ := redis.Dial(m.Network, m.RedisServer)
+	defer client.Close()
 	for {
 		select {
 		case <-ticker:
 			reply := client.Cmd("SMEMBERS", "triggers")
 			if reply.Err != nil {
 				client.Close()
-				client, _ = m.Get()
+				client, _ = redis.Dial(m.Network, m.RedisServer)
 				continue
 			}
 			keys, _ := reply.List()
@@ -77,7 +68,7 @@ func (m *TriggerTask) ScanTrigger() {
 				reply = client.Cmd("HGET", v, "last")
 				if reply.Err != nil {
 					client.Close()
-					client, _ = m.Get()
+					client, _ = redis.Dial(m.Network, m.RedisServer)
 					continue
 				}
 				last, err := reply.Int64()
@@ -96,11 +87,8 @@ func (m *TriggerTask) ScanTrigger() {
 }
 
 func (m *TriggerTask) calculateTask() {
-	client, err := m.Get()
-	if err != nil {
-		return
-	}
-	defer m.Put(client)
+	client, _ := redis.Dial(m.Network, m.RedisServer)
+	defer client.Close()
 	for {
 		select {
 		case <-m.exitChannel:
@@ -109,7 +97,7 @@ func (m *TriggerTask) calculateTask() {
 			now := time.Now().Unix()
 			if reply := client.Cmd("HSET", name, "last", now); reply.Err != nil {
 				client.Close()
-				client, _ = m.Get()
+				client, _ = redis.Dial(m.Network, m.RedisServer)
 				continue
 			}
 			err := m.calculate(name, client)

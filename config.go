@@ -28,6 +28,7 @@ type Setting struct {
 	ListenAddress      string   `jpath:"listen_address"`
 	SessionName        string   `jpath:"session_name"`
 	Modes              []string `jpath:"modes"`
+	Network            string   `jpath:"network"`
 }
 
 // ReadConfig used to read json to config
@@ -49,6 +50,9 @@ func ReadConfig(file string) (*Setting, error) {
 	}
 	if setting.FullDuration == 0 {
 		setting.MinDuration = 3600 * 24
+	}
+	if setting.Network == "" {
+		setting.Network = "tcp"
 	}
 	return setting, err
 }

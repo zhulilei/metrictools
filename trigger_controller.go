@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/fzzy/radix/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -28,12 +29,12 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := string(n)
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -88,12 +89,12 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	tgname := base64.URLEncoding.EncodeToString([]byte(tg.Name))
 	tg.IsExpression, _ = regexp.MatchString(`(\+|-|\*|/)`, tg.Name)
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -134,12 +135,12 @@ func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := string(n)
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -199,11 +200,12 @@ func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	name := string(n)
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")

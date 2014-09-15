@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/fzzy/radix/extra/pool"
+	"github.com/fzzy/radix/redis"
 	"log"
 	"os"
 	"strconv"
@@ -13,7 +13,6 @@ import (
 
 // MetricDeliver define a metric process task
 type MetricDeliver struct {
-	*pool.Pool
 	*Setting
 	consumer    *nsq.Consumer
 	producer    *nsq.Producer
@@ -22,11 +21,6 @@ type MetricDeliver struct {
 }
 
 func (m *MetricDeliver) Run() error {
-	var err error
-	m.Pool, err = pool.NewPool("tcp", m.RedisServer, 5)
-	if err != nil {
-		return err
-	}
 	hostname, err := os.Hostname()
 	if err != nil {
 		return err
@@ -56,7 +50,6 @@ func (m *MetricDeliver) Stop() {
 	m.consumer.Stop()
 	close(m.exitChannel)
 	m.producer.Stop()
-	m.Pool.Empty()
 }
 
 // HandleMessage is MetricDeliver's nsq handle function
@@ -73,11 +66,8 @@ func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *MetricDeliver) writeLoop() {
-	client, err := m.Get()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer m.Put(client)
+	client, _ := redis.Dial(m.Network, m.RedisServer)
+	defer client.Close()
 	for {
 		select {
 		case <-m.exitChannel:
@@ -102,7 +92,7 @@ func (m *MetricDeliver) writeLoop() {
 			reply := client.GetReply()
 			if reply.Err != nil {
 				client.Close()
-				client, _ = m.Get()
+				client, _ = redis.Dial(m.Network, m.RedisServer)
 			}
 			msg.ErrorChannel <- reply.Err
 			reply = client.GetReply()

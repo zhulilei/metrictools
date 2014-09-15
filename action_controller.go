@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"github.com/fzzy/radix/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -18,12 +19,12 @@ func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg := string(t)
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -32,8 +33,6 @@ func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	reply := client.Cmd("HGET", tg, "owner")
 	if reply.Err != nil {
-		client.Close()
-		client, _ = q.Pool.Get()
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -69,12 +68,12 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg := string(t)
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -83,8 +82,6 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	reply := client.Cmd("HGET", tg, "owner")
 	if reply.Err != nil {
-		client.Close()
-		client, _ = q.Pool.Get()
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -128,12 +125,12 @@ func (q *WebService) ActionDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	tg := string(t)
 	name := mux.Vars(r)["name"]
-	client, err := q.Pool.Get()
+	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer q.Pool.Put(client)
+	defer client.Close()
 	user := loginFilter(r, client)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")

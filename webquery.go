@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/fzzy/radix/extra/pool"
 	"github.com/gorilla/mux"
 	"net/http"
 	"os"
@@ -11,16 +10,10 @@ import (
 
 type WebService struct {
 	*Setting
-	*pool.Pool
 	producer *nsq.Producer
 }
 
 func (q *WebService) Run() error {
-	var err error
-	q.Pool, err = pool.NewPool("tcp", q.RedisServer, 5)
-	if err != nil {
-		return err
-	}
 	hostname, err := os.Hostname()
 	if err != nil {
 		return err
@@ -91,5 +84,4 @@ func (q *WebService) Run() error {
 }
 func (q *WebService) Stop() {
 	q.producer.Stop()
-	q.Pool.Empty()
 }
