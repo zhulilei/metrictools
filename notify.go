@@ -67,6 +67,9 @@ func (m *Notify) HandleMessage(msg *nsq.Message) error {
 
 func (m *Notify) sendNotify() {
 	client, err := redis.Dial(m.Network, m.RedisServer)
+	if err != nil {
+		log.Println("redis connection err", err)
+	}
 	defer client.Close()
 	for {
 		select {
@@ -83,6 +86,7 @@ func (m *Notify) sendNotify() {
 			reply := client.Cmd("SMEMBERS", notifyMsg["trigger_exp"]+":actions")
 			if reply.Err != nil {
 				client.Close()
+				log.Println("redis connection close")
 				client, _ = redis.Dial(m.Network, m.RedisServer)
 				msg.ErrorChannel <- nil
 				continue

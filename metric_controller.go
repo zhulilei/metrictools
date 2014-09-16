@@ -29,6 +29,7 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 	var recordList []interface{}
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -82,6 +83,7 @@ func (q *WebService) MetricCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -117,6 +119,7 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 	recordList := make(map[string]interface{})
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -163,6 +166,7 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -190,6 +194,7 @@ func (q *WebService) MetricDelete(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

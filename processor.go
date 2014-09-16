@@ -66,7 +66,10 @@ func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *MetricDeliver) writeLoop() {
-	client, _ := redis.Dial(m.Network, m.RedisServer)
+	client, err := redis.Dial(m.Network, m.RedisServer)
+	if err != nil {
+		log.Println("redis connection err", err)
+	}
 	defer client.Close()
 	for {
 		select {
@@ -92,6 +95,7 @@ func (m *MetricDeliver) writeLoop() {
 			reply := client.GetReply()
 			if reply.Err != nil {
 				client.Close()
+				log.Println("redis connection close")
 				client, _ = redis.Dial(m.Network, m.RedisServer)
 			}
 			msg.ErrorChannel <- reply.Err

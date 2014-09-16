@@ -31,6 +31,7 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 	name := string(n)
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -43,6 +44,7 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 	}
 	owner, err := client.Cmd("HGET", name, "owner").Str()
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 		return
@@ -91,6 +93,7 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -137,6 +140,7 @@ func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 	name := string(n)
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -202,6 +206,7 @@ func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) 
 	name := string(n)
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

@@ -17,6 +17,7 @@ func (q *WebService) HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -47,6 +48,7 @@ func (q *WebService) HostShow(w http.ResponseWriter, r *http.Request) {
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -77,6 +79,7 @@ func (q *WebService) HostDelete(w http.ResponseWriter, r *http.Request) {
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -116,6 +119,7 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -169,6 +173,7 @@ func (q *WebService) HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	metric := mux.Vars(r)["name"]
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

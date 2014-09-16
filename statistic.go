@@ -51,7 +51,10 @@ func (m *TriggerTask) Stop() {
 // ScanTrigger will find out all trigger which not updated in 60s
 func (m *TriggerTask) ScanTrigger() {
 	ticker := time.Tick(time.Second * 30)
-	client, _ := redis.Dial(m.Network, m.RedisServer)
+	client, err := redis.Dial(m.Network, m.RedisServer)
+	if err != nil {
+		log.Println("redis connection err", err)
+	}
 	defer client.Close()
 	for {
 		select {
@@ -59,6 +62,7 @@ func (m *TriggerTask) ScanTrigger() {
 			reply := client.Cmd("SMEMBERS", "triggers")
 			if reply.Err != nil {
 				client.Close()
+				log.Println("redis connection close")
 				client, _ = redis.Dial(m.Network, m.RedisServer)
 				continue
 			}
@@ -68,6 +72,7 @@ func (m *TriggerTask) ScanTrigger() {
 				reply = client.Cmd("HGET", v, "last")
 				if reply.Err != nil {
 					client.Close()
+					log.Println("redis connection close")
 					client, _ = redis.Dial(m.Network, m.RedisServer)
 					continue
 				}

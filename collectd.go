@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/fzzy/radix/redis"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -84,6 +85,7 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
 	client, err := redis.Dial(q.Network, q.RedisServer)
 	if err != nil {
+		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -116,6 +118,7 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 			client.GetReply()
 			reply := client.GetReply()
 			if reply.Err != nil {
+				log.Println("redis get reply err", reply.Err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}

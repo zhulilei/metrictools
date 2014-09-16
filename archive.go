@@ -54,7 +54,10 @@ func (m *DataArchive) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *DataArchive) archiveData() {
-	client, _ := redis.Dial(m.Network, m.RedisServer)
+	client, err := redis.Dial(m.Network, m.RedisServer)
+	if err != nil {
+		log.Println("redis connection err", err)
+	}
 	defer client.Close()
 	for {
 		select {
@@ -138,6 +141,6 @@ func compress(metric string, values []byte, atime int64, ttl int64, interval int
 	client.Append("SET", metric, data)
 	client.Append("EXPIRE", metric, ttl)
 	client.GetReply()
-	r := client.GetReply()
-	return r.Err
+	reply := client.GetReply()
+	return reply.Err
 }
