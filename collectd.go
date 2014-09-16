@@ -107,7 +107,10 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 		for i := range c.Values {
 			key := user + "_" + c.GetMetricName(i)
 			t := int64(c.Timestamp)
-			nValue, _ := getMetricRate(key, c.Values[i], t, c.DataSetTypes[i], client)
+			nValue, err := getMetricRate(key, c.Values[i], t, c.DataSetTypes[i], client)
+			if err != nil {
+				log.Println("get MetricRate failed", err)
+			}
 			err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %.2f %d", key, nValue, t)))
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)

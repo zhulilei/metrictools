@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"github.com/datastream/aws"
 	"github.com/fzzy/radix/redis"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -24,6 +25,7 @@ func basicAuth(r *http.Request, client *redis.Client) string {
 	password := idents[1]
 	i, err := client.Cmd("HGET", "user:"+user, password).Int()
 	if err != nil || i != 1 {
+		log.Println("redis hget error", err)
 		user = ""
 	}
 	return user
@@ -35,8 +37,9 @@ func awsSignv4(r *http.Request, client *redis.Client) string {
 	if err != nil {
 		return user
 	}
-	userinfo, _ := client.Cmd("HMGET", "access_key:"+s.AccessKey, "user", "secretkey").List()
-	if len(userinfo) != 2 {
+	userinfo, err := client.Cmd("HMGET", "access_key:"+s.AccessKey, "user", "secretkey").List()
+	if len(userinfo) != 2 || err != nil {
+		log.Println("redis hget error", err)
 		return user
 	}
 	s.SecretKey = userinfo[1]
