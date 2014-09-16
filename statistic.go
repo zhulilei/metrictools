@@ -44,6 +44,7 @@ func (m *TriggerTask) Run() error {
 	m.producer, err = nsq.NewProducer(m.NsqdAddress, cfg)
 	if err == nil {
 		go m.ScanTrigger()
+		go m.calculateTask()
 	}
 	return err
 }
