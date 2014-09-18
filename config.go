@@ -13,6 +13,8 @@ type Setting struct {
 	LookupdAddresses   []string `jpath:"lookupd_addresses"`
 	MetricTopic        string   `jpath:"metric_topic"`
 	MetricChannel      string   `jpath:"metric_channel"`
+	SkylineTopic       string   `jpath:"skyline_topic"`
+	SkylineChannel     string   `jpath:"skyline_channel"`
 	TriggerTopic       string   `jpath:"trigger_topic"`
 	TriggerChannel     string   `jpath:"trigger_channel"`
 	ArchiveTopic       string   `jpath:"archive_topic"`

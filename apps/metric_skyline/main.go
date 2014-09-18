@@ -20,15 +20,15 @@ func main() {
 		log.Fatal("parse config file error: ", err)
 	}
 
-	s := &StatisticTask{
-		Setting:          c,
-		exitChannel:      make(chan int),
-		statisticChannel: make(chan string),
+	s := &SkylineTask{
+		Setting:     c,
+		exitChannel: make(chan int),
+		msgChannel:  make(chan *metrictools.Message),
 	}
 	if err := s.Run(); err != nil {
 		log.Fatal("fail to run metric statistic task", err)
 	}
-	log.Println("start statistic task")
+	log.Println("start skyline task")
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan

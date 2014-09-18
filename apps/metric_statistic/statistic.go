@@ -1,39 +1,34 @@
 package main
 
 import (
-	"crypto/sha1"
-	"encoding/base64"
-	"encoding/json"
+	"../.."
 	"errors"
 	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/datastream/cal"
-	"github.com/datastream/skyline"
 	"github.com/fzzy/radix/redis"
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
-	"../.."
 )
 
-// TriggerTask define a trigger statistic task
-type TriggerTask struct {
+// StatisticTask define a statistic task
+type StatisticTask struct {
 	*metrictools.Setting
-	client         *redis.Client
-	producer       *nsq.Producer
-	exitChannel    chan int
-	triggerChannel chan string
+	client           *redis.Client
+	producer         *nsq.Producer
+	exitChannel      chan int
+	statisticChannel chan string
 }
 
-func (m *TriggerTask) Run() error {
+func (m *StatisticTask) Run() error {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return err
 	}
 	cfg := nsq.NewConfig()
-	cfg.Set("user_agent", fmt.Sprintf("metric_trigger/%s", hostname))
+	cfg.Set("user_agent", fmt.Sprintf("metric_statistic/%s", hostname))
 	cfg.Set("snappy", true)
 	cfg.Set("max_in_flight", m.MaxInFlight)
 	m.producer, err = nsq.NewProducer(m.NsqdAddress, cfg)
@@ -44,13 +39,13 @@ func (m *TriggerTask) Run() error {
 	return err
 }
 
-func (m *TriggerTask) Stop() {
+func (m *StatisticTask) Stop() {
 	close(m.exitChannel)
 	m.producer.Stop()
 }
 
-// ScanTrigger will find out all trigger which not updated in 60s
-func (m *TriggerTask) ScanTrigger() {
+// ScanStattistic will find out all trigger which not updated in 60s
+func (m *StatisticTask) ScanTrigger() {
 	ticker := time.Tick(time.Second * 30)
 	client, err := redis.Dial(m.Network, m.RedisServer)
 	if err != nil {
@@ -84,7 +79,7 @@ func (m *TriggerTask) ScanTrigger() {
 				if now-last < 61 {
 					continue
 				}
-				m.triggerChannel <- v
+				m.statisticChannel <- v
 			}
 		case <-m.exitChannel:
 			return
@@ -92,62 +87,58 @@ func (m *TriggerTask) ScanTrigger() {
 	}
 }
 
-func (m *TriggerTask) calculateTask() {
+func (m *StatisticTask) calculateTask() {
 	client, _ := redis.Dial(m.Network, m.RedisServer)
 	defer client.Close()
 	for {
 		select {
 		case <-m.exitChannel:
 			return
-		case name := <-m.triggerChannel:
+		case name := <-m.statisticChannel:
 			now := time.Now().Unix()
 			if reply := client.Cmd("HSET", name, "last", now); reply.Err != nil {
 				client.Close()
 				client, _ = redis.Dial(m.Network, m.RedisServer)
 				continue
 			}
-			err := m.calculate(name, client)
-			log.Println("calculate failed", err)
+			reply := client.Cmd("HGET", name, "is_e")
+			if reply.Err != nil {
+				log.Println("get trigger failed:", name, reply.Err)
+			}
+			if stat, _ := reply.Bool(); stat {
+				err := m.calculate(name, client)
+				log.Println("calculate failed", err)
+			}
+			m.producer.Publish(m.SkylineTopic, []byte(name))
 		}
 	}
 }
 
-func (m *TriggerTask) calculate(triggerName string, client *redis.Client) error {
-	var trigger metrictools.Trigger
-	var err error
-	reply := client.Cmd("HGET", triggerName, "is_e")
+func (m *StatisticTask) calculate(exp string, client *redis.Client) error {
+	expList := cal.Parser(exp)
+	v, err := m.evalExp(expList, client)
+	if err != nil {
+		log.Println("calculate failed:", exp, err)
+		return err
+	}
+	t := time.Now().Unix()
+	body, err := metrictools.KeyValueEncode(t, v)
+	if err != nil {
+		log.Println("encode data failed:", err)
+		return err
+	}
+	client.Append("APPEND", fmt.Sprintf("archive:%s:%d", exp, t/14400), body)
+	// ttl ?
+	client.Append("EXPIRE", fmt.Sprintf("archive:%s:%d", exp, t/14400), 90000)
+	client.GetReply()
+	reply := client.GetReply()
 	if reply.Err != nil {
-		log.Println("get trigger failed:", triggerName, err)
 		return reply.Err
 	}
-	trigger.IsExpression, err = reply.Bool()
-	trigger.Name = triggerName
-	if trigger.IsExpression {
-		expList := cal.Parser(trigger.Name)
-		v, err := m.evalExp(expList, client)
-		if err != nil {
-			log.Println("calculate failed:", trigger.Name, err)
-			return err
-		}
-		t := time.Now().Unix()
-		body, err := metrictools.KeyValueEncode(t, v)
-		if err != nil {
-			log.Println("encode data failed:", err)
-			return err
-		}
-		client.Append("APPEND", fmt.Sprintf("archive:%s:%d", trigger.Name, t/14400), body)
-		// ttl ?
-		client.Append("EXPIRE", fmt.Sprintf("archive:%s:%d", trigger.Name, t/14400), 90000)
-		client.GetReply()
-		reply = client.GetReply()
-		if reply.Err != nil {
-			return reply.Err
-		}
-	}
-	return m.checkvalue(trigger.Name, trigger.IsExpression, client)
+	return nil
 }
 
-func (m *TriggerTask) evalExp(expList []string, client *redis.Client) (float64, error) {
+func (m *StatisticTask) evalExp(expList []string, client *redis.Client) (float64, error) {
 	kv := make(map[string]interface{})
 	exp := ""
 	current := time.Now().Unix()
@@ -177,89 +168,4 @@ func (m *TriggerTask) evalExp(expList []string, client *redis.Client) (float64, 
 	}
 	rst, err := cal.Cal(exp, kv)
 	return rst, err
-}
-
-func (m *TriggerTask) checkvalue(exp string, isExpression bool, client *redis.Client) error {
-	t := time.Now().Unix()
-	reply := client.Cmd("MGET", fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400))
-	if reply.Err != nil {
-		return nil
-	}
-	values, err := reply.List()
-	var skylineTrigger []string
-	threshold := 8 - m.Consensus
-	if err != nil {
-	}
-	timeseries := metrictools.ParseTimeSeries(values)
-	if len(timeseries) == 0 {
-		log.Println(exp, " is empty")
-		return nil
-	}
-	timeSize := timeseries[len(timeseries)-1].GetTimestamp() - timeseries[0].GetTimestamp()
-	if timeSize < m.FullDuration {
-		log.Println("incomplete data", exp, timeSize)
-		return nil
-	}
-	if skyline.MedianAbsoluteDeviation(timeseries) {
-		skylineTrigger = append(skylineTrigger, "MedianAbsoluteDeviation")
-	}
-	if skyline.Grubbs(timeseries) {
-		skylineTrigger = append(skylineTrigger, "Grubbs")
-	}
-	if skyline.FirstHourAverage(timeseries, m.FullDuration) {
-		skylineTrigger = append(skylineTrigger, "FirstHourAverage")
-	}
-	if skyline.SimpleStddevFromMovingAverage(timeseries) {
-		skylineTrigger = append(skylineTrigger, "SimpleStddevFromMovingAverage")
-	}
-	if skyline.StddevFromMovingAverage(timeseries) {
-		skylineTrigger = append(skylineTrigger, "StddevFromMovingAverage")
-	}
-	if skyline.MeanSubtractionCumulation(timeseries) {
-		skylineTrigger = append(skylineTrigger, "MeanSubtractionCumulation")
-	}
-	if skyline.LeastSquares(timeseries) {
-		skylineTrigger = append(skylineTrigger, "LeastSquares")
-	}
-	if skyline.HistogramBins(timeseries) {
-		skylineTrigger = append(skylineTrigger, "HistogramBins")
-	}
-	if (8 - len(skylineTrigger)) <= threshold {
-		reply := client.Cmd("GET", "trigger_history:"+exp)
-		raw_trigger_history, _ := reply.Bytes()
-		var trigger_history []skyline.TimePoint
-		if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
-			return err
-		}
-		isan, t := skyline.IsAnomalouslyAnomalous(trigger_history, timeseries[len(timeseries)-1])
-		if len(t) > 0 {
-			body, err := json.Marshal(t)
-			if err == nil {
-				reply := client.Cmd("SET", "trigger_history:"+exp, body)
-				err = reply.Err
-			}
-			if err != nil {
-				return err
-			}
-		}
-		if isan {
-			rst := make(map[string]string)
-			rst["time"] = time.Now().Format("2006-01-02 15:04:05")
-			rst["event"] = strings.Join(skylineTrigger, ", ")
-			h := sha1.New()
-			h.Write([]byte(exp))
-			name := base64.URLEncoding.EncodeToString(h.Sum(nil))
-			rst["trigger"] = name
-			rst["trigger_exp"] = exp
-			rst["url"] = "/api/v1/triggerhistory/" + name
-			if body, err := json.Marshal(rst); err == nil {
-				m.producer.Publish(m.NotifyTopic, body)
-				log.Println(string(body))
-			}
-		}
-	}
-	if len(skylineTrigger) > 4 {
-		log.Println(skylineTrigger, exp)
-	}
-	return nil
 }
