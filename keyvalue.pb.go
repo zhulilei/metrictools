@@ -2,7 +2,7 @@
 // source: keyvalue.proto
 // DO NOT EDIT!
 
-package main
+package metrictools
 
 import proto "code.google.com/p/goprotobuf/proto"
 import json "encoding/json"

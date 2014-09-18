@@ -1,4 +1,4 @@
-package main
+package metrictools
 
 import (
 	"code.google.com/p/goprotobuf/proto"
@@ -47,4 +47,23 @@ func KeyValueDecode(record []byte) (KeyValue, error) {
 	var kv KeyValue
 	err := proto.Unmarshal(record, &kv)
 	return kv, err
+}
+
+// ParseTimeSeries convert redis value to skyline's data format
+func ParseTimeSeries(values []string) []skyline.TimePoint {
+	var rst []skyline.TimePoint
+	for _, val := range values {
+		size := len(val)
+		for i := 0; i < size; i += 18 {
+			if (i + 18) > size {
+				break
+			}
+			kv, err := KeyValueDecode([]byte(val[i : i+18]))
+			if err != nil {
+				continue
+			}
+			rst = append(rst, &kv)
+		}
+	}
+	return rst
 }
