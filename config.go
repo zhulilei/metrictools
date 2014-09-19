@@ -29,7 +29,6 @@ type Setting struct {
 	MaxInFlight        int      `jpath:"maxinflight"`
 	ListenAddress      string   `jpath:"listen_address"`
 	SessionName        string   `jpath:"session_name"`
-	Modes              []string `jpath:"modes"`
 	Network            string   `jpath:"network"`
 }
 
