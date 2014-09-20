@@ -1,12 +1,12 @@
 package main
 
 import (
+	"../.."
 	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/gorilla/mux"
 	"net/http"
 	"os"
-	"../.."
 )
 
 type WebService struct {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"../.."
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"../.."
 )
 
 // TriggerShow  GET /trigger/{:name}
@@ -223,15 +223,15 @@ func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	raw_trigger_history, err := client.Cmd("GET", "trigger_history:"+name).Bytes()
-	var trigger_history []metrictools.KeyValue
-	if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
+	rawTriggerHistory, err := client.Cmd("GET", "trigger_history:"+name).Bytes()
+	var triggerHistory []metrictools.KeyValue
+	if err := json.Unmarshal(rawTriggerHistory, &triggerHistory); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed find trigger history"))
 		return
 	}
 	var timeserires [][]interface{}
-	for _, val := range trigger_history {
+	for _, val := range triggerHistory {
 		timeserires = append(timeserires, []interface{}{val.GetTimestamp(), val.GetValue()})
 	}
 	var recordList []interface{}

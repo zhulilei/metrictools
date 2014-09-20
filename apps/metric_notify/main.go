@@ -1,13 +1,13 @@
 package main
 
 import (
+	"../.."
 	"flag"
 	"github.com/datastream/sessions"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"../.."
 )
 
 var (
@@ -15,10 +15,6 @@ var (
 )
 
 var sessionservice *sessions.RedisStore
-
-type MetricTask interface {
-	Stop()
-}
 
 func main() {
 	flag.Parse()

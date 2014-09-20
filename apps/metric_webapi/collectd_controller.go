@@ -1,12 +1,12 @@
 package main
 
 import (
+	"../.."
 	"encoding/json"
 	"fmt"
 	"github.com/fzzy/radix/redis"
 	"log"
 	"net/http"
-	"../.."
 )
 
 func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
@@ -37,24 +37,17 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 		for i := range c.Values {
 			key := user + "_" + c.GetMetricName(i)
 			t := int64(c.Timestamp)
-			nValue, err := metrictools.GetMetricRate(key, c.Values[i], t, c.DataSetTypes[i], client)
-			if err != nil {
-				log.Println("get MetricRate failed", err)
+			oldt, oldv, err := metrictools.GetMetricValue(key, client)
+			var nValue float64
+			if err == nil {
+				nValue = c.GetMetricRate(oldv, oldt, i)
+				err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %.2f %d", key, nValue, t)))
 			}
-			err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %.2f %d", key, nValue, t)))
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			client.Append("HMSET", key, "rate_value", nValue, "value", c.Values[i], "timestamp", t, "type", c.Type)
-			client.Append("SADD", "host:"+user+"_"+c.Host, key)
-			client.GetReply()
-			reply := client.GetReply()
-			if reply.Err != nil {
-				log.Println("redis get reply err", reply.Err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+			client.Cmd("HMSET", key, "rate_value", nValue, "value", c.Values[i], "timestamp", t, "type", c.Type)
 		}
 	}
 }

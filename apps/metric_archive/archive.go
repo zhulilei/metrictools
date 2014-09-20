@@ -1,12 +1,12 @@
 package main
 
 import (
+	"../.."
 	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/fzzy/radix/redis"
 	"log"
 	"os"
-	"../.."
 )
 
 // DataArchive define data archive task
@@ -79,6 +79,7 @@ func (m *DataArchive) archiveData() {
 			reply := client.Cmd("MGET", m1, m2, m3)
 			if reply.Err != nil {
 				client.Close()
+				log.Println("redis connection close")
 				client, _ = redis.Dial(m.Network, m.RedisServer)
 				msg.ErrorChannel <- reply.Err
 				continue

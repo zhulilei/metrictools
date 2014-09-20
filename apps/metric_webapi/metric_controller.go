@@ -1,6 +1,7 @@
 package main
 
 import (
+	"../.."
 	"encoding/json"
 	"fmt"
 	"github.com/fzzy/radix/redis"
@@ -9,7 +10,6 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"../.."
 )
 
 // MetricIndex GET /metric

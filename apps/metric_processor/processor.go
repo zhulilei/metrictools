@@ -1,6 +1,7 @@
 package main
 
 import (
+	"../.."
 	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/fzzy/radix/redis"
@@ -9,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"../.."
 )
 
 // MetricDeliver define a metric process task
@@ -43,7 +43,9 @@ func (m *MetricDeliver) Run() error {
 	if err != nil {
 		return err
 	}
-	go m.writeLoop()
+	for i := 0; i < m.MaxInFlight; i++ {
+		go m.writeLoop()
+	}
 	return err
 }
 
@@ -91,8 +93,13 @@ func (m *MetricDeliver) writeLoop() {
 				log.Println(err)
 				continue
 			}
+			tokens := strings.Split(data[0], "_")
+			user := tokens[0]
+			host := tokens[1]
+			client.Append("SADD", "host:"+user+"_"+host, data[0])
 			client.Append("APPEND", fmt.Sprintf("archive:%s:%d", data[0], t/14400), record)
 			client.Append("HGET", data[0], "atime")
+			client.GetReply()
 			reply := client.GetReply()
 			if reply.Err != nil {
 				client.Close()

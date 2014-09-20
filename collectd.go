@@ -51,26 +51,27 @@ func (c *CollectdJSON) GetMetricName(index int) string {
 	return metricName
 }
 
-func GetMetricRate(key string, value float64, timestamp int64, dataType string, client *redis.Client) (float64, error) {
+func (c *CollectdJSON) GetMetricRate(value float64, timestamp int64, index int) float64 {
 	var nValue float64
-	rst, err := client.Cmd("HMGET", key, "value", "timestamp").List()
-	if err != nil {
-		return 0, err
-	}
-	var t int64
-	var v float64
-	t, _ = strconv.ParseInt(rst[0], 0, 64)
-	v, err = strconv.ParseFloat(rst[1], 64)
-	if err != nil {
-		return 0, err
-	}
-	if dataType == "counter" || dataType == "derive" {
-		nValue = (value - v) / float64(timestamp-t)
+	if c.DataSetTypes[index] == "counter" || c.DataSetTypes[index] == "derive" {
+		nValue = (c.Values[index] - value) / float64(int64(c.Timestamp)-timestamp)
 		if nValue < 0 {
 			nValue = 0
 		}
 	} else {
-		nValue = value
+		nValue = c.Values[index]
 	}
-	return nValue, err
+	return nValue
+}
+
+func GetMetricValue(name string, client *redis.Client) (int64, float64, error) {
+	var t int64
+	var v float64
+	rst, err := client.Cmd("HMGET", name, "value", "timestamp").List()
+	if err != nil {
+		return t, v, err
+	}
+	t, _ = strconv.ParseInt(rst[0], 0, 64)
+	v, _ = strconv.ParseFloat(rst[1], 64)
+	return t, v, nil
 }

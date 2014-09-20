@@ -1,6 +1,7 @@
 package main
 
 import (
+	"../.."
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"../.."
 )
 
 // Notify define a notify task

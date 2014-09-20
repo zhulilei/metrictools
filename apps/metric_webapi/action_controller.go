@@ -1,13 +1,13 @@
 package main
 
 import (
+	"../.."
 	"encoding/base64"
 	"encoding/json"
 	"github.com/fzzy/radix/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
-	"../.."
 )
 
 // ActionIndex GET /trigger/{:triggername}/action
