@@ -135,7 +135,7 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 	for i := start / 14400; i <= end/14400; i++ {
 		value, err := client.Cmd("GET", fmt.Sprintf("archive:%s:%d", user+"_"+metric, i)).Str()
 		if err != nil {
-			log.Println(err)
+			log.Println(fmt.Sprintf("archive:%s:%d", user+"_"+metric, i), err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
