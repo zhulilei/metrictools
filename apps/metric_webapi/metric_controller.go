@@ -50,7 +50,7 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 		for i := start / 14400; i <= end/14400; i++ {
 			value, err := client.Cmd("GET", fmt.Sprintf("archive:%s:%d", user+"_"+v, i)).Str()
 			if err != nil {
-				log.Println(err)
+				log.Println(fmt.Sprintf("archive:%s:%d", user+"_"+v, i), err)
 				continue
 			}
 			data = append(data, value)
