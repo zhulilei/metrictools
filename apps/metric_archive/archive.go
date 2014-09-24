@@ -143,8 +143,9 @@ func compress(metric string, values []byte, atime int64, ttl int64, interval int
 	if len(data) >0 {
 		client.Append("SET", metric, data)
 		client.Append("EXPIRE", metric, ttl)
+		client.GetReply()
+		reply := client.GetReply()
+		return reply.Err
 	}
-	client.GetReply()
-	reply := client.GetReply()
-	return reply.Err
+	return nil
 }
