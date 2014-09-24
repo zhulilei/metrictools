@@ -140,8 +140,10 @@ func compress(metric string, values []byte, atime int64, ttl int64, interval int
 		sumtime += kv.GetTimestamp()
 		count++
 	}
-	client.Append("SET", metric, data)
-	client.Append("EXPIRE", metric, ttl)
+	if len(data) >0 {
+		client.Append("SET", metric, data)
+		client.Append("EXPIRE", metric, ttl)
+	}
 	client.GetReply()
 	reply := client.GetReply()
 	return reply.Err
