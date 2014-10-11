@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/fzzy/radix/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -15,20 +14,14 @@ func (q *WebService) HostIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
-	client, err := redis.Dial(q.Network, q.RedisServer)
-	if err != nil {
-		log.Println("redis connection err", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer client.Close()
-	user := loginFilter(r, client)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	hosts, _ := client.Cmd("SMEMBERS", "hosts:"+user).List()
+	reply, _ := q.engine.Do("strings", "SMEMBERS", "hosts:"+user)
+	hosts := reply.([]string)
 	var rst []interface{}
 	for _, host := range hosts {
 		query := make(map[string]interface{})
@@ -46,20 +39,13 @@ func (q *WebService) HostShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	client, err := redis.Dial(q.Network, q.RedisServer)
-	if err != nil {
-		log.Println("redis connection err", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer client.Close()
-	user := loginFilter(r, client)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply := client.Cmd("SMEMBERS", "host:"+user+"_"+host)
-	if reply.Err == nil {
+	_, err := q.engine.Do("strings", "SMEMBERS", "host:"+user+"_"+host)
+	if err == nil {
 		w.WriteHeader(http.StatusOK)
 		query := make(map[string]interface{})
 		query["name"] = host
@@ -77,36 +63,26 @@ func (q *WebService) HostDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	client, err := redis.Dial(q.Network, q.RedisServer)
-	if err != nil {
-		log.Println("redis connection err", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer client.Close()
-	user := loginFilter(r, client)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	metricList, err := client.Cmd("SMEMBERS", "host:"+user+"_"+host).List()
+	reply, err := q.engine.Do("strings", "SMEMBERS", "host:"+user+"_"+host)
+	metricList := reply.([]string)
 	if err == nil {
+		var args []interface{}
 		for _, v := range metricList {
-			client.Append("DEL", v)
-			client.Append("DEL", "archive:"+v)
-			client.GetReply()
-			reply := client.GetReply()
-			if reply.Err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+			args = append(args, v)
+			args = append(args, "archive:"+v)
 		}
-		reply := client.Cmd("DEL", "host:"+host)
-		if reply.Err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		args = append(args, "host:"+host)
+		_, err = q.engine.Do("raw", "DEL", args...)
+	}
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -117,32 +93,27 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
-	client, err := redis.Dial(q.Network, q.RedisServer)
-	if err != nil {
-		log.Println("redis connection err", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer client.Close()
-	user := loginFilter(r, client)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	metricList, err := client.Cmd("SMEMBERS", "host:"+user+"_"+host).List()
+	reply, err := q.engine.Do("strings", "SMEMBERS", "host:"+user+"_"+host)
+	metricList := reply.([]string)
 	size := len(user)
 	if err == nil {
 		var rst []interface{}
 		sort.Strings(metricList)
 		for _, v := range metricList {
-			reply := client.Cmd("HGET", v, "ttl")
-			if reply.Err != nil {
+			reply, err := q.engine.Do("int", "HGET", v, "ttl")
+			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			ttl, err := reply.Int()
-			tp, err := client.Cmd("HGET", v, "type").List()
+			ttl := reply.(int)
+			reply, err = q.engine.Do("string", "HGET", v, "type")
+			tp := reply.(string)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -171,26 +142,15 @@ func (q *WebService) HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "DELETE")
 	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	metric := mux.Vars(r)["name"]
-	client, err := redis.Dial(q.Network, q.RedisServer)
-	if err != nil {
-		log.Println("redis connection err", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer client.Close()
-	user := loginFilter(r, client)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	client.Append("SREM", "host:"+user+"_"+host, metric)
-	client.Append("DEL", "archive:"+user+"_"+metric)
-	client.Append("DEL", user+"_"+metric)
-	client.GetReply()
-	client.GetReply()
-	reply := client.GetReply()
-	if reply.Err != nil {
+	q.engine.Do("raw", "SREM", "host:"+user+"_"+host, metric)
+	_, err := q.engine.Do("raw", "DEL", "host:"+user+"_"+host, user+"_"+metric)
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

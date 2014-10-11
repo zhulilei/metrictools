@@ -11,6 +11,7 @@ import (
 
 type WebService struct {
 	*metrictools.Setting
+	engine   metrictools.StoreEngine
 	producer *nsq.Producer
 }
 
@@ -24,6 +25,8 @@ func (q *WebService) Run() error {
 	cfg.Set("snappy", true)
 	cfg.Set("max_in_flight", q.MaxInFlight)
 	q.producer, err = nsq.NewProducer(q.NsqdAddress, cfg)
+	q.engine = &metrictools.RedisEngine{Setting: q.Setting}
+	go q.engine.Start()
 	if err != nil {
 		return err
 	}
@@ -85,4 +88,5 @@ func (q *WebService) Run() error {
 }
 func (q *WebService) Stop() {
 	q.producer.Stop()
+	q.engine.Stop()
 }

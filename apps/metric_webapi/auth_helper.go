@@ -3,13 +3,12 @@ package main
 import (
 	"encoding/base64"
 	"github.com/datastream/aws"
-	"github.com/fzzy/radix/redis"
 	"log"
 	"net/http"
 	"strings"
 )
 
-func basicAuth(r *http.Request, client *redis.Client) string {
+func (q *WebService) basicAuth(r *http.Request) string {
 	var user string
 	authorizationHeader := r.Header.Get("authorization")
 	idents := strings.Split(authorizationHeader, " ")
@@ -23,7 +22,8 @@ func basicAuth(r *http.Request, client *redis.Client) string {
 	}
 	user = idents[0]
 	password := idents[1]
-	i, err := client.Cmd("HGET", "user:"+user, password).Int()
+	rst, err := q.engine.Do("int", "HGET", "user:"+user, password)
+	i := rst.(int)
 	if err != nil || i != 1 {
 		log.Println("redis hget error", err)
 		user = ""
@@ -31,13 +31,14 @@ func basicAuth(r *http.Request, client *redis.Client) string {
 	return user
 }
 
-func awsSignv4(r *http.Request, client *redis.Client) string {
+func (q *WebService) awsSignv4(r *http.Request) string {
 	var user string
 	s, auth, err := sign4.GetSignature(r)
 	if err != nil {
 		return user
 	}
-	userinfo, err := client.Cmd("HMGET", "access_key:"+s.AccessKey, "user", "secretkey").List()
+	rst, err := q.engine.Do("strings", "HGET", "access_key:"+s.AccessKey, "user", "secretkey")
+	userinfo := rst.([]string)
 	if len(userinfo) != 2 || err != nil {
 		log.Println("redis hget error", err)
 		return user
@@ -52,14 +53,14 @@ func awsSignv4(r *http.Request, client *redis.Client) string {
 	return user
 }
 
-func loginFilter(r *http.Request, client *redis.Client) string {
+func (q *WebService) loginFilter(r *http.Request) string {
 	authorizationHeader := r.Header.Get("authorization")
 	idents := strings.Split(authorizationHeader, " ")
 	if idents[0] == "Basic" {
-		return basicAuth(r, client)
+		return q.basicAuth(r)
 	}
 	if idents[0] == "AWS4-HMAC-SHA256" {
-		return awsSignv4(r, client)
+		return q.awsSignv4(r)
 	}
 	return ""
 }

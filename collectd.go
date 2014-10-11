@@ -1,7 +1,6 @@
 package metrictools
 
 import (
-	"github.com/fzzy/radix/redis"
 	"regexp"
 	"strconv"
 )
@@ -64,13 +63,14 @@ func (c *CollectdJSON) GetMetricRate(value float64, timestamp int64, index int) 
 	return nValue
 }
 
-func GetMetricValue(name string, client *redis.Client) (int64, float64, error) {
+func GetMetricValue(name string, engine StoreEngine) (int64, float64, error) {
 	var t int64
 	var v float64
-	rst, err := client.Cmd("HMGET", name, "value", "timestamp").List()
+	rep, err := engine.Do("strings", "HMGET", name, "value", "timestamp")
 	if err != nil {
 		return t, v, err
 	}
+	rst := rep.([]string)
 	t, _ = strconv.ParseInt(rst[0], 0, 64)
 	v, _ = strconv.ParseFloat(rst[1], 64)
 	return t, v, nil

@@ -34,6 +34,17 @@ type Message struct {
 	ErrorChannel chan error
 }
 
+type Request struct {
+	Cmd          string
+	Args         []interface{}
+	ReplyChannel chan interface{}
+}
+
+type StoreEngine interface {
+	Do(rtype string, cmd string, args... interface{}) (interface{}, error)
+	Start()
+	Stop()
+}
 func KeyValueEncode(key int64, value float64) ([]byte, error) {
 	kv := &KeyValue{
 		Timestamp: proto.Int64(key),
