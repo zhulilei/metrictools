@@ -44,6 +44,7 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 				err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %.2f %d", key, nValue, t)))
 			}
 			if err != nil {
+				log.Println("collectd metric error",err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
