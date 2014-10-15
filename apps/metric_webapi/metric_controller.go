@@ -40,13 +40,12 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 		}
 		var data []string
 		for i := start / 14400; i <= end/14400; i++ {
-			reply, err := q.engine.Do("string", "GET", fmt.Sprintf("archive:%s:%d", user+"_"+v, i))
-			value := reply.(string)
+			values, err := q.engine.GetValues(fmt.Sprintf("archive:%s:%d", user+"_"+v, i))
 			if err != nil {
 				log.Println(fmt.Sprintf("archive:%s:%d", user+"_"+v, i), err)
 				continue
 			}
-			data = append(data, value)
+			data = append(data, values...)
 		}
 		metricData := metrictools.ParseTimeSeries(data)
 		record["name"] = v
@@ -83,9 +82,9 @@ func (q *WebService) MetricCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	for metric, value := range items {
 		metric = user + "_" + metric
-		_, err := q.engine.Do("raw", "GET", metric)
+		_, err := q.engine.GetValues(metric)
 		if err != nil {
-			q.engine.Do("raw", "HSET", metric, "ttl", value)
+			q.engine.SetAttr(metric, "ttl", value)
 		}
 	}
 }
@@ -112,14 +111,13 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 	}
 	var data []string
 	for i := start / 14400; i <= end/14400; i++ {
-		reply, err := q.engine.Do("string", "GET", fmt.Sprintf("archive:%s:%d", user+"_"+metric, i))
-		value := reply.(string)
+		values, err := q.engine.GetValues(fmt.Sprintf("archive:%s:%d", user+"_"+metric, i))
 		if err != nil {
 			log.Println(fmt.Sprintf("archive:%s:%d", user+"_"+metric, i), err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		data = append(data, value)
+		data = append(data, values...)
 	}
 	metricData := metrictools.ParseTimeSeries(data)
 	recordList["name"] = metric
@@ -152,9 +150,9 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	metric = user + "_" + metric
-	_, err := q.engine.Do("raw", "GET", metric)
+	_, err := q.engine.GetValues(metric)
 	if err != nil {
-		q.engine.Do("raw", "HSET", metric, "ttl", item["ttl"])
+		q.engine.SetAttr(metric, "ttl", item["ttl"])
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
@@ -173,7 +171,7 @@ func (q *WebService) MetricDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	metric = user + "_" + metric
-	_, err := q.engine.Do("raw", "DEL", metric, "archive:"+metric)
+	err := q.engine.DeleteData(metric, "archive:"+metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

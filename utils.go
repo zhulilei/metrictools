@@ -5,19 +5,50 @@ import (
 	"github.com/datastream/skyline"
 )
 
+// MetricData
+type Metric struct {
+	Name string
+	LastTimestamp int64
+	LastValue float64
+	ArchiveTime int64
+	RateValue float64
+	Mtype string
+	TTL  int64
+}
+
 // Trigger define a statistic expression
 type Trigger struct {
-	IsExpression bool   `json:"is_expression", redis:"is_e"`
-	Name         string `json:"name", redis:"name"`
-	Role         string `json:"role", redis:"role"`
+	Name         string `json:"name"`
+	Owner        string `json:"owner"`
+	LastTime     int64  `json:"-"`
+	IsExpression bool   `json:"is_expression"`
 }
 
 // NotifyAction define how to send notify
 type NotifyAction struct {
-	Uri        string `json:"uri", redis:"uri"`
-	UpdateTime int64  `json:"update_time", redis:"update_time"`
-	Repeat     int    `json:"repeat", redis:"repeat"`
-	Count      int    `json:"count", redis:"count"`
+	Name       string `json:"-"`
+	Uri        string `json:"uri"`
+	UpdateTime int64  `json:"update_time"`
+	Repeat     int    `json:"repeat"`
+	Count      int    `json:"count"`
+}
+
+
+// User define user
+type User struct {
+	Name string
+	Password string
+	Permission string
+	Group string
+	Role string
+}
+
+// AccessToken define token
+type AccessToken struct {
+	Name string
+	UserName string
+	SecretKey string
+	Permission string
 }
 
 // GenerateTimeseries return metricdata's timestamp and value
@@ -41,7 +72,22 @@ type Request struct {
 }
 
 type StoreEngine interface {
-	Do(rtype string, cmd string, args... interface{}) (interface{}, error)
+	SetAdd(set string, key string) error
+	SetDelete(set string, key string) error
+	GetSet(name string) ([]string, error)
+	DeleteData(keys ...interface{}) error
+	GetValues(keys ...interface{}) ([]string, error)
+	AppendKeyValue(key string, value interface{}) error
+	SetKeyValue(key string, value interface{}) error
+	SetTTL(key string, ttl int64) error
+	SetAttr(key string, attr string, value interface{}) error
+	GetNotifyAction(name string)(NotifyAction, error)
+	SaveNotifyAction(notifyAction NotifyAction) error
+	GetTrigger(name string)(Trigger, error)
+	SaveTrigger(trigger Trigger) error
+	GetMetric(name string) (Metric, error)
+	GetUser(name string) (User, error)
+	GetToken(accessKey string) (AccessToken, error)
 	Start()
 	Stop()
 }

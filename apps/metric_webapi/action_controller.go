@@ -9,11 +9,11 @@ import (
 	"net/http"
 )
 
-// ActionIndex GET /trigger/{:triggername}/action
+// ActionIndex GET /trigger/{:trigger}/action
 func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	trigger := mux.Vars(r)["trigger"]
-	t, err := base64.URLEncoding.DecodeString(trigger)
+	name := mux.Vars(r)["trigger"]
+	t, err := base64.URLEncoding.DecodeString(name)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -25,13 +25,12 @@ func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply, err := q.engine.Do("string", "HGET", tg, "owner")
-	owner := reply.(string)
-	if user != owner {
+	trigger, err := q.engine.GetTrigger(tg)
+	if user != trigger.Owner {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	value, err := q.engine.Do("string", "SMEMBERS", tg+":actions")
+	value, err := q.engine.GetSet("actions:" + tg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -51,8 +50,8 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	trigger := mux.Vars(r)["trigger"]
-	t, err := base64.URLEncoding.DecodeString(trigger)
+	tname := mux.Vars(r)["trigger"]
+	t, err := base64.URLEncoding.DecodeString(tname)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -64,21 +63,15 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply, err := q.engine.Do("string", "HGET", tg, "owner")
-	owner := reply.(string)
-	if user != owner {
+	trigger, err := q.engine.GetTrigger(tg)
+	if user != trigger.Owner {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	_, err = q.engine.Do("string", "HGET", tg, "role")
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-	name := base64.URLEncoding.EncodeToString([]byte(action.Uri))
-	_, err = q.engine.Do("raw", "HMSET", tg+":"+name, "repeat", action.Repeat, "uri", action.Uri)
+	action.Name = base64.URLEncoding.EncodeToString([]byte(action.Uri))
+	err = q.engine.SaveNotifyAction(action)
 	if err == nil {
-		_, err = q.engine.Do("raw", "SADD", tg+":actions", tg+":"+name)
+		err = q.engine.SetAdd("actions:"+tg, action.Name)
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -86,8 +79,8 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 	} else {
 		t := make(map[string]string)
 		t["trigger_name"] = tg
-		t["action_name"] = base64.URLEncoding.EncodeToString([]byte(name))
-		t["url"] = "/api/v1/trigger/" + trigger + "/" + name
+		t["action_name"] = action.Name
+		t["url"] = "/api/v1/trigger/" + tname + "/" + action.Name
 		if body, err := json.Marshal(t); err == nil {
 			w.Write(body)
 		} else {
@@ -98,29 +91,27 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 
 // ActionDelete DELETE /trigger/{:triggername}/action/{:name}
 func (q *WebService) ActionDelete(w http.ResponseWriter, r *http.Request) {
-	trigger := mux.Vars(r)["trigger"]
-	t, err := base64.URLEncoding.DecodeString(trigger)
+	name := mux.Vars(r)["trigger"]
+	t, err := base64.URLEncoding.DecodeString(name)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	tg := string(t)
-	name := mux.Vars(r)["name"]
+	name = mux.Vars(r)["name"]
 	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply, err := q.engine.Do("string", "HGET", tg, "owner")
-	owner := reply.(string)
-	if user != owner {
+	trigger, err := q.engine.GetTrigger(tg)
+	if user != trigger.Owner {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	_, err = q.engine.Do("string", tg+":"+name)
 	if err == nil {
-		_, err = q.engine.Do("raw", "SREM", tg+":actions", tg+":"+name)
+		err = q.engine.SetDelete("actions:"+tg, name)
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

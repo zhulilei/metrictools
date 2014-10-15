@@ -35,26 +35,24 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply, err := q.engine.Do("string", "HGET", name, "owner")
-	owner := reply.(string)
+	trigger, err := q.engine.GetTrigger(name)
 	if err != nil {
 		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
 		return
 	}
-	if user == owner {
+	if user == trigger.Owner {
 		var recordList []interface{}
 		var data []string
 		for i := start / 14400; i <= end/14400; i++ {
-			reply, err := q.engine.Do("string", "GET", fmt.Sprintf("archive:%s:%d", user+"_"+name, i))
-			values := reply.(string)
+			values, err := q.engine.GetValues(fmt.Sprintf("archive:%s:%d", user+"_"+name, i))
 			if err != nil {
 				log.Println(err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			data = append(data, values)
+			data = append(data, values...)
 		}
 		metricData := metrictools.ParseTimeSeries(data)
 		record := make(map[string]interface{})
@@ -83,7 +81,6 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg.Name = strings.Trim(tg.Name, " ")
-	tgname := base64.URLEncoding.EncodeToString([]byte(tg.Name))
 	tg.IsExpression, _ = regexp.MatchString(`(\+|-|\*|/)`, tg.Name)
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	user := q.loginFilter(r)
@@ -92,19 +89,21 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	_, err := q.engine.Do("string", "HGET", tg.Name, "role")
+	_, err := q.engine.GetTrigger(tg.Name)
 	if err == nil {
 		w.WriteHeader(http.StatusNotAcceptable)
 		w.Write([]byte(tg.Name + " exists"))
 		return
 	}
-	q.engine.Do("string", "HMSET", tg.Name, "is_e", tg.IsExpression, "role", tg.Role, "owner", user)
-	_, err = q.engine.Do("raw", "SADD", "triggers", tg.Name)
+	tg.Owner = user
+	err = q.engine.SaveTrigger(tg)
+	q.engine.SetAdd("triggers", tg.Name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
 		t := make(map[string]string)
+		tgname := base64.URLEncoding.EncodeToString([]byte(tg.Name))
 		t["name"] = tgname
 		t["url"] = "/api/v1/trigger/" + t["name"]
 		if body, err := json.Marshal(t); err == nil {
@@ -130,26 +129,24 @@ func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply, _ := q.engine.Do("string", "HGET", name, "owner")
-	owner := reply.(string)
-	if owner != user {
+	trigger, err := q.engine.GetTrigger(name)
+	if trigger.Owner != user {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	q.engine.Do("string", "DEL", name, "archive:"+name)
-	reply, err = q.engine.Do("strings", "SMEMBERS", name+":actions")
-	keys := reply.([]string)
+	q.engine.DeleteData(name, "archive:"+name)
+	keys, err := q.engine.GetSet("actions:" + name)
 	var args []interface{}
 	for _, v := range keys {
 		args = append(args, v)
 	}
-	_, err = q.engine.Do("raw", "DEL", args...)
+	err = q.engine.DeleteData(args...)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))
 		return
 	}
-	_, err = q.engine.Do("raw", "SREM", "triggers", name)
+	err = q.engine.SetDelete("trigger", name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to delete trigger"))
@@ -173,14 +170,13 @@ func (q *WebService) TriggerHistoryShow(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply, err := q.engine.Do("string", "HGET", name, "owner")
-	owner := reply.(string)
-	if owner != user {
+	trigger, err := q.engine.GetTrigger(name)
+	if trigger.Owner != user {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	reply, err = q.engine.Do("string", "GET", "trigger_history:"+name)
-	rawTriggerHistory := []byte(reply.(string))
+	reply, err := q.engine.GetValues("trigger_history:" + name)
+	rawTriggerHistory := []byte(reply[0])
 	var triggerHistory []metrictools.KeyValue
 	if err := json.Unmarshal(rawTriggerHistory, &triggerHistory); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

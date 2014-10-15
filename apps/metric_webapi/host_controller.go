@@ -20,8 +20,7 @@ func (q *WebService) HostIndex(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply, _ := q.engine.Do("strings", "SMEMBERS", "hosts:"+user)
-	hosts := reply.([]string)
+	hosts, _ := q.engine.GetSet("hosts:" + user)
 	var rst []interface{}
 	for _, host := range hosts {
 		query := make(map[string]interface{})
@@ -44,7 +43,7 @@ func (q *WebService) HostShow(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	_, err := q.engine.Do("strings", "SMEMBERS", "host:"+user+"_"+host)
+	_, err := q.engine.GetSet("host:" + user + "_" + host)
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
 		query := make(map[string]interface{})
@@ -69,8 +68,7 @@ func (q *WebService) HostDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply, err := q.engine.Do("strings", "SMEMBERS", "host:"+user+"_"+host)
-	metricList := reply.([]string)
+	metricList, err := q.engine.GetSet("host:" + user + "_" + host)
 	if err == nil {
 		var args []interface{}
 		for _, v := range metricList {
@@ -78,7 +76,7 @@ func (q *WebService) HostDelete(w http.ResponseWriter, r *http.Request) {
 			args = append(args, "archive:"+v)
 		}
 		args = append(args, "host:"+host)
-		_, err = q.engine.Do("raw", "DEL", args...)
+		err = q.engine.DeleteData(args...)
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -99,32 +97,20 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	reply, err := q.engine.Do("strings", "SMEMBERS", "host:"+user+"_"+host)
-	metricList := reply.([]string)
+	metricList, err := q.engine.GetSet("host:" + user + "_" + host)
 	size := len(user)
 	if err == nil {
 		var rst []interface{}
 		sort.Strings(metricList)
 		for _, v := range metricList {
-			reply, err := q.engine.Do("int", "HGET", v, "ttl")
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			ttl := reply.(int)
-			reply, err = q.engine.Do("string", "HGET", v, "type")
-			tp := reply.(string)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			metric := make(map[string]interface{})
-			metric["type"] = tp
-			metric["ttl"] = ttl
+			metric, _ := q.engine.GetMetric(v)
+			metricHash := make(map[string]interface{})
+			metricHash["type"] = metric.Mtype
+			metricHash["ttl"] = metric.TTL
 			v = v[size+1:]
-			metric["name"] = v
-			metric["url"] = "/api/v1/metric/" + v
-			rst = append(rst, metric)
+			metricHash["name"] = v
+			metricHash["url"] = "/api/v1/metric/" + v
+			rst = append(rst, metricHash)
 		}
 		if body, err := json.Marshal(rst); err == nil {
 			w.Write(body)
@@ -148,8 +134,8 @@ func (q *WebService) HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	q.engine.Do("raw", "SREM", "host:"+user+"_"+host, metric)
-	_, err := q.engine.Do("raw", "DEL", "host:"+user+"_"+host, user+"_"+metric)
+	q.engine.SetDelete("host:"+user+"_"+host, metric)
+	err := q.engine.DeleteData("host:"+user+"_"+host, user+"_"+metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

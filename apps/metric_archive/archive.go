@@ -4,7 +4,6 @@ import (
 	"../.."
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/fzzy/radix/redis"
 	"log"
 	"os"
 )
@@ -13,6 +12,7 @@ import (
 type DataArchive struct {
 	*metrictools.Setting
 	consumer    *nsq.Consumer
+	engine      metrictools.StoreEngine
 	exitChannel chan int
 	msgChannel  chan *metrictools.Message
 }
@@ -30,6 +30,8 @@ func (m *DataArchive) Run() error {
 	if err != nil {
 		return err
 	}
+	m.engine = &metrictools.RedisEngine{Setting: m.Setting}
+	go m.engine.Start()
 	m.consumer.AddConcurrentHandlers(m, m.MaxInFlight)
 	err = m.consumer.ConnectToNSQLookupds(m.LookupdAddresses)
 	if err != nil {
@@ -42,6 +44,7 @@ func (m *DataArchive) Run() error {
 func (m *DataArchive) Stop() {
 	m.consumer.Stop()
 	close(m.exitChannel)
+	m.engine.Stop()
 }
 
 // HandleMessage is DataArchive's nsq handle function
@@ -55,11 +58,6 @@ func (m *DataArchive) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *DataArchive) archiveData() {
-	client, err := redis.Dial(m.Network, m.RedisServer)
-	if err != nil {
-		log.Println("redis connection err", err)
-	}
-	defer client.Close()
 	for {
 		select {
 		case <-m.exitChannel:
@@ -71,41 +69,33 @@ func (m *DataArchive) archiveData() {
 				msg.ErrorChannel <- nil
 				continue
 			}
-			ttl, _ := client.Cmd("HGET", metricName, "ttl").Int64()
-			atime, _ := client.Cmd("HGET", metricName, "atime").Int64()
+			metricInfo, err := m.engine.GetMetric(metricName)
+			atime := metricInfo.ArchiveTime
+			ttl := metricInfo.TTL
 			m1 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24)/m.MinDuration)
 			m2 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24*3)/m.MinDuration)
 			m3 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24*7)/m.MinDuration)
-			reply := client.Cmd("MGET", m1, m2, m3)
-			if reply.Err != nil {
-				client.Close()
-				log.Println("redis connection close")
-				client, _ = redis.Dial(m.Network, m.RedisServer)
-				msg.ErrorChannel <- reply.Err
-				continue
-			}
-			values, err := reply.List()
-			err = compress(m1, []byte(values[0]), atime, ttl-3600*24, 300, client)
+			values, err := m.engine.GetValues(m1, m2, m3)
+			err = m.compress(m1, []byte(values[0]), atime, ttl-3600*24, 300)
 			if err != nil {
 				msg.ErrorChannel <- err
 				continue
 			}
-			err = compress(m2, []byte(values[1]), atime, ttl-3600*24*3, 600, client)
+			err = m.compress(m2, []byte(values[1]), atime, ttl-3600*24*3, 600)
 			if err != nil {
 				msg.ErrorChannel <- err
 				continue
 			}
-			err = compress(m3, []byte(values[2]), atime, ttl-3600*24*7, 900, client)
+			err = m.compress(m3, []byte(values[2]), atime, ttl-3600*24*7, 900)
 			if err == nil {
-				r := client.Cmd("HSET", metricName, "atime", atime+1)
-				err = r.Err
+				err = m.engine.SetAttr(metricName, "atime", atime+1)
 			}
 			msg.ErrorChannel <- err
 		}
 	}
 }
 
-func compress(metric string, values []byte, atime int64, ttl int64, interval int64, client *redis.Client) error {
+func (m *DataArchive) compress(metric string, values []byte, atime int64, ttl int64, interval int64) error {
 	sumvalue := float64(0)
 	sumtime := int64(0)
 	size := len(values)
@@ -113,8 +103,8 @@ func compress(metric string, values []byte, atime int64, ttl int64, interval int
 	var count int
 	var data []byte
 	if ttl <= 0 {
-		if reply := client.Cmd("DEL", metric); reply.Err != nil {
-			return reply.Err
+		if err := m.engine.DeleteData(metric); err != nil {
+			return err
 		}
 	}
 	for i := 0; i < size; i += 18 {
@@ -141,11 +131,9 @@ func compress(metric string, values []byte, atime int64, ttl int64, interval int
 		count++
 	}
 	if len(data) > 0 {
-		client.Append("SET", metric, data)
-		client.Append("EXPIRE", metric, ttl)
-		client.GetReply()
-		reply := client.GetReply()
-		return reply.Err
+		m.engine.SetKeyValue(metric, data)
+		err := m.engine.SetTTL(metric, ttl)
+		return err
 	}
 	return nil
 }

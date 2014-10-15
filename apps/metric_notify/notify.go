@@ -6,11 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/fzzy/radix/redis"
 	"log"
 	"net/smtp"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -20,6 +18,7 @@ type Notify struct {
 	*metrictools.Setting
 	consumer    *nsq.Consumer
 	exitChannel chan int
+	engine      metrictools.StoreEngine
 	msgChannel  chan *metrictools.Message
 }
 
@@ -36,6 +35,8 @@ func (m *Notify) Run() error {
 	if err != nil {
 		return err
 	}
+	m.engine = &metrictools.RedisEngine{Setting: m.Setting}
+	go m.engine.Start()
 	m.consumer.AddConcurrentHandlers(m, m.MaxInFlight)
 	err = m.consumer.ConnectToNSQLookupds(m.LookupdAddresses)
 	if err != nil {
@@ -48,6 +49,7 @@ func (m *Notify) Run() error {
 func (m *Notify) Stop() {
 	m.consumer.Stop()
 	close(m.exitChannel)
+	m.engine.Stop()
 }
 
 // HandleMessage is Notify's nsq handle function
@@ -67,11 +69,6 @@ func (m *Notify) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *Notify) sendNotify() {
-	client, err := redis.Dial(m.Network, m.RedisServer)
-	if err != nil {
-		log.Println("redis connection err", err)
-	}
-	defer client.Close()
 	for {
 		select {
 		case <-m.exitChannel:
@@ -84,31 +81,12 @@ func (m *Notify) sendNotify() {
 				continue
 			}
 			var keys []string
-			reply := client.Cmd("SMEMBERS", notifyMsg["trigger_exp"]+":actions")
-			if reply.Err != nil {
-				client.Close()
-				log.Println("redis connection close")
-				client, _ = redis.Dial(m.Network, m.RedisServer)
-				msg.ErrorChannel <- nil
-				continue
-			}
-			keys, err = reply.List()
+			keys, err := m.engine.GetSet("actions:" + notifyMsg["trigger_exp"])
 			if err != nil {
 				log.Println("no action for", notifyMsg["trigger_exp"], err)
 			}
 			for _, v := range keys {
-				var action metrictools.NotifyAction
-				var values []string
-				reply := client.Cmd("HMGET", v, "uri", "updated_time", "repeat", "count")
-				if reply.Err != nil {
-					log.Println("failed to get ", v)
-					break
-				}
-				values, _ = reply.List()
-				action.Uri = values[0]
-				action.UpdateTime, _ = strconv.ParseInt(values[1], 0, 64)
-				action.Repeat, _ = strconv.Atoi(values[2])
-				action.Count, _ = strconv.Atoi(values[4])
+				action, err := m.engine.GetNotifyAction(v)
 				n := time.Now().Unix()
 				if ((n - action.UpdateTime) < 600) && (action.Repeat >= action.Count) {
 					continue
@@ -123,15 +101,12 @@ func (m *Notify) sendNotify() {
 				default:
 					log.Println(notifyMsg)
 				}
-				reply = client.Cmd("HMSET", v, "updated_time", n, "count", action.Count+1)
-				if reply.Err != nil {
-					err = reply.Err
-					break
+				action.UpdateTime = n
+				action.Count += 1
+				err = m.engine.SaveNotifyAction(action)
+				if err != nil {
+					log.Println("save action failed", notifyMsg["trigger_exp"], err)
 				}
-			}
-			if err != nil {
-				client.Close()
-				client, _ = redis.Dial(m.Network, m.RedisServer)
 			}
 			msg.ErrorChannel <- nil
 		}

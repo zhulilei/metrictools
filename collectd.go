@@ -2,7 +2,6 @@ package metrictools
 
 import (
 	"regexp"
-	"strconv"
 )
 
 // CollectdJSON is collectd's json data format
@@ -64,14 +63,6 @@ func (c *CollectdJSON) GetMetricRate(value float64, timestamp int64, index int) 
 }
 
 func GetMetricValue(name string, engine StoreEngine) (int64, float64, error) {
-	var t int64
-	var v float64
-	rep, err := engine.Do("strings", "HMGET", name, "value", "timestamp")
-	if err != nil {
-		return t, v, err
-	}
-	rst := rep.([]string)
-	t, _ = strconv.ParseInt(rst[0], 0, 64)
-	v, _ = strconv.ParseFloat(rst[1], 64)
-	return t, v, nil
+	metric, err := engine.GetMetric(name)
+	return metric.LastTimestamp, metric.LastValue, err
 }

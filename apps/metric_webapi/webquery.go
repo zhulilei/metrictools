@@ -25,11 +25,11 @@ func (q *WebService) Run() error {
 	cfg.Set("snappy", true)
 	cfg.Set("max_in_flight", q.MaxInFlight)
 	q.producer, err = nsq.NewProducer(q.NsqdAddress, cfg)
-	q.engine = &metrictools.RedisEngine{Setting: q.Setting}
-	go q.engine.Start()
 	if err != nil {
 		return err
 	}
+	q.engine = &metrictools.RedisEngine{Setting: q.Setting}
+	go q.engine.Start()
 	r := mux.NewRouter()
 	s := r.PathPrefix("/api/v1").Subrouter()
 

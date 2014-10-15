@@ -4,7 +4,6 @@ import (
 	"../.."
 	"fmt"
 	"github.com/bitly/go-nsq"
-	"github.com/fzzy/radix/redis"
 	"log"
 	"os"
 	"strconv"
@@ -18,6 +17,7 @@ type MetricDeliver struct {
 	consumer    *nsq.Consumer
 	producer    *nsq.Producer
 	exitChannel chan int
+	engine      metrictools.StoreEngine
 	msgChannel  chan *metrictools.Message
 }
 
@@ -34,6 +34,8 @@ func (m *MetricDeliver) Run() error {
 	if err != nil {
 		return err
 	}
+	m.engine = &metrictools.RedisEngine{Setting: m.Setting}
+	go m.engine.Start()
 	m.consumer, err = nsq.NewConsumer(m.MetricTopic, m.MetricChannel, cfg)
 	if err != nil {
 		return err
@@ -52,6 +54,7 @@ func (m *MetricDeliver) Run() error {
 func (m *MetricDeliver) Stop() {
 	m.consumer.Stop()
 	close(m.exitChannel)
+	m.engine.Stop()
 	m.producer.Stop()
 }
 
@@ -69,11 +72,6 @@ func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *MetricDeliver) writeLoop() {
-	client, err := redis.Dial(m.Network, m.RedisServer)
-	if err != nil {
-		log.Println("redis connection err", err)
-	}
-	defer client.Close()
 	for {
 		select {
 		case <-m.exitChannel:
@@ -96,26 +94,17 @@ func (m *MetricDeliver) writeLoop() {
 			tokens := strings.Split(data[0], "_")
 			user := tokens[0]
 			host := tokens[1]
-			client.Append("SADD", "host:"+user+"_"+host, data[0])
-			client.Append("APPEND", fmt.Sprintf("archive:%s:%d", data[0], t/14400), record)
-			client.Append("HGET", data[0], "atime")
-			client.GetReply()
-			reply := client.GetReply()
-			if reply.Err != nil {
-				client.Close()
-				log.Println("redis connection close")
-				client, _ = redis.Dial(m.Network, m.RedisServer)
+			err = m.engine.SetAdd("host:"+user+"_"+host, data[0])
+			if err == nil {
+				err = m.engine.AppendKeyValue(fmt.Sprintf("archive:%s:%d", data[0], t/14400), record)
 			}
-			msg.ErrorChannel <- reply.Err
-			reply = client.GetReply()
-			if reply.Err != nil {
-				continue
-			} else {
-				t, err = reply.Int64()
-				err = nil
-			}
-			if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
-				m.producer.Publish(m.ArchiveTopic, []byte(data[0]))
+			msg.ErrorChannel <- err
+			if err == nil {
+				metricInfo, err := m.engine.GetMetric(data[0])
+				t = metricInfo.ArchiveTime
+				if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
+					m.producer.Publish(m.ArchiveTopic, []byte(data[0]))
+				}
 			}
 		}
 	}

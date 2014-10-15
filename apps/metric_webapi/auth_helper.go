@@ -20,15 +20,15 @@ func (q *WebService) basicAuth(r *http.Request) string {
 	if len(idents) != 2 {
 		return user
 	}
-	user = idents[0]
 	password := idents[1]
-	rst, err := q.engine.Do("int", "HGET", "user:"+user, password)
-	i := rst.(int)
-	if err != nil || i != 1 {
-		log.Println("redis hget error", err)
+	u, err := q.engine.GetUser(idents[0])
+	if err != nil {
 		user = ""
 	}
-	return user
+	if u.Password != password {
+		user = ""
+	}
+	return u.Name
 }
 
 func (q *WebService) awsSignv4(r *http.Request) string {
@@ -37,20 +37,18 @@ func (q *WebService) awsSignv4(r *http.Request) string {
 	if err != nil {
 		return user
 	}
-	rst, err := q.engine.Do("strings", "HGET", "access_key:"+s.AccessKey, "user", "secretkey")
-	userinfo := rst.([]string)
-	if len(userinfo) != 2 || err != nil {
+	token, err := q.engine.GetToken("access_key:" + s.AccessKey)
+	if err != nil {
 		log.Println("redis hget error", err)
 		return user
 	}
-	s.SecretKey = userinfo[1]
+	s.SecretKey = token.SecretKey
 	s.SignRequest(r)
 	authheader := r.Header.Get("authorization")
 	if auth != authheader {
 		return user
 	}
-	user = userinfo[0]
-	return user
+	return token.UserName
 }
 
 func (q *WebService) loginFilter(r *http.Request) string {

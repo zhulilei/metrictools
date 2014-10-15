@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/bitly/go-nsq"
 	"github.com/datastream/skyline"
-	"github.com/fzzy/radix/redis"
 	"log"
 	"os"
 	"time"
@@ -17,10 +16,10 @@ import (
 // TriggerTask define a trigger statistic task
 type SkylineTask struct {
 	*metrictools.Setting
-	client      *redis.Client
 	consumer    *nsq.Consumer
 	producer    *nsq.Producer
 	exitChannel chan int
+	engine      metrictools.StoreEngine
 	msgChannel  chan *metrictools.Message
 }
 
@@ -37,6 +36,8 @@ func (m *SkylineTask) Run() error {
 	if err != nil {
 		return err
 	}
+	m.engine = &metrictools.RedisEngine{Setting: m.Setting}
+	go m.engine.Start()
 	m.consumer, err = nsq.NewConsumer(m.SkylineTopic, m.SkylineChannel, cfg)
 	if err != nil {
 		return err
@@ -53,6 +54,7 @@ func (m *SkylineTask) Stop() {
 	m.producer.Stop()
 	close(m.exitChannel)
 	m.consumer.Stop()
+	m.engine.Stop()
 }
 
 func (m *SkylineTask) HandleMessage(msg *nsq.Message) error {
@@ -65,19 +67,17 @@ func (m *SkylineTask) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *SkylineTask) SkylineCalculateTask() {
-	client, _ := redis.Dial(m.Network, m.RedisServer)
-	defer client.Close()
 	for {
 		select {
 		case <-m.exitChannel:
 			return
 		case msg := <-m.msgChannel:
-			rst, last, err := m.SkylineCheck(msg.Body.(string), client)
+			rst, last, err := m.SkylineCheck(msg.Body.(string))
 			if err == nil {
 				threshold := 8 - m.Consensus
 				if CheckThreshhold(rst, threshold) {
 					var stat bool
-					stat, err = CheckHistory(msg.Body.(string), last, client)
+					stat, err = m.CheckHistory(msg.Body.(string), last)
 					if stat {
 						err = m.SendNotify(msg.Body.(string))
 					}
@@ -102,19 +102,21 @@ func (m *SkylineTask) SendNotify(exp string) error {
 	}
 	return err
 }
-func CheckHistory(exp string, last skyline.TimePoint, client *redis.Client) (bool, error) {
-	reply := client.Cmd("GET", "trigger_history:"+exp)
-	raw_trigger_history, _ := reply.Bytes()
+func (m *SkylineTask) CheckHistory(exp string, last skyline.TimePoint) (bool, error) {
+	reply, err := m.engine.GetValues("trigger_history:" + exp)
+	if err != nil {
+		return false, err
+	}
+	raw_trigger_history := []byte(reply[0])
 	var trigger_history []skyline.TimePoint
-	if err := json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
+	if err = json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
 		return false, err
 	}
 	isan, t := skyline.IsAnomalouslyAnomalous(trigger_history, last)
 	if len(t) > 0 {
 		body, err := json.Marshal(t)
 		if err == nil {
-			reply := client.Cmd("SET", "trigger_history:"+exp, body)
-			err = reply.Err
+			err = m.engine.SetKeyValue("trigger_history:"+exp, body)
 		}
 		if err != nil {
 			return false, err
@@ -123,15 +125,14 @@ func CheckHistory(exp string, last skyline.TimePoint, client *redis.Client) (boo
 	return isan, nil
 }
 
-func (m *SkylineTask) SkylineCheck(exp string, client *redis.Client) ([]int, skyline.TimePoint, error) {
+func (m *SkylineTask) SkylineCheck(exp string) ([]int, skyline.TimePoint, error) {
 	t := time.Now().Unix()
-	reply := client.Cmd("MGET", fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400))
+	values, err := m.engine.GetValues(fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400))
 	var rst []int
 	var tp skyline.TimePoint
-	if reply.Err != nil {
-		return rst, tp, reply.Err
+	if err != nil {
+		return rst, tp, err
 	}
-	values, _ := reply.List()
 	timeseries := metrictools.ParseTimeSeries(values)
 	if len(timeseries) == 0 {
 		return rst, tp, fmt.Errorf("null data")
