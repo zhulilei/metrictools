@@ -135,7 +135,7 @@ func (q *WebService) HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	err := q.engine.DeleteData(user+"_"+metric)
+	err := q.engine.DeleteData(user + "_" + metric)
 	if err == nil {
 		err = q.engine.SetDelete("host:"+user+"_"+host, user+"_"+metric)
 	}

@@ -111,7 +111,7 @@ func (m *MetricDeliver) writeLoop() {
 				}
 				ttl := metricInfo.TTL
 				if ttl == 0 {
-					ttl = 86400*7
+					ttl = 86400 * 7
 				}
 				m.engine.SetTTL(fmt.Sprintf("archive:%s:%d", data[0], t/14400), ttl)
 			}
