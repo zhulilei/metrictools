@@ -88,7 +88,7 @@ type StoreEngine interface {
 	GetMetric(name string) (Metric, error)
 	GetUser(name string) (User, error)
 	GetToken(accessKey string) (AccessToken, error)
-	Start()
+	RunTask()
 	Stop()
 }
 func KeyValueEncode(key int64, value float64) ([]byte, error) {

@@ -8,7 +8,7 @@ import (
 
 type RedisEngine struct {
 	*Setting
-	exitChannel chan int
+	ExitChannel chan int
 	CmdChannel  chan interface{}
 }
 
@@ -24,12 +24,10 @@ func (m *RedisEngine) Do(cmd string, args ...interface{}) *redis.Reply {
 	return reply
 }
 
-func (m *RedisEngine) Start() {
-	m.exitChannel = make(chan int)
-	m.CmdChannel = make(chan interface{})
+func (m *RedisEngine) RunTask() {
 	for {
 		select {
-		case <-m.exitChannel:
+		case <-m.ExitChannel:
 			return
 		default:
 			if err := m.commonLoop(); err == nil {
@@ -47,7 +45,7 @@ func (m *RedisEngine) commonLoop() error {
 	}
 	for {
 		select {
-		case <-m.exitChannel:
+		case <-m.ExitChannel:
 			return err
 		case cmd := <-m.CmdChannel:
 			if request, ok := cmd.(Request); ok {
@@ -76,7 +74,7 @@ func (m *RedisEngine) commonLoop() error {
 }
 
 func (m *RedisEngine) Stop() {
-	close(m.exitChannel)
+	close(m.ExitChannel)
 }
 
 // SetAdd define add a item into set
@@ -125,7 +123,7 @@ func (m *RedisEngine)SetAttr(key string, attr string, value interface{}) error {
 }
 
 func (m *RedisEngine)GetMetric(name string) (Metric, error) {
-	info, err := m.Do("HMGET", "archive:"+name, "timestamp", "value", "atime", "rate_value", "ttl", "type").List()
+	info, err := m.Do("HMGET", name, "timestamp", "value", "atime", "rate_value", "ttl", "type").List()
 	var metric Metric
 	if err == nil {
 		metric.Name = name
@@ -140,7 +138,7 @@ func (m *RedisEngine)GetMetric(name string) (Metric, error) {
 }
 
 func (m *RedisEngine)SaveMetric(metric Metric) error {
-	return m.Do("HMSET", "archive:"+metric.Name, "timestamp", metric.LastTimestamp, "value", metric.LastValue, "atime", metric.ArchiveTime, "rate_value", metric.RateValue, "ttl", metric.TTL, "type", metric.Mtype).Err
+	return m.Do("HMSET", metric.Name, "timestamp", metric.LastTimestamp, "value", metric.LastValue, "atime", metric.ArchiveTime, "rate_value", metric.RateValue, "ttl", metric.TTL, "type", metric.Mtype).Err
 }
 
 func (m *RedisEngine)GetUser(name string) (User, error) {

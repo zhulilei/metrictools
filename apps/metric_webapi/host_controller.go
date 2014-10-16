@@ -73,10 +73,11 @@ func (q *WebService) HostDelete(w http.ResponseWriter, r *http.Request) {
 		var args []interface{}
 		for _, v := range metricList {
 			args = append(args, v)
-			args = append(args, "archive:"+v)
 		}
-		args = append(args, "host:"+host)
 		err = q.engine.DeleteData(args...)
+	}
+	if err == nil {
+		err = q.engine.DeleteData("host:" + user + "_" + host)
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -134,8 +135,10 @@ func (q *WebService) HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	q.engine.SetDelete("host:"+user+"_"+host, metric)
-	err := q.engine.DeleteData("host:"+user+"_"+host, user+"_"+metric)
+	err := q.engine.DeleteData(user+"_"+metric)
+	if err == nil {
+		err = q.engine.SetDelete("host:"+user+"_"+host, user+"_"+metric)
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

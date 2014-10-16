@@ -157,23 +157,3 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}
 }
-
-// MetricDelete DELETE /metric/{:name}
-// Todo
-func (q *WebService) MetricDelete(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
-	metric := mux.Vars(r)["name"]
-	user := q.loginFilter(r)
-	if len(user) == 0 {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	metric = user + "_" + metric
-	err := q.engine.DeleteData(metric, "archive:"+metric)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-}

@@ -29,8 +29,12 @@ func (m *StatisticTask) Run() error {
 	cfg.Set("user_agent", fmt.Sprintf("metric_statistic/%s", hostname))
 	cfg.Set("snappy", true)
 	cfg.Set("max_in_flight", m.MaxInFlight)
-	m.engine = &metrictools.RedisEngine{Setting: m.Setting}
-	go m.engine.Start()
+	m.engine = &metrictools.RedisEngine{
+		Setting:     m.Setting,
+		ExitChannel: make(chan int),
+		CmdChannel:  make(chan interface{}),
+	}
+	go m.engine.RunTask()
 	m.producer, err = nsq.NewProducer(m.NsqdAddress, cfg)
 	if err == nil {
 		go m.ScanTrigger()
@@ -106,7 +110,7 @@ func (m *StatisticTask) calculate(exp string) error {
 		return err
 	}
 	m.engine.AppendKeyValue(fmt.Sprintf("archive:%s:%d", exp, t/14400), body)
-	err = m.engine.SetTTL(fmt.Sprintf("archive:%s:%d", exp, t/14400), 90000)
+	err = m.engine.SetTTL(fmt.Sprintf("archive:%s:%d", exp, t/14400), 86400*7)
 	return err
 }
 
@@ -119,13 +123,10 @@ func (m *StatisticTask) evalExp(expList []string) (float64, error) {
 		v := metric.RateValue
 		t := metric.LastTimestamp
 		if err != nil {
-			t = time.Now().Unix()
+			return 0, err
 		}
 		if (current - t) > 60 {
 			return 0, errors.New(item + "'s data are too old")
-		}
-		if err != nil {
-			return 0, err
 		}
 		kv[item] = v
 		exp += item

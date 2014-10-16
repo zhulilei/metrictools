@@ -39,14 +39,13 @@ func (q *WebService) TriggerShow(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("redis connection err", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Find Failed"))
 		return
 	}
 	if user == trigger.Owner {
 		var recordList []interface{}
 		var data []string
 		for i := start / 14400; i <= end/14400; i++ {
-			values, err := q.engine.GetValues(fmt.Sprintf("archive:%s:%d", user+"_"+name, i))
+			values, err := q.engine.GetValues(fmt.Sprintf("archive:%s:%d", name, i))
 			if err != nil {
 				log.Println(err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -134,12 +133,12 @@ func (q *WebService) TriggerDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	q.engine.DeleteData(name, "archive:"+name)
 	keys, err := q.engine.GetSet("actions:" + name)
 	var args []interface{}
 	for _, v := range keys {
 		args = append(args, v)
 	}
+	args = append(args, "trigger:"+name)
 	err = q.engine.DeleteData(args...)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

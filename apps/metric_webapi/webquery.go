@@ -28,8 +28,14 @@ func (q *WebService) Run() error {
 	if err != nil {
 		return err
 	}
-	q.engine = &metrictools.RedisEngine{Setting: q.Setting}
-	go q.engine.Start()
+	q.engine = &metrictools.RedisEngine{
+		Setting:     q.Setting,
+		ExitChannel: make(chan int),
+		CmdChannel:  make(chan interface{}),
+	}
+	for i := 0; i < q.MaxInFlight; i++ {
+		go q.engine.RunTask()
+	}
 	r := mux.NewRouter()
 	s := r.PathPrefix("/api/v1").Subrouter()
 
@@ -47,9 +53,6 @@ func (q *WebService) Run() error {
 	s.HandleFunc("/metric/{name}", q.MetricUpdate).
 		Methods("PATCH").
 		Headers("Content-Type", "application/json")
-
-	s.HandleFunc("/metric/{name}", q.MetricDelete).
-		Methods("DELETE")
 
 	// /host
 	s.HandleFunc("/host", q.HostIndex).

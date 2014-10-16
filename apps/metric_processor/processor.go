@@ -34,8 +34,11 @@ func (m *MetricDeliver) Run() error {
 	if err != nil {
 		return err
 	}
-	m.engine = &metrictools.RedisEngine{Setting: m.Setting}
-	go m.engine.Start()
+	m.engine = &metrictools.RedisEngine{
+		Setting:     m.Setting,
+		ExitChannel: make(chan int),
+		CmdChannel:  make(chan interface{}),
+	}
 	m.consumer, err = nsq.NewConsumer(m.MetricTopic, m.MetricChannel, cfg)
 	if err != nil {
 		return err
@@ -46,6 +49,7 @@ func (m *MetricDeliver) Run() error {
 		return err
 	}
 	for i := 0; i < m.MaxInFlight; i++ {
+		go m.engine.RunTask()
 		go m.writeLoop()
 	}
 	return err
@@ -105,6 +109,11 @@ func (m *MetricDeliver) writeLoop() {
 				if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
 					m.producer.Publish(m.ArchiveTopic, []byte(data[0]))
 				}
+				ttl := metricInfo.TTL
+				if ttl == 0 {
+					ttl = 86400*7
+				}
+				m.engine.SetTTL(fmt.Sprintf("archive:%s:%d", data[0], t/14400), ttl)
 			}
 		}
 	}

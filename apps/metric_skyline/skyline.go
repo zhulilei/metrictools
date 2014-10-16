@@ -36,8 +36,12 @@ func (m *SkylineTask) Run() error {
 	if err != nil {
 		return err
 	}
-	m.engine = &metrictools.RedisEngine{Setting: m.Setting}
-	go m.engine.Start()
+	m.engine = &metrictools.RedisEngine{
+		Setting:     m.Setting,
+		ExitChannel: make(chan int),
+		CmdChannel:  make(chan interface{}),
+	}
+	go m.engine.RunTask()
 	m.consumer, err = nsq.NewConsumer(m.SkylineTopic, m.SkylineChannel, cfg)
 	if err != nil {
 		return err

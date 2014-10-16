@@ -35,8 +35,12 @@ func (m *Notify) Run() error {
 	if err != nil {
 		return err
 	}
-	m.engine = &metrictools.RedisEngine{Setting: m.Setting}
-	go m.engine.Start()
+	m.engine = &metrictools.RedisEngine{
+		Setting:     m.Setting,
+		ExitChannel: make(chan int),
+		CmdChannel:  make(chan interface{}),
+	}
+	go m.engine.RunTask()
 	m.consumer.AddConcurrentHandlers(m, m.MaxInFlight)
 	err = m.consumer.ConnectToNSQLookupds(m.LookupdAddresses)
 	if err != nil {

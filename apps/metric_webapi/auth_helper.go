@@ -37,7 +37,7 @@ func (q *WebService) awsSignv4(r *http.Request) string {
 	if err != nil {
 		return user
 	}
-	token, err := q.engine.GetToken("access_key:" + s.AccessKey)
+	token, err := q.engine.GetToken(s.AccessKey)
 	if err != nil {
 		log.Println("redis hget error", err)
 		return user

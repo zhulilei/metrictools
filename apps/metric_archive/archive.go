@@ -30,8 +30,12 @@ func (m *DataArchive) Run() error {
 	if err != nil {
 		return err
 	}
-	m.engine = &metrictools.RedisEngine{Setting: m.Setting}
-	go m.engine.Start()
+	m.engine = &metrictools.RedisEngine{
+		Setting:     m.Setting,
+		ExitChannel: make(chan int),
+		CmdChannel:  make(chan interface{}),
+	}
+	go m.engine.RunTask()
 	m.consumer.AddConcurrentHandlers(m, m.MaxInFlight)
 	err = m.consumer.ConnectToNSQLookupds(m.LookupdAddresses)
 	if err != nil {
@@ -72,6 +76,9 @@ func (m *DataArchive) archiveData() {
 			metricInfo, err := m.engine.GetMetric(metricName)
 			atime := metricInfo.ArchiveTime
 			ttl := metricInfo.TTL
+			if ttl < 86400*7 {
+				continue
+			}
 			m1 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24)/m.MinDuration)
 			m2 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24*3)/m.MinDuration)
 			m3 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24*7)/m.MinDuration)
