@@ -125,7 +125,7 @@ func (m *RedisEngine)SetAttr(key string, attr string, value interface{}) error {
 }
 
 func (m *RedisEngine)GetMetric(name string) (Metric, error) {
-	info, err := m.Do("HMGET", "archive:"+name, "timestamp", "value", "atime", "rate_value", "type").List()
+	info, err := m.Do("HMGET", "archive:"+name, "timestamp", "value", "atime", "rate_value", "ttl", "type").List()
 	var metric Metric
 	if err == nil {
 		metric.Name = name
