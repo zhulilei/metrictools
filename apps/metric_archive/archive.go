@@ -76,6 +76,10 @@ func (m *DataArchive) archiveData() {
 			m2 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24*3)/m.MinDuration)
 			m3 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24*7)/m.MinDuration)
 			values, err := m.engine.GetValues(m1, m2, m3)
+			if err != nil {
+				msg.ErrorChannel <- err
+				continue
+			}
 			err = m.compress(m1, []byte(values[0]), atime, ttl-3600*24, 300)
 			if err != nil {
 				msg.ErrorChannel <- err
