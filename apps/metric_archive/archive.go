@@ -77,6 +77,7 @@ func (m *DataArchive) archiveData() {
 			atime := metricInfo.ArchiveTime
 			ttl := metricInfo.TTL
 			if ttl < 86400*7 {
+				msg.ErrorChannel <- nil
 				continue
 			}
 			m1 := fmt.Sprintf("archive:%s:%d", metricName, (atime*m.MinDuration-3600*24)/m.MinDuration)
