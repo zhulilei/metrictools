@@ -29,10 +29,10 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 		for i := range c.Values {
 			key := user + "_" + c.GetMetricName(i)
 			t := int64(c.Timestamp)
-			oldt, oldv, err := metrictools.GetMetricValue(key, q.engine)
+			metric, err := q.metrictools.GetMetric(key)
 			var nValue float64
 			if err == nil {
-				nValue = c.GetMetricRate(oldv, oldt, i)
+				nValue = c.GetMetricRate(metric.LastValue, metric.LastTimestamp, i)
 				err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %.2f %d", key, nValue, t)))
 			}
 			if err != nil {

@@ -61,8 +61,3 @@ func (c *CollectdJSON) GetMetricRate(value float64, timestamp int64, index int) 
 	}
 	return nValue
 }
-
-func GetMetricValue(name string, engine StoreEngine) (int64, float64, error) {
-	metric, err := engine.GetMetric(name)
-	return metric.LastTimestamp, metric.LastValue, err
-}
