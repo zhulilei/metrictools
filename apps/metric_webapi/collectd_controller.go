@@ -29,7 +29,7 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 		for i := range c.Values {
 			key := user + "_" + c.GetMetricName(i)
 			t := int64(c.Timestamp)
-			metric, err := q.metrictools.GetMetric(key)
+			metric, err := q.engine.GetMetric(key)
 			var nValue float64
 			if err == nil {
 				nValue = c.GetMetricRate(metric.LastValue, metric.LastTimestamp, i)
