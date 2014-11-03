@@ -7,13 +7,13 @@ import (
 
 // MetricData
 type Metric struct {
-	Name string
+	Name          string
 	LastTimestamp int64
-	LastValue float64
-	ArchiveTime int64
-	RateValue float64
-	Mtype string
-	TTL  int64
+	LastValue     float64
+	ArchiveTime   int64
+	RateValue     float64
+	Mtype         string
+	TTL           int64
 }
 
 // Trigger define a statistic expression
@@ -33,21 +33,20 @@ type NotifyAction struct {
 	Count      int    `json:"count"`
 }
 
-
 // User define user
 type User struct {
-	Name string
-	Password string
+	Name       string
+	Password   string
 	Permission string
-	Group string
-	Role string
+	Group      string
+	Role       string
 }
 
 // AccessToken define token
 type AccessToken struct {
-	Name string
-	UserName string
-	SecretKey string
+	Name       string
+	UserName   string
+	SecretKey  string
 	Permission string
 }
 
@@ -81,9 +80,9 @@ type StoreEngine interface {
 	SetKeyValue(key string, value interface{}) error
 	SetTTL(key string, ttl int64) error
 	SetAttr(key string, attr string, value interface{}) error
-	GetNotifyAction(name string)(NotifyAction, error)
+	GetNotifyAction(name string) (NotifyAction, error)
 	SaveNotifyAction(notifyAction NotifyAction) error
-	GetTrigger(name string)(Trigger, error)
+	GetTrigger(name string) (Trigger, error)
 	SaveTrigger(trigger Trigger) error
 	GetMetric(name string) (Metric, error)
 	GetUser(name string) (User, error)
@@ -91,6 +90,7 @@ type StoreEngine interface {
 	RunTask()
 	Stop()
 }
+
 func KeyValueEncode(key int64, value float64) ([]byte, error) {
 	kv := &KeyValue{
 		Timestamp: proto.Int64(key),
