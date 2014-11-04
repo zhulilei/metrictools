@@ -44,6 +44,7 @@ func (m *RedisEngine) commonLoop() error {
 		log.Println("redis connection err", err)
 		return err
 	}
+	defer client.Close()
 	for {
 		select {
 		case <-m.ExitChannel:
@@ -64,16 +65,12 @@ func (m *RedisEngine) commonLoop() error {
 				}
 			}
 			if err != nil {
-				if err != io.EOF {
-					break
-				}
 				if client.Cmd("GET", "test").Err != nil {
-					break
+					return err
 				}
 			}
 		}
 	}
-	defer client.Close()
 	return err
 }
 
@@ -128,6 +125,9 @@ func (m *RedisEngine) SetAttr(key string, attr string, value interface{}) error 
 
 func (m *RedisEngine) GetMetric(name string) (Metric, error) {
 	info, err := m.Do("HMGET", name, "timestamp", "value", "atime", "rate_value", "ttl", "type").List()
+	if err != nil {
+		info, err = m.Do("HMGET", name, "timestamp", "value", "atime", "rate_value", "ttl", "type").List()
+	}
 	var metric Metric
 	if err == nil {
 		metric.Name = name
