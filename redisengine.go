@@ -119,11 +119,7 @@ func (m *RedisEngine) SetTTL(key string, ttl int64) error {
 
 // SetAttr define set key's attr
 func (m *RedisEngine) SetAttr(key string, attr string, value interface{}) error {
-	reply := m.Do("HSET", key, attr, value)
-	if reply.Err != nil {
-		reply = m.Do("HSET", key, attr, value)
-	}
-	return reply.Err
+	return m.Do("HSET", key, attr, value).Err
 }
 
 func (m *RedisEngine) GetMetric(name string) (Metric, error) {

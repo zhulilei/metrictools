@@ -40,8 +40,8 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			q.engine.SetAttr(key, "rate_value", nValue)
-			q.engine.SetAttr(key, "value", c.Values[i])
+			q.engine.SetAttr(key, "rate_value", fmt.Sprintf("%.2f", nValue))
+			q.engine.SetAttr(key, "value", fmt.Sprintf("%.2f", c.Values[i]))
 			q.engine.SetAttr(key, "timestamp", t)
 		}
 	}
