@@ -2,7 +2,6 @@ package metrictools
 
 import (
 	"github.com/fzzy/radix/redis"
-	"io"
 	"log"
 	"strconv"
 )
