@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/base64"
 	"github.com/datastream/aws"
-	"github.com/garyburd/redigo/redis"
+	"log"
 	"net/http"
 	"strings"
 )
 
-func basicAuth(r *http.Request, con redis.Conn) string {
+func (q *WebService) basicAuth(r *http.Request) string {
 	var user string
 	authorizationHeader := r.Header.Get("authorization")
 	idents := strings.Split(authorizationHeader, " ")
@@ -20,43 +20,45 @@ func basicAuth(r *http.Request, con redis.Conn) string {
 	if len(idents) != 2 {
 		return user
 	}
-	user = idents[0]
 	password := idents[1]
-	i, err := redis.Int(con.Do("HGET", "user:"+user, password))
-	if err != nil || i != 1 {
+	u, err := q.engine.GetUser(idents[0])
+	if err != nil {
 		user = ""
 	}
-	return user
+	if u.Password != password {
+		user = ""
+	}
+	return u.Name
 }
 
-func awsSignv4(r *http.Request, con redis.Conn) string {
+func (q *WebService) awsSignv4(r *http.Request) string {
 	var user string
 	s, auth, err := sign4.GetSignature(r)
 	if err != nil {
 		return user
 	}
-	userinfo, _ := redis.Strings(con.Do("HMGET", "access_key:"+s.AccessKey, "user", "secretkey"))
-	if len(userinfo) != 2 {
+	token, err := q.engine.GetToken(s.AccessKey)
+	if err != nil {
+		log.Println("redis hget error", err)
 		return user
 	}
-	s.SecretKey = userinfo[1]
+	s.SecretKey = token.SecretKey
 	s.SignRequest(r)
 	authheader := r.Header.Get("authorization")
 	if auth != authheader {
 		return user
 	}
-	user = userinfo[0]
-	return user
+	return token.UserName
 }
 
-func loginFilter(r *http.Request, con redis.Conn) string {
+func (q *WebService) loginFilter(r *http.Request) string {
 	authorizationHeader := r.Header.Get("authorization")
 	idents := strings.Split(authorizationHeader, " ")
 	if idents[0] == "Basic" {
-		return basicAuth(r, con)
+		return q.basicAuth(r)
 	}
 	if idents[0] == "AWS4-HMAC-SHA256" {
-		return awsSignv4(r, con)
+		return q.awsSignv4(r)
 	}
 	return ""
 }

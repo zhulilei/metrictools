@@ -1,38 +1,36 @@
 package main
 
 import (
+	"../.."
 	"encoding/base64"
 	"encoding/json"
-	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 )
 
-// ActionIndex GET /trigger/{:triggername}/action
+// ActionIndex GET /trigger/{:trigger}/action
 func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	trigger := mux.Vars(r)["trigger"]
-	t, err := base64.URLEncoding.DecodeString(trigger)
+	name := mux.Vars(r)["trigger"]
+	t, err := base64.URLEncoding.DecodeString(name)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	tg := string(t)
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	owner, err := redis.String(con.Do("HGET", tg, "owner"))
-	if user != owner {
+	trigger, err := q.engine.GetTrigger(tg)
+	if user != trigger.Owner {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	value, err := con.Do("SMEMBERS", tg+":actions")
+	value, err := q.engine.GetSet("actions:" + tg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))
@@ -45,51 +43,44 @@ func (q *WebService) ActionIndex(w http.ResponseWriter, r *http.Request) {
 // ActionCreate POST /trigger/{:triggername}/action
 func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	var action NotifyAction
+	var action metrictools.NotifyAction
 	if err := json.NewDecoder(r.Body).Decode(&action); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	trigger := mux.Vars(r)["trigger"]
-	t, err := base64.URLEncoding.DecodeString(trigger)
+	tname := mux.Vars(r)["trigger"]
+	t, err := base64.URLEncoding.DecodeString(tname)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	tg := string(t)
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	owner, err := redis.String(con.Do("HGET", tg, "owner"))
-	if user != owner {
+	trigger, err := q.engine.GetTrigger(tg)
+	if user != trigger.Owner {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	if _, err := redis.String(con.Do("HGET", tg, "role")); err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
+	action.Name = base64.URLEncoding.EncodeToString([]byte(action.Uri))
+	err = q.engine.SaveNotifyAction(action)
+	if err == nil {
+		err = q.engine.SetAdd("actions:"+tg, action.Name)
 	}
-	name := base64.URLEncoding.EncodeToString([]byte(action.Uri))
-	con.Send("HMSET", tg+":"+name, "repeat", action.Repeat, "uri", action.Uri)
-	con.Send("SADD", tg+":actions", tg+":"+name)
-	con.Flush()
-	con.Receive()
-	_, err = con.Receive()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed insert"))
 	} else {
 		t := make(map[string]string)
 		t["trigger_name"] = tg
-		t["action_name"] = base64.URLEncoding.EncodeToString([]byte(name))
-		t["url"] = "/api/v1/trigger/" + trigger + "/" + name
+		t["action_name"] = action.Name
+		t["url"] = "/api/v1/trigger/" + tname + "/" + action.Name
 		if body, err := json.Marshal(t); err == nil {
 			w.Write(body)
 		} else {
@@ -100,32 +91,28 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 
 // ActionDelete DELETE /trigger/{:triggername}/action/{:name}
 func (q *WebService) ActionDelete(w http.ResponseWriter, r *http.Request) {
-	trigger := mux.Vars(r)["trigger"]
-	t, err := base64.URLEncoding.DecodeString(trigger)
+	name := mux.Vars(r)["trigger"]
+	t, err := base64.URLEncoding.DecodeString(name)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	tg := string(t)
-	name := mux.Vars(r)["name"]
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	name = mux.Vars(r)["name"]
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	owner, err := redis.String(con.Do("HGET", tg, "owner"))
-	if user != owner {
+	trigger, err := q.engine.GetTrigger(tg)
+	if user != trigger.Owner {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	con.Send("DEL", tg+":"+name)
-	con.Send("SREM", tg+":actions", tg+":"+name)
-	con.Flush()
-	con.Receive()
-	_, err = con.Receive()
+	if err == nil {
+		err = q.engine.SetDelete("actions:"+tg, name)
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Find Failed"))

@@ -1,10 +1,6 @@
-package main
+package metrictools
 
 import (
-	"encoding/json"
-	"fmt"
-	"github.com/garyburd/redigo/redis"
-	"net/http"
 	"regexp"
 )
 
@@ -53,67 +49,15 @@ func (c *CollectdJSON) GetMetricName(index int) string {
 	return metricName
 }
 
-func getMetricRate(key string, value float64, timestamp int64, dataType string, con redis.Conn) (float64, error) {
+func (c *CollectdJSON) GetMetricRate(value float64, timestamp int64, index int) float64 {
 	var nValue float64
-	rst, err := redis.Values(con.Do("HMGET", key, "value", "timestamp"))
-	if err != nil {
-		return 0, err
-	}
-	var t int64
-	var v float64
-	_, err = redis.Scan(rst, &v, &t)
-	if err != nil {
-		return 0, redis.ErrNil
-	}
-	if dataType == "counter" || dataType == "derive" {
-		nValue = (value - v) / float64(timestamp-t)
+	if c.DataSetTypes[index] == "counter" || c.DataSetTypes[index] == "derive" {
+		nValue = (c.Values[index] - value) / float64(int64(c.Timestamp)-timestamp)
 		if nValue < 0 {
 			nValue = 0
 		}
 	} else {
-		nValue = value
+		nValue = c.Values[index]
 	}
-	return nValue, err
-}
-
-func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST")
-	con := q.Get()
-	defer con.Close()
-	user := basicAuth(r, con)
-	if len(user) == 0 {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	var dataset []CollectdJSON
-	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&dataset)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	for _, c := range dataset {
-		for i := range c.Values {
-			key := user + "_" + c.GetMetricName(i)
-			t := int64(c.Timestamp)
-			nValue, _ := getMetricRate(key, c.Values[i], t, c.DataSetTypes[i], con)
-			err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %.2f %d", key, nValue, t)))
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			con.Send("HMSET", key, "rate_value", nValue, "value", c.Values[i], "timestamp", t, "type", c.Type)
-			con.Send("SADD", "host:"+user+"_"+c.Host, key)
-			con.Flush()
-			con.Receive()
-			_, err = con.Receive()
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		}
-	}
+	return nValue
 }

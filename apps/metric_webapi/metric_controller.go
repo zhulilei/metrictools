@@ -1,9 +1,9 @@
 package main
 
 import (
+	"../.."
 	"encoding/json"
 	"fmt"
-	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -27,8 +27,7 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 	metricList := strings.Split(metrics, ",")
 	sort.Strings(metricList)
 	var recordList []interface{}
-	con := q.Pool.Get()
-	user := loginFilter(r, con)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -41,19 +40,18 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 		}
 		var data []string
 		for i := start / 14400; i <= end/14400; i++ {
-			values, err := redis.String(con.Do("GET", fmt.Sprintf("archive:%s:%d", user+"_"+v, i)))
+			values, err := q.engine.GetValues(fmt.Sprintf("archive:%s:%d", user+"_"+v, i))
 			if err != nil {
-				log.Println(err)
+				log.Println(fmt.Sprintf("archive:%s:%d", user+"_"+v, i), err)
 				continue
 			}
-			data = append(data, values)
+			data = append(data, values...)
 		}
-		metricData := ParseTimeSeries(data)
+		metricData := metrictools.ParseTimeSeries(data)
 		record["name"] = v
-		record["values"] = GenerateTimeseries(metricData)
+		record["values"] = metrictools.GenerateTimeseries(metricData)
 		recordList = append(recordList, record)
 	}
-	con.Close()
 	rst := make(map[string]interface{})
 	rst["metrics"] = recordList
 	rst["url"] = "/api/v1/metric?metrics=" + metrics
@@ -76,9 +74,7 @@ func (q *WebService) MetricCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
-	con := q.Pool.Get()
-	defer con.Close()
-	user := loginFilter(r, con)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -86,9 +82,9 @@ func (q *WebService) MetricCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	for metric, value := range items {
 		metric = user + "_" + metric
-		_, err := con.Do("GET", metric)
+		_, err := q.engine.GetValues(metric)
 		if err != nil {
-			con.Do("HSET", metric, "ttl", value)
+			q.engine.SetAttr(metric, "ttl", value)
 		}
 	}
 }
@@ -107,8 +103,7 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	recordList := make(map[string]interface{})
-	con := q.Pool.Get()
-	user := loginFilter(r, con)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -116,19 +111,18 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 	}
 	var data []string
 	for i := start / 14400; i <= end/14400; i++ {
-		values, err := redis.String(con.Do("GET", fmt.Sprintf("archive:%s:%d", user+"_"+metric, i)))
+		values, err := q.engine.GetValues(fmt.Sprintf("archive:%s:%d", user+"_"+metric, i))
 		if err != nil {
-			log.Println(err)
+			log.Println(fmt.Sprintf("archive:%s:%d", user+"_"+metric, i), err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		data = append(data, values)
+		data = append(data, values...)
 	}
-	metricData := ParseTimeSeries(data)
-	con.Close()
+	metricData := metrictools.ParseTimeSeries(data)
 	recordList["name"] = metric
 	recordList["url"] = "/api/v1/metric/" + metric
-	recordList["records"] = GenerateTimeseries(metricData)
+	recordList["records"] = metrictools.GenerateTimeseries(metricData)
 	if body, err := json.Marshal(recordList); err == nil {
 		w.Write(body)
 	} else {
@@ -149,44 +143,17 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
-	con := q.Pool.Get()
-	user := loginFilter(r, con)
+	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 	metric = user + "_" + metric
-	_, err := con.Do("GET", metric)
+	_, err := q.engine.GetValues(metric)
 	if err != nil {
-		con.Do("HSET", metric, "ttl", item["ttl"])
+		q.engine.SetAttr(metric, "ttl", item["ttl"])
 	} else {
 		w.WriteHeader(http.StatusNotFound)
-	}
-	con.Close()
-}
-
-// MetricDelete DELETE /metric/{:name}
-// Todo
-func (q *WebService) MetricDelete(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
-	metric := mux.Vars(r)["name"]
-	con := q.Pool.Get()
-	user := loginFilter(r, con)
-	if len(user) == 0 {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	metric = user + "_" + metric
-	con.Send("DEL", "archive:"+metric)
-	con.Send("DEL", metric)
-	con.Flush()
-	con.Receive()
-	_, err := con.Receive()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
 	}
 }

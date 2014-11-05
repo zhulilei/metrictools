@@ -1,4 +1,4 @@
-package main
+package metrictools
 
 import (
 	"encoding/json"
@@ -13,6 +13,8 @@ type Setting struct {
 	LookupdAddresses   []string `jpath:"lookupd_addresses"`
 	MetricTopic        string   `jpath:"metric_topic"`
 	MetricChannel      string   `jpath:"metric_channel"`
+	SkylineTopic       string   `jpath:"skyline_topic"`
+	SkylineChannel     string   `jpath:"skyline_channel"`
 	TriggerTopic       string   `jpath:"trigger_topic"`
 	TriggerChannel     string   `jpath:"trigger_channel"`
 	ArchiveTopic       string   `jpath:"archive_topic"`
@@ -27,7 +29,7 @@ type Setting struct {
 	MaxInFlight        int      `jpath:"maxinflight"`
 	ListenAddress      string   `jpath:"listen_address"`
 	SessionName        string   `jpath:"session_name"`
-	Modes              []string `jpath:"modes"`
+	Network            string   `jpath:"network"`
 }
 
 // ReadConfig used to read json to config
@@ -49,6 +51,9 @@ func ReadConfig(file string) (*Setting, error) {
 	}
 	if setting.FullDuration == 0 {
 		setting.MinDuration = 3600 * 24
+	}
+	if setting.Network == "" {
+		setting.Network = "tcp"
 	}
 	return setting, err
 }

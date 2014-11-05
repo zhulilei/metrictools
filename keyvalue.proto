@@ -1,4 +1,4 @@
-package main;
+package metrictools;
 
 message KeyValue {
   optional sfixed64 timestamp = 1;
