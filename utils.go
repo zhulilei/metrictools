@@ -26,8 +26,8 @@ type Trigger struct {
 
 // NotifyAction define how to send notify
 type NotifyAction struct {
-	Name       string `json:"-"`
-	Uri        string `json:"uri"`
+	Name string `json:"-"`
+	Uri  string `json:"uri"`
 }
 
 // User define user

@@ -10,7 +10,6 @@ import (
 	"net/smtp"
 	"os"
 	"strings"
-	"time"
 )
 
 // Notify define a notify task
