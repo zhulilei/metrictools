@@ -101,10 +101,6 @@ func (m *Notify) sendNotify() {
 				default:
 					log.Println(notifyMsg)
 				}
-				err = m.engine.SaveNotifyAction(action)
-				if err != nil {
-					log.Println("save action failed", notifyMsg["trigger_exp"], err)
-				}
 			}
 			msg.ErrorChannel <- nil
 		}

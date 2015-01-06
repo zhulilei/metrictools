@@ -167,19 +167,16 @@ func (m *RedisEngine) GetToken(accessKey string) (AccessToken, error) {
 }
 
 func (m *RedisEngine) GetNotifyAction(name string) (NotifyAction, error) {
-	actionInfo, err := m.Do("HMGET", "action:"+name, "uri", "updated_time", "repeat", "count").List()
+	actionInfo, err := m.Do("HMGET", "action:"+name, "uri").List()
 	var action NotifyAction
 	if err == nil {
 		action.Name = name
 		action.Uri = actionInfo[0]
-		action.UpdateTime, _ = strconv.ParseInt(actionInfo[1], 0, 64)
-		action.Repeat, _ = strconv.Atoi(actionInfo[2])
-		action.Count, _ = strconv.Atoi(actionInfo[3])
 	}
 	return action, err
 }
 func (m *RedisEngine) SaveNotifyAction(notifyAction NotifyAction) error {
-	return m.Do("HMSET", "action:"+notifyAction.Name, "uri", notifyAction.Uri, "update_time", notifyAction.UpdateTime, "repeat", notifyAction.Repeat, "count", notifyAction.Count).Err
+	return m.Do("HMSET", "action:"+notifyAction.Name, "uri", notifyAction.Uri).Err
 }
 
 func (m *RedisEngine) GetTrigger(name string) (Trigger, error) {
