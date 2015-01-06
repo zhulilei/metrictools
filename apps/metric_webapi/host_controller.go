@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strings"
 )
 
 // HostIndex GET /host
@@ -36,7 +37,7 @@ func (q *WebService) HostShow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
-	host := mux.Vars(r)["host"]
+	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -60,7 +61,7 @@ func (q *WebService) HostShow(w http.ResponseWriter, r *http.Request) {
 func (q *WebService) HostDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE")
-	host := mux.Vars(r)["host"]
+	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -90,7 +91,7 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
-	host := mux.Vars(r)["host"]
+	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	user := q.loginFilter(r)
 	if len(user) == 0 {
 		w.Header().Set("WWW-Authenticate", "Basic realm=\"user/securt_token of your account\"")
@@ -126,7 +127,7 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 func (q *WebService) HostMetricDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "DELETE")
-	host := mux.Vars(r)["host"]
+	host := strings.Replace(mux.Vars(r)["host"], "-", ".", -1)
 	metric := mux.Vars(r)["name"]
 	user := q.loginFilter(r)
 	if len(user) == 0 {
