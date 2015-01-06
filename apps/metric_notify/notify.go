@@ -91,10 +91,6 @@ func (m *Notify) sendNotify() {
 			}
 			for _, v := range keys {
 				action, err := m.engine.GetNotifyAction(v)
-				n := time.Now().Unix()
-				if ((n - action.UpdateTime) < 600) && (action.Repeat >= action.Count) {
-					continue
-				}
 				uri := strings.Split(action.Uri, ":")
 				switch uri[0] {
 				case "mailto":
@@ -105,8 +101,6 @@ func (m *Notify) sendNotify() {
 				default:
 					log.Println(notifyMsg)
 				}
-				action.UpdateTime = n
-				action.Count += 1
 				err = m.engine.SaveNotifyAction(action)
 				if err != nil {
 					log.Println("save action failed", notifyMsg["trigger_exp"], err)

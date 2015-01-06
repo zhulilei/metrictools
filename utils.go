@@ -28,9 +28,6 @@ type Trigger struct {
 type NotifyAction struct {
 	Name       string `json:"-"`
 	Uri        string `json:"uri"`
-	UpdateTime int64  `json:"update_time"`
-	Repeat     int    `json:"repeat"`
-	Count      int    `json:"count"`
 }
 
 // User define user
