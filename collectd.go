@@ -2,7 +2,6 @@ package metrictools
 
 import (
 	"regexp"
-	"strings"
 )
 
 // CollectdJSON is collectd's json data format
@@ -20,7 +19,7 @@ type CollectdJSON struct {
 }
 
 func (c *CollectdJSON) GetMetricName(index int) string {
-	metricName := strings.Replace(c.Host, "-", ".", -1) + "_" + c.Plugin
+	metricName := c.Host + "_" + c.Plugin
 	if len(c.PluginInstance) > 0 {
 		if matched, _ := regexp.MatchString(`^\d+$`, c.PluginInstance); matched {
 			metricName += c.PluginInstance
