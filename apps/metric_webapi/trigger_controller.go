@@ -89,7 +89,7 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg.Owner = user
-	err = q.engine.SaveTrigger(tg)
+	err := q.engine.SaveTrigger(tg)
 	q.engine.SetAdd("triggers", tg.Name)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
