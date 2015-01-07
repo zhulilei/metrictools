@@ -88,12 +88,6 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	_, err := q.engine.GetTrigger(tg.Name)
-	if err == nil {
-		w.WriteHeader(http.StatusNotAcceptable)
-		w.Write([]byte(tg.Name + " exists"))
-		return
-	}
 	tg.Owner = user
 	err = q.engine.SaveTrigger(tg)
 	q.engine.SetAdd("triggers", tg.Name)

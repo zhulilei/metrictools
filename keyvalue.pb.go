@@ -2,15 +2,22 @@
 // source: keyvalue.proto
 // DO NOT EDIT!
 
+/*
+Package metrictools is a generated protocol buffer package.
+
+It is generated from these files:
+	keyvalue.proto
+
+It has these top-level messages:
+	KeyValue
+*/
 package metrictools
 
-import proto "code.google.com/p/goprotobuf/proto"
-import json "encoding/json"
+import proto "github.com/golang/protobuf/proto"
 import math "math"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type KeyValue struct {

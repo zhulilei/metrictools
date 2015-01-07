@@ -1,8 +1,8 @@
 package metrictools
 
 import (
-	"code.google.com/p/goprotobuf/proto"
 	"github.com/datastream/skyline"
+	"github.com/golang/protobuf/proto"
 )
 
 // MetricData
