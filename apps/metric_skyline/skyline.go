@@ -87,7 +87,7 @@ func (m *SkylineTask) SkylineCalculateTask() {
 					}
 				}
 			}
-			if err.Error() == "null data" {
+			if err != nil && err.Error() == "null data" {
 				err = nil
 			}
 			msg.ErrorChannel <- err
