@@ -139,7 +139,8 @@ func (m *SkylineTask) SkylineCheck(exp string) ([]int, skyline.TimePoint, error)
 	}
 	timeseries := metrictools.ParseTimeSeries(values)
 	if len(timeseries) == 0 {
-		return rst, tp, fmt.Errorf("null data")
+		log.Println(fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400), "null data")
+		return rst, tp, err
 	}
 	if skyline.MedianAbsoluteDeviation(timeseries) {
 	} else {
