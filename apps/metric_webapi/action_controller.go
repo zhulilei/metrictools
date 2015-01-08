@@ -80,7 +80,7 @@ func (q *WebService) ActionCreate(w http.ResponseWriter, r *http.Request) {
 		t := make(map[string]string)
 		t["trigger_name"] = tg
 		t["action_name"] = action.Name
-		t["url"] = "/api/v1/trigger/" + tname + "/" + action.Name
+		t["url"] = "/api/v1/trigger/" + tname + "/action/" + action.Name
 		if body, err := json.Marshal(t); err == nil {
 			w.Write(body)
 		} else {
