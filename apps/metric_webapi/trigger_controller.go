@@ -8,7 +8,6 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
-	"regexp"
 	"strings"
 )
 
@@ -80,7 +79,6 @@ func (q *WebService) TriggerCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tg.Name = strings.Trim(tg.Name, " ")
-	tg.IsExpression, _ = regexp.MatchString(`(\+|-|\*|/)`, tg.Name)
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
 	user := q.loginFilter(r)
 	if len(user) == 0 {
