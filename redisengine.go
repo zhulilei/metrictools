@@ -52,6 +52,9 @@ func (m *RedisEngine) commonLoop() error {
 			if request, ok := cmd.(Request); ok {
 				reply := client.Cmd(request.Cmd, request.Args...)
 				err = reply.Err
+				if err != nil {
+					log.Println(request.Cmd, request.Args)
+				}
 				request.ReplyChannel <- reply
 			} else if requests, ok := cmd.([]Request); ok {
 				for _, request := range requests {
@@ -60,6 +63,9 @@ func (m *RedisEngine) commonLoop() error {
 				for _, request := range requests {
 					reply := client.GetReply()
 					err = reply.Err
+					if err != nil {
+						log.Println(request.Cmd, request.Args)
+					}
 					request.ReplyChannel <- reply
 				}
 			}
