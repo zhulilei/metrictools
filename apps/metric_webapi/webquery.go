@@ -33,7 +33,8 @@ func (q *WebService) Run() error {
 		ExitChannel: make(chan int),
 		CmdChannel:  make(chan interface{}),
 	}
-	for i := 0; i < q.MaxInFlight; i++ {
+	taskPool := q.MaxInFlight/100 +1
+	for i := 0; i < taskPool; i++ {
 		go q.engine.RunTask()
 	}
 	r := mux.NewRouter()

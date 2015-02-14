@@ -49,8 +49,11 @@ func (m *MetricDeliver) Run() error {
 		return err
 	}
 	for i := 0; i < m.MaxInFlight; i++ {
-		go m.engine.RunTask()
 		go m.writeLoop()
+	}
+	taskPool := m.MaxInFlight/100 +1
+	for i := 0; i < taskPool; i++ {
+		go m.engine.RunTask()
 	}
 	return err
 }
