@@ -146,6 +146,7 @@ func (m *SkylineTask) SkylineCheck(exp string) ([]int, skyline.TimePoint, error)
 		return rst, tp, fmt.Errorf("null data")
 	}
 	if skyline.MedianAbsoluteDeviation(timeseries) {
+		rst = append(rst, 1)
 	} else {
 		rst = append(rst, 0)
 	}
