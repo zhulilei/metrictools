@@ -134,7 +134,7 @@ func (m *SkylineTask) CheckHistory(exp string, last skyline.TimePoint) (bool, er
 
 func (m *SkylineTask) SkylineCheck(exp string) ([]int, skyline.TimePoint, error) {
 	t := time.Now().Unix()
-	values, err := m.engine.GetValues(fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400))
+	values, err := m.engine.GetValues(fmt.Sprintf("archive:%s:%d", exp, t/14400-8), fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400))
 	var rst []int
 	var tp skyline.TimePoint
 	if err != nil {
@@ -142,7 +142,7 @@ func (m *SkylineTask) SkylineCheck(exp string) ([]int, skyline.TimePoint, error)
 	}
 	timeseries := metrictools.ParseTimeSeries(values)
 	if len(timeseries) == 0 {
-		log.Println(fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400), "null data")
+		log.Println(fmt.Sprintf("archive:%s:%d", exp, t/14400-8),fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400), "null data")
 		return rst, tp, fmt.Errorf("null data")
 	}
 	if skyline.MedianAbsoluteDeviation(timeseries) {
