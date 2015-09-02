@@ -3,7 +3,7 @@ package main
 import (
 	"../.."
 	"fmt"
-	"github.com/bitly/go-nsq"
+	"github.com/nsqio/go-nsq"
 	"log"
 	"os"
 	"strconv"
@@ -51,7 +51,7 @@ func (m *MetricDeliver) Run() error {
 	for i := 0; i < m.MaxInFlight; i++ {
 		go m.writeLoop()
 	}
-	taskPool := m.MaxInFlight/100 +1
+	taskPool := m.MaxInFlight/100 + 1
 	for i := 0; i < taskPool; i++ {
 		go m.engine.RunTask()
 	}

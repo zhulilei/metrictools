@@ -3,8 +3,8 @@ package main
 import (
 	"../.."
 	"fmt"
-	"github.com/bitly/go-nsq"
 	"github.com/gorilla/mux"
+	"github.com/nsqio/go-nsq"
 	"net/http"
 	"os"
 )
@@ -33,7 +33,7 @@ func (q *WebService) Run() error {
 		ExitChannel: make(chan int),
 		CmdChannel:  make(chan interface{}),
 	}
-	taskPool := q.MaxInFlight/100 +1
+	taskPool := q.MaxInFlight/100 + 1
 	for i := 0; i < taskPool; i++ {
 		go q.engine.RunTask()
 	}

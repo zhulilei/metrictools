@@ -3,7 +3,7 @@ package main
 import (
 	"../.."
 	"fmt"
-	"github.com/bitly/go-nsq"
+	"github.com/nsqio/go-nsq"
 	"log"
 	"os"
 )
