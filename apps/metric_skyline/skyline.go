@@ -80,6 +80,7 @@ func (m *SkylineTask) SkylineCalculateTask() {
 			if err == nil {
 				threshold := 8 - m.Consensus
 				if CheckThreshhold(rst, threshold) {
+					log.Println(msg.Body.(string), rst)
 					var stat bool
 					stat, err = m.CheckHistory(msg.Body.(string), last)
 					if stat {
@@ -112,12 +113,12 @@ func (m *SkylineTask) SendNotify(exp string) error {
 func (m *SkylineTask) CheckHistory(exp string, last skyline.TimePoint) (bool, error) {
 	reply, err := m.engine.GetValues("trigger_history:" + exp)
 	if err != nil {
-		return false, err
+		return true, err
 	}
 	raw_trigger_history := []byte(reply[0])
 	var trigger_history []skyline.TimePoint
 	if err = json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
-		return false, err
+		return true, err
 	}
 	isan, t := skyline.IsAnomalouslyAnomalous(trigger_history, last)
 	if len(t) > 0 {
