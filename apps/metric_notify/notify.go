@@ -84,16 +84,16 @@ func (m *Notify) sendNotify() {
 				continue
 			}
 			var keys []string
-			keys, err := m.engine.GetSet("actions:" + notifyMsg["trigger_exp"])
+			keys, err := m.engine.GetSet("actions:" + notifyMsg["trigger"])
 			if err != nil {
-				log.Println("no action for", notifyMsg["trigger_exp"], err)
+				log.Println("no action for", notifyMsg["trigger"], err)
 			}
 			for _, v := range keys {
 				action, err := m.engine.GetNotifyAction(v)
 				uri := strings.Split(action.Uri, ":")
 				switch uri[0] {
 				case "mailto":
-					if err = sendNotifyMail(notifyMsg["trigger_exp"], notifyMsg["time"]+"\n"+notifyMsg["event"]+"\n"+notifyMsg["url"], m.NotifyEmailAddress, []string{uri[1]}); err != nil {
+					if err = sendNotifyMail(notifyMsg["trigger"], notifyMsg["time"]+"\n"+notifyMsg["event"]+"\n"+notifyMsg["url"], m.NotifyEmailAddress, []string{uri[1]}); err != nil {
 						log.Println("fail to sendnotifymail", err)
 						break
 					}
