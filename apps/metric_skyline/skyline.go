@@ -101,7 +101,7 @@ func (m *SkylineTask) SendNotify(exp string) error {
 	h := sha1.New()
 	h.Write([]byte(exp))
 	name := base64.URLEncoding.EncodeToString(h.Sum(nil))
-	rst["trigger"] = name
+	rst["trigger"] = exp
 	rst["url"] = "/api/v1/triggerhistory/" + name
 	body, err := json.Marshal(rst)
 	if err == nil {
@@ -143,7 +143,7 @@ func (m *SkylineTask) SkylineCheck(exp string) ([]int, skyline.TimePoint, error)
 	}
 	timeseries := metrictools.ParseTimeSeries(values)
 	if len(timeseries) == 0 {
-		log.Println(fmt.Sprintf("archive:%s:%d", exp, t/14400-8),fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400), "null data")
+		log.Println(fmt.Sprintf("archive:%s:%d", exp, t/14400-8), fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400), "null data")
 		return rst, tp, fmt.Errorf("null data")
 	}
 	if skyline.MedianAbsoluteDeviation(timeseries) {
