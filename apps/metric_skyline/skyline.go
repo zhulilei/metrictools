@@ -84,7 +84,7 @@ func (m *SkylineTask) SkylineCalculateTask() {
 					var stat bool
 					stat, err = m.CheckHistory(msg.Body.(string), last)
 					if stat {
-						err = m.SendNotify(msg.Body.(string))
+						err = m.SendNotify(msg.Body.(string), last)
 					}
 				}
 			}
@@ -95,7 +95,7 @@ func (m *SkylineTask) SkylineCalculateTask() {
 		}
 	}
 }
-func (m *SkylineTask) SendNotify(exp string) error {
+func (m *SkylineTask) SendNotify(exp string, last float64) error {
 	rst := make(map[string]string)
 	rst["time"] = time.Now().Format("2006-01-02 15:04:05")
 	h := sha1.New()
@@ -103,6 +103,7 @@ func (m *SkylineTask) SendNotify(exp string) error {
 	name := base64.URLEncoding.EncodeToString(h.Sum(nil))
 	rst["trigger"] = exp
 	rst["url"] = "/api/v1/triggerhistory/" + name
+	rst["event"] = fmt.Sprintf("%s = %d is anomalous!",exp, last)
 	body, err := json.Marshal(rst)
 	if err == nil {
 		m.producer.Publish(m.NotifyTopic, body)
