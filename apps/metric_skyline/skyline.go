@@ -103,7 +103,7 @@ func (m *SkylineTask) SendNotify(exp string, last skyline.TimePoint) error {
 	name := base64.URLEncoding.EncodeToString(h.Sum(nil))
 	rst["trigger"] = exp
 	rst["url"] = "/api/v1/triggerhistory/" + name
-	rst["event"] = fmt.Sprintf("%s = %d is anomalous @ %d!", exp, last.GetValue(), last.GetTimestamp())
+	rst["event"] = fmt.Sprintf("%s = %f is anomalous @ %d!", exp, last.GetValue(), last.GetTimestamp())
 	body, err := json.Marshal(rst)
 	if err == nil {
 		m.producer.Publish(m.NotifyTopic, body)
