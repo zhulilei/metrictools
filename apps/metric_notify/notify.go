@@ -93,7 +93,7 @@ func (m *Notify) sendNotify() {
 				uri := strings.Split(action.Uri, ":")
 				switch uri[0] {
 				case "mailto":
-					if err = sendNotifyMail(notifyMsg["trigger"], notifyMsg["time"]+"\n"+notifyMsg["event"]+"\n"+notifyMsg["url"], m.NotifyEmailAddress, []string{uri[1]}); err != nil {
+					if err = sendNotifyMail(notifyMsg["trigger"], fmt.Sprintf("Notify Time: %s\nEvent: %s\nURL: %s", notifyMsg["time"], notifyMsg["event"], notifyMsg["url"]), m.NotifyEmailAddress, []string{uri[1]}); err != nil {
 						log.Println("fail to sendnotifymail", err)
 						break
 					}
