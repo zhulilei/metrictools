@@ -116,12 +116,12 @@ func (m *SkylineTask) CheckHistory(exp string, last skyline.TimePoint) (bool, er
 	if err != nil {
 		return true, err
 	}
-	raw_trigger_history := []byte(reply[0])
-	var trigger_history []skyline.TimePoint
-	if err = json.Unmarshal(raw_trigger_history, &trigger_history); err != nil {
+	rawTriggerHistory := []byte(reply[0])
+	var triggerHistory []skyline.TimePoint
+	if err = json.Unmarshal(rawTriggerHistory, &triggerHistory); err != nil {
 		return true, err
 	}
-	isan, t := skyline.IsAnomalouslyAnomalous(trigger_history, last)
+	isan, t := skyline.IsAnomalouslyAnomalous(triggerHistory, last)
 	if len(t) > 0 {
 		body, err := json.Marshal(t)
 		if err == nil {

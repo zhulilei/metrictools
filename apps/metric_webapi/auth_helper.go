@@ -15,8 +15,8 @@ func (q *WebService) basicAuth(r *http.Request) string {
 	if len(idents) < 2 || idents[0] != "Basic" {
 		return user
 	}
-	userId, _ := base64.StdEncoding.DecodeString(idents[1])
-	idents = strings.Split(string(userId), ":")
+	userID, _ := base64.StdEncoding.DecodeString(idents[1])
+	idents = strings.Split(string(userID), ":")
 	if len(idents) != 2 {
 		return user
 	}
