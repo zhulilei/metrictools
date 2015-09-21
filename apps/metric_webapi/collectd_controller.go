@@ -18,31 +18,15 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	var dataset []metrictools.CollectdJSON
+	body, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&dataset)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	for _, c := range dataset {
-		for i := range c.Values {
-			key := user + "_" + c.GetMetricName(i)
-			t := int64(c.Timestamp)
-			metric, err := q.engine.GetMetric(key)
-			var nValue float64
-			if err == nil {
-				nValue = c.GetMetricRate(metric.LastValue, metric.LastTimestamp, i)
-				err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %.2f %d", key, nValue, t)))
-			}
-			if err != nil {
-				log.Println("collectd metric error", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			q.engine.SetAttr(key, "rate_value", nValue)
-			q.engine.SetAttr(key, "value", c.Values[i])
-			q.engine.SetAttr(key, "timestamp", t)
-		}
+	err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %s", user, body)))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 }

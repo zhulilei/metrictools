@@ -84,40 +84,66 @@ func (m *MetricDeliver) writeLoop() {
 		case <-m.exitChannel:
 			return
 		case msg := <-m.msgChannel:
-			metric, ok := msg.Body.([]byte)
+			body, ok := msg.Body.([]byte)
 			if !ok {
-				log.Println("wrong message:", msg.Body)
+				log.Println("wrong type:", msg.Body)
 				msg.ErrorChannel <- nil
 				continue
 			}
-			data := strings.Split(string(metric), " ")
-			t, _ := strconv.ParseInt(data[2], 10, 64)
-			v, _ := strconv.ParseFloat(data[1], 64)
-			record, err := metrictools.KeyValueEncode(t, v)
-			if err != nil {
-				log.Println(err)
+			data := strings.Split(string(body), " ")
+			if len(data) != 2 {
+				log.Println("wrong size:", msg.Body)
+				msg.ErrorChannel <- nil
 				continue
 			}
-			tokens := strings.Split(data[0], "_")
-			user := tokens[0]
-			host := tokens[1]
-			err = m.engine.SetAdd("host:"+user+"_"+host, data[0])
-			if err == nil {
-				err = m.engine.AppendKeyValue(fmt.Sprintf("archive:%s:%d", data[0], t/14400), record)
+			user := data[0]
+			var dataset []metrictools.CollectdJSON
+			var err
+			err = json.Unmarsh(data[1], &dataset)
+			if err != nil {
+				log.Println("wrong struct:", msg.Body)
+				msg.ErrorChannel <- nil
+				continue
 			}
-			msg.ErrorChannel <- err
-			if err == nil {
-				metricInfo, err := m.engine.GetMetric(data[0])
-				t = metricInfo.ArchiveTime
-				if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
-					m.producer.Publish(m.ArchiveTopic, []byte(data[0]))
+			for _, c := range dataset {
+				for i := range c.Values {
+					key :=  c.GetMetricName(i)
+					t := int64(c.Timestamp)
+					var metric string
+					metric, err = q.engine.GetMetric(key)
+					var nValue float64
+					if err != nil {
+						break
+					}
+					nValue = c.GetMetricRate(metric.LastValue, metric.LastTimestamp, i)
+					record, err := metrictools.KeyValueEncode(t, v)
+					if err == nil {
+						q.engine.SetAttr(key, "rate_value", nValue)
+						q.engine.SetAttr(key, "value", c.Values[i])
+						q.engine.SetAttr(key, "timestamp", t)
+						m.engine.SetAdd(fmt.Sprintf("host:%s_%s",user,c.Host), metric)
+						err = m.engine.AppendKeyValue(fmt.Sprintf("archive:%s:%d", metric, t/14400), record)
+					}
+					if err != nil {
+						log.Println("insert error", metric)
+						break
+					}
+					metricInfo, _ := m.engine.GetMetric(metric)
+					t = metricInfo.ArchiveTime
+					if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
+						m.producer.Publish(m.ArchiveTopic, []byte(metric))
+					}
+					ttl := metricInfo.TTL
+					if ttl == 0 {
+						ttl = 86400 * 7
+					}
+					m.engine.SetTTL(fmt.Sprintf("archive:%s:%d", metric, t/14400), ttl)
 				}
-				ttl := metricInfo.TTL
-				if ttl == 0 {
-					ttl = 86400 * 7
+				if err != nil {
+					break
 				}
-				m.engine.SetTTL(fmt.Sprintf("archive:%s:%d", data[0], t/14400), ttl)
 			}
+			meg.ErrorChannel <- err
 		}
 	}
 }
