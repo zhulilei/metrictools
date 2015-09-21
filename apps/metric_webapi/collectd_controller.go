@@ -1,9 +1,8 @@
 package main
 
 import (
-	"../.."
-	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -21,10 +20,11 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
+		log.Println("data error", body)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s %s", user, body)))
+	err = q.producer.Publish(q.MetricTopic, []byte(fmt.Sprintf("%s|%s", user, body)))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

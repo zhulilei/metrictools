@@ -2,11 +2,11 @@ package main
 
 import (
 	"../.."
+	"encoding/json"
 	"fmt"
 	"github.com/nsqio/go-nsq"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -90,7 +90,7 @@ func (m *MetricDeliver) writeLoop() {
 				msg.ErrorChannel <- nil
 				continue
 			}
-			data := strings.Split(string(body), " ")
+			data := strings.Split(string(body), "|")
 			if len(data) != 2 {
 				log.Println("wrong size:", msg.Body)
 				msg.ErrorChannel <- nil
@@ -98,8 +98,8 @@ func (m *MetricDeliver) writeLoop() {
 			}
 			user := data[0]
 			var dataset []metrictools.CollectdJSON
-			var err
-			err = json.Unmarsh(data[1], &dataset)
+			var err error
+			err = json.Unmarshal([]byte(data[1]), &dataset)
 			if err != nil {
 				log.Println("wrong struct:", msg.Body)
 				msg.ErrorChannel <- nil
@@ -107,31 +107,31 @@ func (m *MetricDeliver) writeLoop() {
 			}
 			for _, c := range dataset {
 				for i := range c.Values {
-					key :=  c.GetMetricName(i)
+					metricName := c.GetMetricName(i)
 					t := int64(c.Timestamp)
-					var metric string
-					metric, err = q.engine.GetMetric(key)
+					var metric metrictools.Metric
+					metric, err = m.engine.GetMetric(metricName)
 					var nValue float64
 					if err != nil {
 						break
 					}
 					nValue = c.GetMetricRate(metric.LastValue, metric.LastTimestamp, i)
-					record, err := metrictools.KeyValueEncode(t, v)
+					record, err := metrictools.KeyValueEncode(t, nValue)
 					if err == nil {
-						q.engine.SetAttr(key, "rate_value", nValue)
-						q.engine.SetAttr(key, "value", c.Values[i])
-						q.engine.SetAttr(key, "timestamp", t)
-						m.engine.SetAdd(fmt.Sprintf("host:%s_%s",user,c.Host), metric)
-						err = m.engine.AppendKeyValue(fmt.Sprintf("archive:%s:%d", metric, t/14400), record)
+						m.engine.SetAttr(metricName, "rate_value", nValue)
+						m.engine.SetAttr(metricName, "value", c.Values[i])
+						m.engine.SetAttr(metricName, "timestamp", t)
+						m.engine.SetAdd(fmt.Sprintf("host:%s:%s", user, c.Host), metricName)
+						err = m.engine.AppendKeyValue(fmt.Sprintf("archive:%s:%d", metricName, t/14400), record)
 					}
 					if err != nil {
-						log.Println("insert error", metric)
+						log.Println("insert error", metricName)
 						break
 					}
-					metricInfo, _ := m.engine.GetMetric(metric)
+					metricInfo, _ := m.engine.GetMetric(metricName)
 					t = metricInfo.ArchiveTime
 					if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
-						m.producer.Publish(m.ArchiveTopic, []byte(metric))
+						m.producer.Publish(m.ArchiveTopic, []byte(metricName))
 					}
 					ttl := metricInfo.TTL
 					if ttl == 0 {
@@ -143,7 +143,7 @@ func (m *MetricDeliver) writeLoop() {
 					break
 				}
 			}
-			meg.ErrorChannel <- err
+			msg.ErrorChannel <- err
 		}
 	}
 }
