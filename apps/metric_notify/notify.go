@@ -88,12 +88,18 @@ func (m *Notify) sendNotify() {
 			if err != nil {
 				log.Println("no action for", notifyMsg["trigger"], err)
 			}
+			trigger, err := m.engine.GetTrigger(notifyMsg["trigger"])
+			if err != nil {
+				msg.ErrorChannel <- err
+				continue
+			}
+			triggerName := string(metrictools.XorBytes([]byte(trigger.Owner), []byte(trigger.Name)))
 			for _, v := range keys {
 				action, err := m.engine.GetNotifyAction(v)
 				uri := strings.Split(action.Uri, ":")
 				switch uri[0] {
 				case "mailto":
-					if err = sendNotifyMail(notifyMsg["trigger"], fmt.Sprintf("Notify Time: %s\nEvent: %s\nURL: %s", notifyMsg["time"], notifyMsg["event"], notifyMsg["url"]), m.NotifyEmailAddress, []string{uri[1]}); err != nil {
+					if err = sendNotifyMail(triggerName, fmt.Sprintf("Notify Time: %s\nEvent: %s\nURL: %s", notifyMsg["time"], notifyMsg["event"], notifyMsg["url"]), m.NotifyEmailAddress, []string{uri[1]}); err != nil {
 						log.Println("fail to sendnotifymail", err)
 						break
 					}

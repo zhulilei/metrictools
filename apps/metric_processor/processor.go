@@ -106,8 +106,9 @@ func (m *MetricDeliver) writeLoop() {
 				continue
 			}
 			for _, c := range dataset {
+				m.engine.SetAdd(fmt.Sprintf("hosts:%s", user), c.Host)
 				for i := range c.Values {
-					metricName := c.GetMetricName(i)
+					metricName := string(metrictools.XorBytes([]byte(user), []byte(c.GetMetricName(i))))
 					t := int64(c.Timestamp)
 					var metric metrictools.Metric
 					metric, err = m.engine.GetMetric(metricName)
@@ -118,11 +119,13 @@ func (m *MetricDeliver) writeLoop() {
 					nValue = c.GetMetricRate(metric.LastValue, metric.LastTimestamp, i)
 					record, err := metrictools.KeyValueEncode(t, nValue)
 					if err == nil {
+						host := string(metrictools.XorBytes([]byte(user), []byte(c.Host)))
+
 						m.engine.SetAttr(metricName, "rate_value", nValue)
 						m.engine.SetAttr(metricName, "value", c.Values[i])
 						m.engine.SetAttr(metricName, "timestamp", t)
-						m.engine.SetAdd(fmt.Sprintf("host:%s:%s", user, c.Host), metricName)
-						err = m.engine.AppendKeyValue(fmt.Sprintf("archive:%s:%d", metricName, t/14400), record)
+						m.engine.SetAdd(fmt.Sprintf("host:%s", host), metricName)
+						err = m.engine.AppendKeyValue(fmt.Sprintf("arc:%s:%d", metricName, t/14400), record)
 					}
 					if err != nil {
 						log.Println("insert error", metricName)
@@ -137,7 +140,7 @@ func (m *MetricDeliver) writeLoop() {
 					if ttl == 0 {
 						ttl = 86400 * 7
 					}
-					m.engine.SetTTL(fmt.Sprintf("archive:%s:%d", metric, t/14400), ttl)
+					m.engine.SetTTL(fmt.Sprintf("arc:%s:%d", metricName, t/14400), ttl)
 				}
 				if err != nil {
 					break

@@ -88,7 +88,7 @@ func (m *StatisticTask) calculateTask() {
 		case name := <-m.statisticChannel:
 			trigger, err := m.engine.GetTrigger(name)
 			if trigger.IsExpression && err == nil {
-				err := m.calculate(name)
+				err := m.calculate(trigger)
 				log.Println("calculate failed", err)
 			}
 			m.producer.Publish(m.SkylineTopic, []byte(name))
@@ -96,9 +96,10 @@ func (m *StatisticTask) calculateTask() {
 	}
 }
 
-func (m *StatisticTask) calculate(exp string) error {
+func (m *StatisticTask) calculate(tg metrictools.Trigger) error {
+	exp := string(metrictools.XorBytes([]byte(tg.Owner), []byte(tg.Name)))
 	expList := cal.Parser(exp)
-	v, err := m.evalExp(expList)
+	v, err := m.evalExp(expList, tg.Owner)
 	if err != nil {
 		log.Println("calculate failed:", exp, err)
 		return err
@@ -109,17 +110,18 @@ func (m *StatisticTask) calculate(exp string) error {
 		log.Println("encode data failed:", err)
 		return err
 	}
-	m.engine.AppendKeyValue(fmt.Sprintf("archive:%s:%d", exp, t/14400), body)
-	err = m.engine.SetTTL(fmt.Sprintf("archive:%s:%d", exp, t/14400), 86400*7)
+	m.engine.AppendKeyValue(fmt.Sprintf("arc:%s:%d", tg.Name, t/14400), body)
+	err = m.engine.SetTTL(fmt.Sprintf("arc:%s:%d", tg.Name, t/14400), 86400*7)
 	return err
 }
 
-func (m *StatisticTask) evalExp(expList []string) (float64, error) {
+func (m *StatisticTask) evalExp(expList []string, owner string) (float64, error) {
 	kv := make(map[string]interface{})
 	exp := ""
 	current := time.Now().Unix()
 	for _, item := range expList {
-		metric, err := m.engine.GetMetric(item)
+		metricKey := string(metrictools.XorBytes([]byte(owner), []byte(item)))
+		metric, err := m.engine.GetMetric(metricKey)
 		v := metric.RateValue
 		t := metric.LastTimestamp
 		if err != nil {

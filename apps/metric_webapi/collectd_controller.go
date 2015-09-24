@@ -9,7 +9,6 @@ import (
 
 func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
 	user := q.loginFilter(r)
 	if len(user) == 0 {

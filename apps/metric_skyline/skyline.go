@@ -103,7 +103,8 @@ func (m *SkylineTask) SendNotify(exp string, last skyline.TimePoint) error {
 	name := base64.URLEncoding.EncodeToString(h.Sum(nil))
 	rst["trigger"] = exp
 	rst["url"] = "/api/v1/triggerhistory/" + name
-	rst["event"] = fmt.Sprintf("%s = %f is anomalous @ %d!", exp, last.GetValue(), last.GetTimestamp())
+	rst["time"] = fmt.Sprintf("%s", time.Unix(last.GetTimestamp(), 0))
+	rst["event"] = fmt.Sprintf("%f is anomalous!", last.GetValue())
 	body, err := json.Marshal(rst)
 	if err == nil {
 		m.producer.Publish(m.NotifyTopic, body)
@@ -112,7 +113,7 @@ func (m *SkylineTask) SendNotify(exp string, last skyline.TimePoint) error {
 	return err
 }
 func (m *SkylineTask) CheckHistory(exp string, last skyline.TimePoint) (bool, error) {
-	reply, err := m.engine.GetValues("trigger_history:" + exp)
+	reply, err := m.engine.GetValues("tgh:" + exp)
 	if err != nil {
 		return true, err
 	}
@@ -125,7 +126,7 @@ func (m *SkylineTask) CheckHistory(exp string, last skyline.TimePoint) (bool, er
 	if len(t) > 0 {
 		body, err := json.Marshal(t)
 		if err == nil {
-			err = m.engine.SetKeyValue("trigger_history:"+exp, body)
+			err = m.engine.SetKeyValue("tgh:"+exp, body)
 		}
 		if err != nil {
 			return false, err
@@ -136,7 +137,7 @@ func (m *SkylineTask) CheckHistory(exp string, last skyline.TimePoint) (bool, er
 
 func (m *SkylineTask) SkylineCheck(exp string) ([]int, skyline.TimePoint, error) {
 	t := time.Now().Unix()
-	values, err := m.engine.GetValues(fmt.Sprintf("archive:%s:%d", exp, t/14400-8), fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400))
+	values, err := m.engine.GetValues(fmt.Sprintf("arc:%s:%d", exp, t/14400-8), fmt.Sprintf("arc:%s:%d", exp, t/14400-7), fmt.Sprintf("arc:%s:%d", exp, t/14400-6), fmt.Sprintf("arc:%s:%d", exp, t/14400-5), fmt.Sprintf("arc:%s:%d", exp, t/14400-4), fmt.Sprintf("arc:%s:%d", exp, t/14400-3), fmt.Sprintf("arc:%s:%d", exp, t/14400-2), fmt.Sprintf("arc:%s:%d", exp, t/14400-1), fmt.Sprintf("arc:%s:%d", exp, t/14400))
 	var rst []int
 	var tp skyline.TimePoint
 	if err != nil {
@@ -144,7 +145,7 @@ func (m *SkylineTask) SkylineCheck(exp string) ([]int, skyline.TimePoint, error)
 	}
 	timeseries := metrictools.ParseTimeSeries(values)
 	if len(timeseries) == 0 {
-		log.Println(fmt.Sprintf("archive:%s:%d", exp, t/14400-8), fmt.Sprintf("archive:%s:%d", exp, t/14400-7), fmt.Sprintf("archive:%s:%d", exp, t/14400-6), fmt.Sprintf("archive:%s:%d", exp, t/14400-5), fmt.Sprintf("archive:%s:%d", exp, t/14400-4), fmt.Sprintf("archive:%s:%d", exp, t/14400-3), fmt.Sprintf("archive:%s:%d", exp, t/14400-2), fmt.Sprintf("archive:%s:%d", exp, t/14400-1), fmt.Sprintf("archive:%s:%d", exp, t/14400), "null data")
+		log.Println("null data")
 		return rst, tp, fmt.Errorf("null data")
 	}
 	if skyline.MedianAbsoluteDeviation(timeseries) {

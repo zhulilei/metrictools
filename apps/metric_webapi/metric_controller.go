@@ -14,7 +14,6 @@ import (
 // MetricIndex GET /metric
 func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 	metrics := r.FormValue("metrics")
 	starttime := r.FormValue("starttime")
@@ -40,9 +39,10 @@ func (q *WebService) MetricIndex(w http.ResponseWriter, r *http.Request) {
 		}
 		var data []string
 		for i := start / 14400; i <= end/14400; i++ {
-			values, err := q.engine.GetValues(fmt.Sprintf("archive:%s:%d", user+"_"+v, i))
+			metricKey := string(metrictools.XorBytes([]byte(user), []byte(v)))
+			values, err := q.engine.GetValues(fmt.Sprintf("arc:%s:%d", metricKey, i))
 			if err != nil {
-				log.Println(fmt.Sprintf("archive:%s:%d", user+"_"+v, i), err)
+				log.Println(fmt.Sprintf("arc:%s:%d", metricKey, i), err)
 				continue
 			}
 			data = append(data, values...)
@@ -72,7 +72,6 @@ func (q *WebService) MetricCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 	user := q.loginFilter(r)
 	if len(user) == 0 {
@@ -80,8 +79,8 @@ func (q *WebService) MetricCreate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	for metric, value := range items {
-		metric = user + "_" + metric
+	for item, value := range items {
+		metric := string(metrictools.XorBytes([]byte(user), []byte(item)))
 		_, err := q.engine.GetValues(metric)
 		if err != nil {
 			q.engine.SetAttr(metric, "ttl", value)
@@ -100,7 +99,6 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 		start = end - 3600*3
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	recordList := make(map[string]interface{})
 	user := q.loginFilter(r)
@@ -111,9 +109,10 @@ func (q *WebService) MetricShow(w http.ResponseWriter, r *http.Request) {
 	}
 	var data []string
 	for i := start / 14400; i <= end/14400; i++ {
-		values, err := q.engine.GetValues(fmt.Sprintf("archive:%s:%d", user+"_"+metric, i))
+		metricKey := string(metrictools.XorBytes([]byte(user), []byte(metric)))
+		values, err := q.engine.GetValues(fmt.Sprintf("arc:%s:%d", metricKey, i))
 		if err != nil {
-			log.Println(fmt.Sprintf("archive:%s:%d", user+"_"+metric, i), err)
+			log.Println(fmt.Sprintf("arc:%s:%d", metricKey, err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -141,7 +140,6 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=\"utf-8\"")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PATCH, DELETE")
 	user := q.loginFilter(r)
 	if len(user) == 0 {
@@ -149,10 +147,10 @@ func (q *WebService) MetricUpdate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	metric = user + "_" + metric
-	_, err := q.engine.GetValues(metric)
+	metricKey := string(metrictools.XorBytes([]byte(user), []byte(metric)))
+	_, err := q.engine.GetValues(metricKey)
 	if err != nil {
-		q.engine.SetAttr(metric, "ttl", item["ttl"])
+		q.engine.SetAttr(metricKey, "ttl", item["ttl"])
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}

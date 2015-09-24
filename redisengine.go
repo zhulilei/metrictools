@@ -1,6 +1,7 @@
 package metrictools
 
 import (
+	"fmt"
 	"github.com/fzzy/radix/redis"
 	"log"
 	"strconv"
@@ -198,5 +199,5 @@ func (m *RedisEngine) GetTrigger(name string) (Trigger, error) {
 }
 
 func (m *RedisEngine) SaveTrigger(trigger Trigger) error {
-	return m.Do("HMSET", "trigger:"+trigger.Name, "owner", trigger.Owner, "is_expression", trigger.IsExpression, "last", trigger.LastTime).Err
+	return m.Do("HMSET", fmt.Sprintf("trigger:%s", trigger.Name), "owner", trigger.Owner, "is_expression", trigger.IsExpression, "last", trigger.LastTime).Err
 }

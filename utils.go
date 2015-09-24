@@ -121,3 +121,11 @@ func ParseTimeSeries(values []string) []skyline.TimePoint {
 	}
 	return rst
 }
+func XorBytes(key []byte, msg []byte) []byte {
+	var rst []byte
+	l := len(key)
+	for i := range msg {
+		rst = append(rst, msg[i] ^ key[i%l])
+	}
+	return rst
+}
