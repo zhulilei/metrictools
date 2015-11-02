@@ -90,16 +90,17 @@ func (m *MetricDeliver) writeLoop() {
 				msg.ErrorChannel <- nil
 				continue
 			}
-			data := strings.Split(string(body), "|")
-			if len(data) != 2 {
-				log.Println("wrong size:", msg.Body)
+			data := string(body)
+			index := strings.IndexAny(data, "|")
+			if index < 1 {
+				log.Println("wrong data:", data)
 				msg.ErrorChannel <- nil
 				continue
 			}
-			user := data[0]
+			user := data[:index]
 			var dataset []metrictools.CollectdJSON
 			var err error
-			err = json.Unmarshal([]byte(data[1]), &dataset)
+			err = json.Unmarshal([]byte(data[index+1:]), &dataset)
 			if err != nil {
 				log.Println("wrong struct:", msg.Body)
 				msg.ErrorChannel <- nil
