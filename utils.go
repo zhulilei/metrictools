@@ -125,7 +125,7 @@ func XorBytes(key []byte, msg []byte) []byte {
 	var rst []byte
 	l := len(key)
 	for i := range msg {
-		rst = append(rst, msg[i] ^ key[i%l])
+		rst = append(rst, msg[i]^key[i%l])
 	}
 	return rst
 }

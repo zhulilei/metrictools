@@ -1,5 +1,5 @@
 {
-    "influxdb":"http://localhost:8086",
+    "influxdb_address":"http://localhost:8086",
     "inflexdb_user":"metrictools",
     "inflexdb_password":"metrictools",
     "inflexdb_database":"metrics",
@@ -16,7 +16,9 @@
     "notify_email_address":"notify@test.org"
     "redis_server":"127.0.0.1:6379",
     "full_duration":86400,
+    "min_duration":10800,
     "consensus":6,
     "maxinflight":200,
-    "listen_address":"127.0.0.1:1234"
+    "listen_address":"127.0.0.1:1234",
+    "session_name":"metrics"
 }
