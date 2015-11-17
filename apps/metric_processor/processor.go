@@ -3,7 +3,10 @@ package main
 import (
 	"../.."
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/afex/hystrix-go/hystrix"
+	"github.com/influxdb/influxdb/client/v2"
 	"github.com/nsqio/go-nsq"
 	"log"
 	"os"
@@ -79,7 +82,25 @@ func (m *MetricDeliver) HandleMessage(msg *nsq.Message) error {
 }
 
 func (m *MetricDeliver) writeLoop() {
+	db, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr:      m.InfluxdbAddress,
+		Username:  m.InfluxdbUser,
+		Password:  m.InfluxdbPassword,
+		UserAgent: fmt.Sprintf("metrictools/%s", VERSION),
+	})
+	if err != nil {
+		log.Println("NewHTTPClient error:", err)
+	}
+	defer db.Close()
+	q := client.NewQuery(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", m.InfluxdbDatabase), "", "s")
+	if response, err := db.Query(q); err == nil && response.Error() == nil {
+		log.Fatal("create influxdb database failed:", response.Results)
+	}
 	for {
+		bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
+			Database:  m.InfluxdbDatabase,
+			Precision: "s",
+		})
 		select {
 		case <-m.exitChannel:
 			return
@@ -93,7 +114,7 @@ func (m *MetricDeliver) writeLoop() {
 			data := string(body)
 			index := strings.IndexAny(data, "|")
 			if index < 1 {
-				log.Println("wrong data:", data)
+				log.Println("no user:", data)
 				msg.ErrorChannel <- nil
 				continue
 			}
@@ -102,52 +123,117 @@ func (m *MetricDeliver) writeLoop() {
 			var err error
 			err = json.Unmarshal([]byte(data[index+1:]), &dataset)
 			if err != nil {
-				log.Println("wrong struct:", msg.Body)
+				log.Println("wrong data struct:", msg.Body)
 				msg.ErrorChannel <- nil
 				continue
 			}
 			for _, c := range dataset {
-				m.engine.SetAdd(fmt.Sprintf("hosts:%s", user), c.Host)
-				for i := range c.Values {
-					metricName := string(metrictools.XorBytes([]byte(user), []byte(c.GetMetricName(i))))
-					t := int64(c.Timestamp)
-					var metric metrictools.Metric
-					metric, err = m.engine.GetMetric(metricName)
-					var nValue float64
-					if err != nil {
-						break
+				tags := m.GenTags(&c, user)
+				fields := make(map[string]interface{})
+				for i, _ := range c.DataSetNames {
+					fields, err = m.GenFields(&c, i, user)
+					if err != nil && err.Error() == "dup data" {
+						err = nil
+						continue
 					}
-					nValue = c.GetMetricRate(metric.LastValue, metric.LastTimestamp, i)
-					record, err := metrictools.KeyValueEncode(t, nValue)
-					if err == nil {
-						host := string(metrictools.XorBytes([]byte(user), []byte(c.Host)))
-
-						m.engine.SetAttr(metricName, "rate_value", nValue)
-						m.engine.SetAttr(metricName, "value", c.Values[i])
-						m.engine.SetAttr(metricName, "timestamp", t)
-						m.engine.SetAdd(fmt.Sprintf("host:%s", host), metricName)
-						err = m.engine.AppendKeyValue(fmt.Sprintf("arc:%s:%d", metricName, t/14400), record)
-					}
-					if err != nil {
-						log.Println("insert error", metricName)
-						break
-					}
-					metricInfo, _ := m.engine.GetMetric(metricName)
-					t = metricInfo.ArchiveTime
-					if (time.Now().Unix()-t*m.MinDuration) > m.MinDuration && err == nil {
-						m.producer.Publish(m.ArchiveTopic, []byte(metricName))
-					}
-					ttl := metricInfo.TTL
-					if ttl == 0 {
-						ttl = 86400 * 7
-					}
-					m.engine.SetTTL(fmt.Sprintf("arc:%s:%d", metricName, t/14400), ttl)
 				}
 				if err != nil {
 					break
 				}
+				timestamp := time.Unix(int64(c.Timestamp), 0)
+				pt, err := client.NewPoint(c.Plugin, tags, fields, timestamp)
+				if err != nil {
+					log.Println("NewPoint Error:", err)
+					break
+				}
+				bp.AddPoint(pt)
+			}
+			if err == nil {
+				err = db.Write(bp)
+			}
+			if err != nil {
+				log.Println("write influxdb/redis error:", err)
+				time.Sleep(1)
 			}
 			msg.ErrorChannel <- err
 		}
 	}
+}
+
+func (m *MetricDeliver) GetMetricData(metricName string) (*metrictools.Metric, error) {
+	var err error
+	resultChan := make(chan metrictools.Metric, 1)
+	errChan := hystrix.Go("GetMetric", func() error {
+		metric, err := m.engine.GetMetric(metricName)
+		if err != nil {
+			return err
+		}
+		resultChan <- metric
+		return nil
+	}, nil)
+	select {
+	case metric := <-resultChan:
+		return &metric, nil
+	case err = <-errChan:
+		log.Println("GetMetric Error:", err)
+	}
+	return nil, err
+}
+
+func (m *MetricDeliver) SaveMetricData(metric metrictools.Metric) error {
+	resultChan := make(chan int, 1)
+	var err error
+	errChan := hystrix.Go("SaveMetric", func() error {
+		err := m.engine.SaveMetric(metric)
+		if err != nil {
+			return err
+		}
+		resultChan <- 1
+		return nil
+	}, nil)
+	select {
+	case <-resultChan:
+	case err = <-errChan:
+		log.Println("SaveMetric Error", err)
+	}
+	return err
+}
+
+func (m *MetricDeliver) GenFields(c *metrictools.CollectdJSON, i int, user string) (map[string]interface{}, error) {
+	fields := make(map[string]interface{})
+	metricName := c.GetMetricName(i, user)
+	metric, err := m.GetMetricData(metricName)
+	if err != nil {
+		return fields, err
+	}
+	if metric.LastTimestamp == int64(c.Timestamp) {
+		return fields, errors.New("dup data")
+	}
+	nValue := c.GetMetricRate(metric.LastValue, metric.LastTimestamp, i)
+	metric.LastValue = c.Values[i]
+	metric.LastTimestamp = int64(c.Timestamp)
+	metric.RateValue = nValue
+	err = m.SaveMetricData(*metric)
+	if err != nil {
+		return fields, err
+	}
+	fields[c.DataSetNames[i]] = nValue
+	return fields, err
+}
+
+func (m *MetricDeliver) GenTags(c *metrictools.CollectdJSON, user string) map[string]string {
+	tags := make(map[string]string)
+	tags["host"] = c.Host
+	tags["user"] = user
+	if len(c.PluginInstance) > 0 {
+		tags["plugin_instance"] = c.PluginInstance
+	}
+	tags["interval"] = fmt.Sprintf("%d", c.Interval)
+	if len(c.Type) > 0 {
+		tags["type"] = c.Type
+	}
+	if len(c.TypeInstance) > 0 {
+		tags["type_instance"] = c.TypeInstance
+	}
+	return tags
 }

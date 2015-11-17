@@ -102,7 +102,6 @@ func (q *WebService) HostMetricIndex(w http.ResponseWriter, r *http.Request) {
 		for _, v := range metricList {
 			metric, _ := q.engine.GetMetric(v)
 			metricHash := make(map[string]interface{})
-			metricHash["type"] = metric.Mtype
 			metricHash["ttl"] = metric.TTL
 			metricHash["name"] = string(metrictools.XorBytes([]byte(user), []byte(v)))
 			metricHash["url"] = fmt.Sprintf("/api/v1/metric/%s", metricHash["name"])

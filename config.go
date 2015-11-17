@@ -8,10 +8,10 @@ import (
 
 // Config is metrictools config struct
 type Setting struct {
-	InflexdbAddress    string   `json:"inflexdb_address"`
-	InflexdbUser       string   `json:"inflexdb_user"`
-	InflexdbPassword   string   `json:"inflexdb_password"`
-	InflexdbDatabase   string   `json:"inflexdb_database"`
+	InfluxdbAddress    string   `json:"influxdb_address"`
+	InfluxdbUser       string   `json:"influxdb_user"`
+	InfluxdbPassword   string   `json:"influxdb_password"`
+	InfluxdbDatabase   string   `json:"influxdb_database"`
 	NsqdAddress        string   `json:"nsqd_addr"`
 	LookupdAddresses   []string `json:"lookupd_addresses"`
 	MetricTopic        string   `json:"metric_topic"`

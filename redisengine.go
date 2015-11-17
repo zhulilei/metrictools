@@ -39,7 +39,7 @@ func (m *RedisEngine) RunTask() {
 }
 
 func (m *RedisEngine) commonLoop() error {
-	client, err := redis.Dial(m.Network, m.RedisServer)
+	client, err := redis.Dial("tcp", m.RedisServer)
 	if err != nil {
 		log.Println("redis connection err", err)
 		return err
@@ -130,11 +130,10 @@ func (m *RedisEngine) SetAttr(key string, attr string, value interface{}) error 
 }
 
 func (m *RedisEngine) GetMetric(name string) (Metric, error) {
-	info, err := m.Do("HMGET", name, "timestamp", "value", "atime", "rate_value", "ttl", "type").List()
+	info, err := m.Do("HMGET", name, "timestamp", "value", "atime", "rate_value", "ttl").List()
 	var metric Metric
 	if err == nil {
 		metric.Name = name
-		metric.Mtype = info[5]
 		metric.LastTimestamp, _ = strconv.ParseInt(info[0], 0, 64)
 		metric.LastValue, _ = strconv.ParseFloat(info[1], 64)
 		metric.ArchiveTime, _ = strconv.ParseInt(info[2], 0, 64)
@@ -145,7 +144,7 @@ func (m *RedisEngine) GetMetric(name string) (Metric, error) {
 }
 
 func (m *RedisEngine) SaveMetric(metric Metric) error {
-	return m.Do("HMSET", metric.Name, "timestamp", metric.LastTimestamp, "value", metric.LastValue, "atime", metric.ArchiveTime, "rate_value", metric.RateValue, "ttl", metric.TTL, "type", metric.Mtype).Err
+	return m.Do("HMSET", metric.Name, "timestamp", metric.LastTimestamp, "value", metric.LastValue, "atime", metric.ArchiveTime, "rate_value", metric.RateValue, "ttl", metric.TTL, "type").Err
 }
 
 func (m *RedisEngine) GetUser(name string) (User, error) {

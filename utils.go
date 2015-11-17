@@ -12,7 +12,6 @@ type Metric struct {
 	LastValue     float64
 	ArchiveTime   int64
 	RateValue     float64
-	Mtype         string
 	TTL           int64
 }
 
@@ -82,6 +81,7 @@ type StoreEngine interface {
 	GetTrigger(name string) (Trigger, error)
 	SaveTrigger(trigger Trigger) error
 	GetMetric(name string) (Metric, error)
+	SaveMetric(metric Metric) error
 	GetUser(name string) (User, error)
 	GetToken(accessKey string) (AccessToken, error)
 	RunTask()

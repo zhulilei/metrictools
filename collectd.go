@@ -1,7 +1,7 @@
 package metrictools
 
 import (
-	"regexp"
+	"fmt"
 )
 
 // CollectdJSON is collectd's json data format
@@ -18,34 +18,19 @@ type CollectdJSON struct {
 	TypeInstance   string    `json:"type_instance"`
 }
 
-func (c *CollectdJSON) GetMetricName(index int) string {
-	metricName := c.Host + "_" + c.Plugin
+func (c *CollectdJSON) GetMetricName(index int, user string) string {
+	metricName := fmt.Sprintf("{\"plugin\":\"%s\",\"host\":\"%s\",\"user\":\"%s\"", c.Plugin, c.Host, user)
 	if len(c.PluginInstance) > 0 {
-		if matched, _ := regexp.MatchString(`^\d+$`, c.PluginInstance); matched {
-			metricName += c.PluginInstance
-		} else {
-			metricName += "_" + c.PluginInstance
-		}
+		metricName = fmt.Sprintf("%s,\"plugin_instance\":\"%s\"", metricName, c.PluginInstance)
 	}
-	tSize := len(c.Type)
-	pSize := len(c.Plugin)
-	if tSize > 0 {
-		if pSize <= tSize && c.Type[:pSize] == c.Plugin {
-			metricName += c.Type[pSize:]
-		} else {
-			metricName += "." + c.Type
-		}
+	metricName = fmt.Sprintf("%s,\"interval\":\"%s\"", metricName, c.Interval)
+	if len(c.Type) > 0 {
+		metricName = fmt.Sprintf("%s,\"type\":\"%s\"", metricName, c.Type)
 	}
 	if len(c.TypeInstance) > 0 {
-		if matched, _ := regexp.MatchString(`^\d+$`, c.TypeInstance); matched {
-			metricName += c.TypeInstance
-		} else {
-			metricName += "_" + c.TypeInstance
-		}
+		metricName = fmt.Sprintf("%s,\"type_instance\":\"%s\"", metricName, c.TypeInstance)
 	}
-	if c.DataSetNames[index] != "value" {
-		metricName += "." + c.DataSetNames[index]
-	}
+	metricName = fmt.Sprintf("%s,\"field\":\"%s\"}", metricName, c.DataSetNames[index])
 	return metricName
 }
 

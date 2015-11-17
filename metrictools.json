@@ -1,8 +1,8 @@
 {
     "influxdb_address":"http://localhost:8086",
-    "inflexdb_user":"metrictools",
-    "inflexdb_password":"metrictools",
-    "inflexdb_database":"metrics",
+    "influxdb_user":"metrictools",
+    "influxdb_password":"metrictools",
+    "influxdb_database":"metrics",
     "nsqd_addr":"127.0.0.1:4151",
     "lookupd_addresses":["127.0.0.1:4160"],
     "metric_topic":"metric",
