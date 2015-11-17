@@ -30,7 +30,7 @@ func (m *MetricDeliver) Run() error {
 		return err
 	}
 	cfg := nsq.NewConfig()
-	cfg.Set("user_agent", fmt.Sprintf("metric_processor/%s", hostname))
+	cfg.Set("user_agent", fmt.Sprintf("metric_processor-%s/%s", VERSION, hostname))
 	cfg.Set("snappy", true)
 	cfg.Set("max_in_flight", m.MaxInFlight)
 	m.producer, err = nsq.NewProducer(m.NsqdAddress, cfg)
@@ -86,7 +86,7 @@ func (m *MetricDeliver) writeLoop() {
 		Addr:      m.InfluxdbAddress,
 		Username:  m.InfluxdbUser,
 		Password:  m.InfluxdbPassword,
-		UserAgent: fmt.Sprintf("metrictools/%s", VERSION),
+		UserAgent: fmt.Sprintf("metrictools-%s", VERSION),
 	})
 	if err != nil {
 		log.Println("NewHTTPClient error:", err)
