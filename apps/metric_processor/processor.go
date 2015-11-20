@@ -105,13 +105,7 @@ func (m *MetricDeliver) writeLoop() {
 		case <-m.exitChannel:
 			return
 		case msg := <-m.msgChannel:
-			body, ok := msg.Body.([]byte)
-			if !ok {
-				log.Println("wrong type:", msg.Body)
-				msg.ErrorChannel <- nil
-				continue
-			}
-			data := string(body)
+			data := string(msg.Body)
 			index := strings.IndexAny(data, "|")
 			if index < 1 {
 				log.Println("no user:", data)
