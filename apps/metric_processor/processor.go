@@ -145,12 +145,14 @@ func (m *MetricDeliver) writeLoop() {
 					pt, err = client.NewPoint(c.Plugin, tags, fields, timestamp)
 					if err != nil {
 						log.Println("NewPoint Error:", err)
-						break dataset
+						break
 					}
 					bp.AddPoint(pt)
 				}
+				if err != nil {
+					break
+				}
 			}
-		dataset:
 			if err == nil {
 				err = db.Write(bp)
 			}
