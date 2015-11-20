@@ -144,7 +144,7 @@ func (m *RedisEngine) GetMetric(name string) (Metric, error) {
 }
 
 func (m *RedisEngine) SaveMetric(metric Metric) error {
-	return m.Do("HMSET", metric.Name, "timestamp", metric.LastTimestamp, "value", metric.LastValue, "atime", metric.ArchiveTime, "rate_value", metric.RateValue, "ttl", metric.TTL, "type").Err
+	return m.Do("HMSET", metric.Name, "timestamp", metric.LastTimestamp, "value", metric.LastValue, "atime", metric.ArchiveTime, "rate_value", metric.RateValue, "ttl", metric.TTL).Err
 }
 
 func (m *RedisEngine) GetUser(name string) (User, error) {

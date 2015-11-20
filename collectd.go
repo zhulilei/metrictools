@@ -23,7 +23,7 @@ func (c *CollectdJSON) GetMetricName(index int, user string) string {
 	if len(c.PluginInstance) > 0 {
 		metricName = fmt.Sprintf("%s,\"plugin_instance\":\"%s\"", metricName, c.PluginInstance)
 	}
-	metricName = fmt.Sprintf("%s,\"interval\":\"%s\"", metricName, c.Interval)
+	metricName = fmt.Sprintf("%s,\"interval\":\"%d\"", metricName, int(c.Interval))
 	if len(c.Type) > 0 {
 		metricName = fmt.Sprintf("%s,\"type\":\"%s\"", metricName, c.Type)
 	}

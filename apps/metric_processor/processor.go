@@ -48,6 +48,16 @@ func (m *MetricDeliver) Run() error {
 	}
 	m.consumer.AddConcurrentHandlers(m, m.MaxInFlight)
 	err = m.consumer.ConnectToNSQLookupds(m.LookupdAddresses)
+	hystrix.ConfigureCommand("SaveMetric", hystrix.CommandConfig{
+		Timeout:               1000,
+		MaxConcurrentRequests: 1000,
+		ErrorPercentThreshold: 25,
+	})
+	hystrix.ConfigureCommand("GetMetric", hystrix.CommandConfig{
+		Timeout:               1000,
+		MaxConcurrentRequests: 1000,
+		ErrorPercentThreshold: 25,
+	})
 	if err != nil {
 		return err
 	}
@@ -105,13 +115,7 @@ func (m *MetricDeliver) writeLoop() {
 		case <-m.exitChannel:
 			return
 		case msg := <-m.msgChannel:
-			body, ok := msg.Body.([]byte)
-			if !ok {
-				log.Println("wrong type:", msg.Body)
-				msg.ErrorChannel <- nil
-				continue
-			}
-			data := string(body)
+			data := string(msg.Body.([]byte))
 			index := strings.IndexAny(data, "|")
 			if index < 1 {
 				log.Println("no user:", data)
@@ -123,37 +127,32 @@ func (m *MetricDeliver) writeLoop() {
 			var err error
 			err = json.Unmarshal([]byte(data[index+1:]), &dataset)
 			if err != nil {
-				log.Println("wrong data struct:", msg.Body)
+				log.Println("wrong data struct:", string(msg.Body.([]byte)))
 				msg.ErrorChannel <- nil
 				continue
 			}
 			for _, c := range dataset {
-				tags := m.GenTags(&c, user)
+				timestamp := time.Unix(int64(c.Timestamp), 0)
 				fields := make(map[string]interface{})
+				tags := m.GenTags(&c, user)
 				for i, _ := range c.DataSetNames {
 					fields, err = m.GenFields(&c, i, user)
 					if err != nil && err.Error() == "dup data" {
 						err = nil
 						continue
 					}
+					var pt client.Point
+					pt, err = client.NewPoint(c.Plugin, tags, fields, timestamp)
+					if err != nil {
+						log.Println("NewPoint Error:", err)
+						break dataset
+					}
+					bp.AddPoint(pt)
 				}
-				if err != nil {
-					break
-				}
-				timestamp := time.Unix(int64(c.Timestamp), 0)
-				pt, err := client.NewPoint(c.Plugin, tags, fields, timestamp)
-				if err != nil {
-					log.Println("NewPoint Error:", err)
-					break
-				}
-				bp.AddPoint(pt)
 			}
+		dataset:
 			if err == nil {
 				err = db.Write(bp)
-			}
-			if err != nil {
-				log.Println("write influxdb/redis error:", err)
-				time.Sleep(1)
 			}
 			msg.ErrorChannel <- err
 		}
@@ -224,11 +223,11 @@ func (m *MetricDeliver) GenFields(c *metrictools.CollectdJSON, i int, user strin
 func (m *MetricDeliver) GenTags(c *metrictools.CollectdJSON, user string) map[string]string {
 	tags := make(map[string]string)
 	tags["host"] = c.Host
-	tags["user"] = user
+	tags["owner"] = user
 	if len(c.PluginInstance) > 0 {
 		tags["plugin_instance"] = c.PluginInstance
 	}
-	tags["interval"] = fmt.Sprintf("%d", c.Interval)
+	tags["interval"] = fmt.Sprintf("%d", int(c.Interval))
 	if len(c.Type) > 0 {
 		tags["type"] = c.Type
 	}
