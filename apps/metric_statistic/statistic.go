@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/datastream/cal"
+	"github.com/influxdb/influxdb/client/v2"
 	"github.com/nsqio/go-nsq"
 	"log"
 	"os"
@@ -26,7 +27,7 @@ func (m *StatisticTask) Run() error {
 		return err
 	}
 	cfg := nsq.NewConfig()
-	cfg.Set("user_agent", fmt.Sprintf("metric_statistic/%s", hostname))
+	cfg.Set("user_agent", fmt.Sprintf("metric_statistic-%s/%s", VERSION, hostname))
 	cfg.Set("snappy", true)
 	cfg.Set("max_in_flight", m.MaxInFlight)
 	m.engine = &metrictools.RedisEngine{
@@ -79,48 +80,68 @@ func (m *StatisticTask) ScanTrigger() {
 		}
 	}
 }
-
+// may be can be replace with 'select value/10 from series where tag=a '
 func (m *StatisticTask) calculateTask() {
+	db, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr:      m.InfluxdbAddress,
+		Username:  m.InfluxdbUser,
+		Password:  m.InfluxdbPassword,
+		UserAgent: fmt.Sprintf("metrictools-%s", VERSION),
+	})
+	if err != nil {
+		log.Println("NewHTTPClient error:", err)
+	}
+	defer db.Close()
+	q := client.NewQuery(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", m.InfluxdbDatabase), "", "s")
+	if response, err := db.Query(q); err == nil && response.Error() == nil {
+		log.Fatal("create influxdb database failed:", response.Results)
+	}
 	for {
+		bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
+			Database:  m.InfluxdbDatabase,
+			Precision: "s",
+		})
 		select {
 		case <-m.exitChannel:
 			return
 		case name := <-m.statisticChannel:
 			trigger, err := m.engine.GetTrigger(name)
 			if trigger.IsExpression && err == nil {
-				err := m.calculate(trigger)
-				log.Println("calculate failed", err)
+				value, err := m.calculate(trigger)
+				if err != nil {
+					log.Println("calculate failed", err)
+				}
+				fields := make(map[string]interface{})
+				fields["value"] = value
+				tags := make(map[string]string)
+				tags["name"] = name
+				tags["user"] = trigger.Owner
+				pt, err := client.NewPoint("triggers", tags, fields, time.Now())
+				if err != nil {
+					log.Println("NewPoint Error:", err)
+					break
+				}
+				bp.AddPoint(pt)
+
 			}
 			m.producer.Publish(m.SkylineTopic, []byte(name))
+		}
+		if err == nil {
+			err = db.Write(bp)
 		}
 	}
 }
 
-func (m *StatisticTask) calculate(tg metrictools.Trigger) error {
-	exp := string(metrictools.XorBytes([]byte(tg.Owner), []byte(tg.Name)))
-	expList := cal.Parser(exp)
-	v, err := m.evalExp(expList, tg.Owner)
-	if err != nil {
-		log.Println("calculate failed:", exp, err)
-		return err
-	}
-	t := time.Now().Unix()
-	body, err := metrictools.KeyValueEncode(t, v)
-	if err != nil {
-		log.Println("encode data failed:", err)
-		return err
-	}
-	m.engine.AppendKeyValue(fmt.Sprintf("arc:%s:%d", tg.Name, t/14400), body)
-	err = m.engine.SetTTL(fmt.Sprintf("arc:%s:%d", tg.Name, t/14400), 86400*7)
-	return err
-}
-
-func (m *StatisticTask) evalExp(expList []string, owner string) (float64, error) {
+func (m *StatisticTask) calculate(tg metrictools.Trigger) (float64, error) {
+	expList := cal.Parser(tg.Name)
 	kv := make(map[string]interface{})
-	exp := ""
+	var exp string
 	current := time.Now().Unix()
 	for _, item := range expList {
-		metricKey := string(metrictools.XorBytes([]byte(owner), []byte(item)))
+		metricKey := item
+		if len(item) > 2 && item[0] == '"' && item[len(item)-1]=='"' {
+			metricKey = metricKey[1 : len(metricKey)-1]
+		}
 		metric, err := m.engine.GetMetric(metricKey)
 		v := metric.RateValue
 		t := metric.LastTimestamp

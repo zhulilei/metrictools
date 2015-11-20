@@ -51,8 +51,32 @@ func (m *SkylineTask) Run() error {
 	if err != nil {
 		return err
 	}
+	go m.InfluxdbQueryTask()
 	go m.SkylineCalculateTask()
 	return nil
+}
+func (m *SkylineTask) InfluxdbQueryTask() {
+	db, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr:      m.InfluxdbAddress,
+		Username:  m.InfluxdbUser,
+		Password:  m.InfluxdbPassword,
+		UserAgent: fmt.Sprintf("metrictools-%s", VERSION),
+	})
+	if err != nil {
+		log.Println("NewHTTPClient error:", err)
+	}
+	defer db.Close()
+	for {
+		select {
+		case <-m.exitChannel:
+			return
+		case query := <- m.queryChannel:
+			q := db.NewQuery(fmt.Sprintf("SELECT %s FROM %s where %s", query.Field, query.Series, query.Condition), query.DatabaseName, "s")
+				if response, err := c.Query(q); err == nil && response.Error() == nil {
+					fmt.Println(response.Results)
+				}
+		}
+	}
 }
 func (m *SkylineTask) Stop() {
 	m.producer.Stop()
@@ -137,6 +161,17 @@ func (m *SkylineTask) CheckHistory(exp string, last skyline.TimePoint) (bool, er
 
 func (m *SkylineTask) SkylineCheck(exp string) ([]int, skyline.TimePoint, error) {
 	t := time.Now().Unix()
+	item := make(map[string]string)
+	err := json.Unmarshal(exp, &item)
+	var series string
+	var field string
+	if err != nil {
+		field = item["field"]
+		series = item["plugin"]
+		delete(item, "field")
+		delete(item, "plugin")
+	}
+
 	values, err := m.engine.GetValues(fmt.Sprintf("arc:%s:%d", exp, t/14400-8), fmt.Sprintf("arc:%s:%d", exp, t/14400-7), fmt.Sprintf("arc:%s:%d", exp, t/14400-6), fmt.Sprintf("arc:%s:%d", exp, t/14400-5), fmt.Sprintf("arc:%s:%d", exp, t/14400-4), fmt.Sprintf("arc:%s:%d", exp, t/14400-3), fmt.Sprintf("arc:%s:%d", exp, t/14400-2), fmt.Sprintf("arc:%s:%d", exp, t/14400-1), fmt.Sprintf("arc:%s:%d", exp, t/14400))
 	var rst []int
 	var tp skyline.TimePoint
