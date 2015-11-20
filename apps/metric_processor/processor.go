@@ -141,7 +141,7 @@ func (m *MetricDeliver) writeLoop() {
 						err = nil
 						continue
 					}
-					var pt client.Point
+					var pt *client.Point
 					pt, err = client.NewPoint(c.Plugin, tags, fields, timestamp)
 					if err != nil {
 						log.Println("NewPoint Error:", err)
