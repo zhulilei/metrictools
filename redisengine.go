@@ -37,7 +37,7 @@ func (m *RedisEngine) RunTask() {
 		case <-m.ExitChannel:
 			return
 		case request := <-m.CmdChannel:
-				err = hystrix.Do("Redis Cmd", func() error {
+				err = hystrix.Do("RedisCmd", func() error {
 					reply := client.Cmd(request.Cmd, request.Args...)
 					if reply.Err != nil {
 						return reply.Err

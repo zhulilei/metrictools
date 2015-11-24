@@ -58,6 +58,11 @@ func (m *MetricDeliver) Run() error {
 		MaxConcurrentRequests: 1000,
 		ErrorPercentThreshold: 25,
 	})
+	hystrix.ConfigureCommand("RedisCmd", hystrix.CommandConfig{
+		Timeout:               1000,
+		MaxConcurrentRequests: 1000,
+		ErrorPercentThreshold: 25,
+	})
 	if err != nil {
 		return err
 	}
