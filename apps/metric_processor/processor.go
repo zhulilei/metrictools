@@ -40,7 +40,7 @@ func (m *MetricDeliver) Run() error {
 	m.engine = &metrictools.RedisEngine{
 		Setting:     m.Setting,
 		ExitChannel: make(chan int),
-		CmdChannel:  make(chan interface{}),
+		CmdChannel:  make(chan metrictools.Request),
 	}
 	m.consumer, err = nsq.NewConsumer(m.MetricTopic, m.MetricChannel, cfg)
 	if err != nil {

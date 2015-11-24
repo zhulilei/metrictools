@@ -2,6 +2,7 @@ package metrictools
 
 import (
 	"fmt"
+	"github.com/afex/hystrix-go/hystrix"
 	"github.com/fzzy/radix/redis"
 	"log"
 	"strconv"
@@ -10,7 +11,7 @@ import (
 type RedisEngine struct {
 	*Setting
 	ExitChannel chan int
-	CmdChannel  chan interface{}
+	CmdChannel  chan Request
 }
 
 func (m *RedisEngine) Do(cmd string, args ...interface{}) *redis.Reply {
@@ -26,58 +27,34 @@ func (m *RedisEngine) Do(cmd string, args ...interface{}) *redis.Reply {
 }
 
 func (m *RedisEngine) RunTask() {
-	for {
-		select {
-		case <-m.ExitChannel:
-			return
-		default:
-			if err := m.commonLoop(); err == nil {
-				return
-			}
-		}
-	}
-}
-
-func (m *RedisEngine) commonLoop() error {
 	client, err := redis.Dial("tcp", m.RedisServer)
 	if err != nil {
 		log.Println("redis connection err", err)
-		return err
 	}
 	defer client.Close()
 	for {
 		select {
 		case <-m.ExitChannel:
-			return err
-		case cmd := <-m.CmdChannel:
-			if request, ok := cmd.(Request); ok {
-				reply := client.Cmd(request.Cmd, request.Args...)
-				err = reply.Err
-				if err != nil {
-					log.Println(request.Cmd, request.Args, err)
-				}
-				request.ReplyChannel <- reply
-			} else if requests, ok := cmd.([]Request); ok {
-				for _, request := range requests {
-					client.Append(request.Cmd, request.Args...)
-				}
-				for _, request := range requests {
-					reply := client.GetReply()
-					err = reply.Err
+			return
+		case request := <-m.CmdChannel:
+				err = hystrix.Do("Redis Cmd", func() error {
+					reply := client.Cmd(request.Cmd, request.Args...)
+					if reply.Err != nil {
+						return reply.Err
+					}
+					request.ReplyChannel <- reply
+					return nil
+				}, func(error) error {
 					if err != nil {
 						log.Println(request.Cmd, request.Args, err)
 					}
-					request.ReplyChannel <- reply
-				}
-			}
-			if err != nil {
-				if client.Cmd("GET", "test").Err != nil {
+					client.Close()
+					client, err = redis.Dial("tcp", m.RedisServer)
 					return err
-				}
-			}
+				})
+
 		}
 	}
-	return err
 }
 
 func (m *RedisEngine) Stop() {
