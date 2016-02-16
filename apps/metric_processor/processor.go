@@ -108,7 +108,7 @@ func (m *MetricDeliver) writeLoop() {
 	}
 	defer db.Close()
 	q := client.NewQuery(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", m.InfluxdbDatabase), "", "s")
-	if response, err := db.Query(q); err == nil && response.Error() == nil {
+	if response, err := db.Query(q); err != nil || response.Error() != nil {
 		log.Fatal("create influxdb database failed:", response.Results)
 	}
 	for {
