@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func (q *WebService) basicAuth(r *http.Request) string {
+func (m *WebService) basicAuth(r *http.Request) string {
 	var user string
 	authorizationHeader := r.Header.Get("authorization")
 	idents := strings.Split(authorizationHeader, " ")
@@ -21,7 +21,7 @@ func (q *WebService) basicAuth(r *http.Request) string {
 		return user
 	}
 	password := idents[1]
-	u, err := q.engine.GetUser(idents[0])
+	u, err := m.engine.GetUser(idents[0])
 	if err != nil {
 		user = ""
 	}
@@ -31,13 +31,13 @@ func (q *WebService) basicAuth(r *http.Request) string {
 	return u.Name
 }
 
-func (q *WebService) awsSignv4(r *http.Request) string {
+func (m *WebService) awsSignv4(r *http.Request) string {
 	var user string
 	s, auth, err := sign4.GetSignature(r)
 	if err != nil {
 		return user
 	}
-	token, err := q.engine.GetToken(s.AccessKey)
+	token, err := m.engine.GetToken(s.AccessKey)
 	if err != nil {
 		log.Println("redis hget error", err)
 		return user
@@ -51,14 +51,14 @@ func (q *WebService) awsSignv4(r *http.Request) string {
 	return token.UserName
 }
 
-func (q *WebService) loginFilter(r *http.Request) string {
+func (m *WebService) loginFilter(r *http.Request) string {
 	authorizationHeader := r.Header.Get("authorization")
 	idents := strings.Split(authorizationHeader, " ")
 	if idents[0] == "Basic" {
-		return q.basicAuth(r)
+		return m.basicAuth(r)
 	}
 	if idents[0] == "AWS4-HMAC-SHA256" {
-		return q.awsSignv4(r)
+		return m.awsSignv4(r)
 	}
 	return ""
 }
