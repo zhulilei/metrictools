@@ -109,7 +109,6 @@ func (o *skylineHandler) Point(p *udf.Point) error {
 	return nil
 }
 func (o *skylineHandler) EndBatch(end *udf.EndBatch) error {
-	//
 	rst, err := SkylineCheck(o.state.points, o.field, o.fullDuration, o.consensus)
 	if err != nil {
 		log.Println(err)
@@ -122,12 +121,8 @@ func (o *skylineHandler) EndBatch(end *udf.EndBatch) error {
 		Tags:         pt.Tags,
 		FieldsDouble: pt.FieldsDouble,
 	}
-	if err == nil {
-		if rst {
-			p.Tags["isAnomaly"] = "1"
-		} else {
-			p.Tags["isAnomaly"] = "0"
-		}
+	if err == nil && rst {
+		p.Tags["isAnomaly"] = "1"
 	}
 	o.agent.Responses <- &udf.Response{
 		Message: &udf.Response_Point{
@@ -230,17 +225,6 @@ func CheckThreshhold(data []int, threshold int) bool {
 func (o *skylineHandler) Stop() {
 	close(o.agent.Responses)
 }
-
-type skylineState struct {
-	entries entries
-}
-
-type entry struct {
-	value float64
-	point *udf.Point
-}
-
-type entries []entry
 
 func main() {
 	a := agent.New()
