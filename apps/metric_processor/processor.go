@@ -122,21 +122,21 @@ func (m *MetricDeliver) writeLoop() {
 				for i, _ := range c.DataSetNames {
 					tags["data_set_type"] = c.DataSetTypes[i]
 					fields[c.DataSetNames[i]] = c.Values[i]
-					var pt *client.Point
-					pt, err = client.NewPoint(c.Plugin, tags, fields, timestamp)
-					if err != nil {
-						log.Println("NewPoint Error:", err)
-						break
-					}
-					bp.AddPoint(pt)
 				}
+				var pt *client.Point
+				pt, err = client.NewPoint(c.Plugin, tags, fields, timestamp)
+				if err != nil {
+					log.Println("NewPoint Error:", err)
+					break
+				}
+				bp.AddPoint(pt)
 				if err != nil {
 					break
 				}
 			}
 			if err == nil {
 				resultChan := make(chan int, 1)
-				errChan := hystrix.Go("SaveMetric", func() error {
+				errChan := hystrix.Go("InsetInfluxdb", func() error {
 
 					err = db.Write(bp)
 					if err != nil {
