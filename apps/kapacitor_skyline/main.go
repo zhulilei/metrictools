@@ -122,7 +122,7 @@ func (o *skylineHandler) EndBatch(end *udf.EndBatch) error {
 		FieldsDouble: pt.FieldsDouble,
 	}
 	if err == nil && rst {
-		p.Tags["isAnomaly"] = "1"
+		p.FieldsDouble["isAnomaly"] = 1
 	}
 	o.agent.Responses <- &udf.Response{
 		Message: &udf.Response_Point{
