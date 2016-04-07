@@ -111,7 +111,7 @@ func (o *skylineHandler) Point(p *udf.Point) error {
 func (o *skylineHandler) EndBatch(end *udf.EndBatch) error {
 	rst, err := SkylineCheck(o.state.points, o.field, o.fullDuration, o.consensus)
 	if err != nil {
-		log.Println(err)
+		return err
 	}
 	pt := o.state.points[len(o.state.points)-1]
 	p := &udf.Point{
@@ -121,6 +121,7 @@ func (o *skylineHandler) EndBatch(end *udf.EndBatch) error {
 		Tags:         pt.Tags,
 		FieldsDouble: pt.FieldsDouble,
 	}
+	p.FieldsDouble["isAnomaly"] = 0
 	if err == nil && rst {
 		p.FieldsDouble["isAnomaly"] = 1
 	}
@@ -163,7 +164,7 @@ func SkylineCheck(points []*udf.Point, field string, fullDuration int64, consens
 		log.Println("null data")
 		return false, fmt.Errorf("null data")
 	}
-
+	log.Println(len(timeseries))
 	var rst []int
 	if skyline.MedianAbsoluteDeviation(timeseries) {
 		rst = append(rst, 1)
