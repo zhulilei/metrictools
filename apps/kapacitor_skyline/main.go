@@ -1,7 +1,9 @@
 package main
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/gob"
+	"errors"
 	"github.com/datastream/skyline"
 	"github.com/influxdata/kapacitor/udf"
 	"github.com/influxdata/kapacitor/udf/agent"
@@ -80,13 +82,27 @@ func (o *skylineHandler) Init(r *udf.InitRequest) (*udf.InitResponse, error) {
 
 // Create a snapshot of the running state of the process.
 func (o *skylineHandler) Snaphost() (*udf.SnapshotResponse, error) {
-	return &udf.SnapshotResponse{}, nil
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	enc.Encode(o.state)
+
+	return &udf.SnapshotResponse{
+		Snapshot: buf.Bytes(),
+	}, nil
 }
 
 // Restore a previous snapshot.
 func (o *skylineHandler) Restore(req *udf.RestoreRequest) (*udf.RestoreResponse, error) {
+	buf := bytes.NewReader(req.Snapshot)
+	dec := gob.NewDecoder(buf)
+	err := dec.Decode(&o.state)
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+	}
 	return &udf.RestoreResponse{
-		Success: true,
+		Success: err == nil,
+		Error:   msg,
 	}, nil
 }
 
@@ -162,9 +178,8 @@ func SkylineCheck(points []*udf.Point, field string, fullDuration int64, consens
 	}
 	if len(timeseries) == 0 {
 		log.Println("null data")
-		return false, fmt.Errorf("null data")
+		return false, errors.New("null data")
 	}
-	log.Println(len(timeseries))
 	var rst []int
 	if skyline.MedianAbsoluteDeviation(timeseries) {
 		rst = append(rst, 1)
