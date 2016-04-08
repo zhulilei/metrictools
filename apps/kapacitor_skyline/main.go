@@ -21,13 +21,11 @@ type skylineHandler struct {
 }
 
 type SkylineState struct {
-	points []*udf.Point
-	result bool
+	Points []*udf.Point
 }
 
 func (s SkylineState) reset() {
-	s.points = []*udf.Point{}
-	s.result = true
+	s.Points = []*udf.Point{}
 }
 
 func newSkylineHandler(agent *agent.Agent) *skylineHandler {
@@ -84,7 +82,7 @@ func (o *skylineHandler) Init(r *udf.InitRequest) (*udf.InitResponse, error) {
 func (o *skylineHandler) Snaphost() (*udf.SnapshotResponse, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	enc.Encode(o.state)
+	enc.Encode(o.state.Points)
 
 	return &udf.SnapshotResponse{
 		Snapshot: buf.Bytes(),
@@ -95,7 +93,7 @@ func (o *skylineHandler) Snaphost() (*udf.SnapshotResponse, error) {
 func (o *skylineHandler) Restore(req *udf.RestoreRequest) (*udf.RestoreResponse, error) {
 	buf := bytes.NewReader(req.Snapshot)
 	dec := gob.NewDecoder(buf)
-	err := dec.Decode(&o.state)
+	err := dec.Decode(&o.state.Points)
 	msg := ""
 	if err != nil {
 		msg = err.Error()
@@ -121,15 +119,15 @@ func (o *skylineHandler) BeginBatch(begin *udf.BeginBatch) error {
 }
 
 func (o *skylineHandler) Point(p *udf.Point) error {
-	o.state.points = append(o.state.points, p)
+	o.state.Points = append(o.state.Points, p)
 	return nil
 }
 func (o *skylineHandler) EndBatch(end *udf.EndBatch) error {
-	rst, err := SkylineCheck(o.state.points, o.field, o.fullDuration, o.consensus)
+	rst, err := SkylineCheck(o.state.Points, o.field, o.fullDuration, o.consensus)
 	if err != nil {
 		return err
 	}
-	pt := o.state.points[len(o.state.points)-1]
+	pt := o.state.Points[len(o.state.Points)-1]
 	p := &udf.Point{
 		Name:         pt.Name,
 		Time:         pt.Time,
