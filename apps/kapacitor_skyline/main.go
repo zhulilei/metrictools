@@ -1,8 +1,10 @@
 package main
 
 import (
-	"bytes"
-	"encoding/gob"
+	"net"
+	"flag"
+	"os"
+	"syscall"
 	"errors"
 	"github.com/datastream/skyline"
 	"github.com/influxdata/kapacitor/udf"
@@ -80,27 +82,13 @@ func (o *skylineHandler) Init(r *udf.InitRequest) (*udf.InitResponse, error) {
 
 // Create a snapshot of the running state of the process.
 func (o *skylineHandler) Snaphost() (*udf.SnapshotResponse, error) {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	enc.Encode(o.state.Points)
-
-	return &udf.SnapshotResponse{
-		Snapshot: buf.Bytes(),
-	}, nil
+	return &udf.SnapshotResponse{}, nil
 }
 
 // Restore a previous snapshot.
 func (o *skylineHandler) Restore(req *udf.RestoreRequest) (*udf.RestoreResponse, error) {
-	buf := bytes.NewReader(req.Snapshot)
-	dec := gob.NewDecoder(buf)
-	err := dec.Decode(&o.state.Points)
-	msg := ""
-	if err != nil {
-		msg = err.Error()
-	}
 	return &udf.RestoreResponse{
-		Success: err == nil,
-		Error:   msg,
+		Success: true,
 	}, nil
 }
 
@@ -116,6 +104,10 @@ func (o *skylineHandler) BeginBatch(begin *udf.BeginBatch) error {
 	}
 
 	return nil
+}
+
+type accpeter struct {
+	count int64
 }
 
 func (o *skylineHandler) Point(p *udf.Point) error {
@@ -239,16 +231,51 @@ func CheckThreshhold(data []int, threshold int) bool {
 func (o *skylineHandler) Stop() {
 	close(o.agent.Responses)
 }
-
-func main() {
-	a := agent.New()
+// Create a new agent/handler for each new connection.
+// Count and log each new connection and termination.
+func (acc *accpeter) Accept(conn net.Conn) {
+	count := acc.count
+	acc.count++
+	a := agent.New(conn, conn)
 	h := newSkylineHandler(a)
 	a.Handler = h
 
-	log.Println("Starting agent")
+	log.Println("Starting agent for connection", count)
 	a.Start()
-	err := a.Wait()
+	go func() {
+		err := a.Wait()
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Agent for connection %d finished", count)
+	}()
+}
+
+var socketPath = flag.String("socket", "/tmp/skyline.sock", "Where to create the unix socket")
+
+func main() {
+	flag.Parse()
+
+	// Create unix socket
+	addr, err := net.ResolveUnixAddr("unix", *socketPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+	l, err := net.ListenUnix("unix", addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create server that listens on the socket
+	s := agent.NewServer(l, &accpeter{})
+
+	// Setup signal handler to stop Server on various signals
+	s.StopOnSignals(os.Interrupt, syscall.SIGTERM)
+
+	log.Println("Server listening on", addr.String())
+	err = s.Serve()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Server stopped")
 }
