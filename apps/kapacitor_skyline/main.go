@@ -27,7 +27,7 @@ type SkylineState struct {
 }
 
 func (s SkylineState) reset() {
-	s.Points = []*udf.Point{}
+	s.Points = nil
 }
 
 func newSkylineHandler(agent *agent.Agent) *skylineHandler {
@@ -94,7 +94,6 @@ func (o *skylineHandler) Restore(req *udf.RestoreRequest) (*udf.RestoreResponse,
 
 // Start working with the next batch
 func (o *skylineHandler) BeginBatch(begin *udf.BeginBatch) error {
-	o.state.reset()
 	// Send BeginBatch response to Kapacitor
 	// We always send a batch back for every batch we receive
 	o.agent.Responses <- &udf.Response{
@@ -131,6 +130,7 @@ func (o *skylineHandler) EndBatch(end *udf.EndBatch) error {
 	if err == nil && rst {
 		p.FieldsDouble["isAnomaly"] = 1
 	}
+	o.state.reset()
 	o.agent.Responses <- &udf.Response{
 		Message: &udf.Response_Point{
 			Point: p,
