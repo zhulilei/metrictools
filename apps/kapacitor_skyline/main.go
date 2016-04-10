@@ -26,10 +26,6 @@ type SkylineState struct {
 	Points []*udf.Point
 }
 
-func (s SkylineState) reset() {
-	s.Points = nil
-}
-
 func newSkylineHandler(agent *agent.Agent) *skylineHandler {
 	return &skylineHandler{agent: agent, state: &SkylineState{}, consensus: 6, fullDuration: 86400, minDuration: 10800}
 }
@@ -115,10 +111,13 @@ func (o *skylineHandler) Point(p *udf.Point) error {
 }
 func (o *skylineHandler) EndBatch(end *udf.EndBatch) error {
 	rst, err := SkylineCheck(o.state.Points, o.field, o.fullDuration, o.consensus)
+	log.Println("SkylineCheck")
 	if err != nil {
+		o.state.Points = nil
 		return err
 	}
 	pt := o.state.Points[len(o.state.Points)-1]
+	o.state.Points = nil
 	p := &udf.Point{
 		Name:         pt.Name,
 		Time:         pt.Time,
@@ -130,7 +129,6 @@ func (o *skylineHandler) EndBatch(end *udf.EndBatch) error {
 	if err == nil && rst {
 		p.FieldsDouble["isAnomaly"] = 1
 	}
-	o.state.reset()
 	o.agent.Responses <- &udf.Response{
 		Message: &udf.Response_Point{
 			Point: p,
