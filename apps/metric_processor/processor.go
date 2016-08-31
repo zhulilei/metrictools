@@ -17,7 +17,6 @@ import (
 type MetricDeliver struct {
 	*metrictools.Setting
 	consumer    *nsq.Consumer
-	producer    *nsq.Producer
 	exitChannel chan int
 	msgChannel  chan *metrictools.Message
 }
@@ -31,10 +30,6 @@ func (m *MetricDeliver) Run() error {
 	cfg.Set("user_agent", fmt.Sprintf("metric_processor-%s/%s", VERSION, hostname))
 	cfg.Set("snappy", true)
 	cfg.Set("max_in_flight", m.MaxInFlight)
-	m.producer, err = nsq.NewProducer(m.NsqdAddress, cfg)
-	if err != nil {
-		return err
-	}
 	m.consumer, err = nsq.NewConsumer(m.MetricTopic, m.MetricChannel, cfg)
 	if err != nil {
 		return err
@@ -58,7 +53,6 @@ func (m *MetricDeliver) Run() error {
 func (m *MetricDeliver) Stop() {
 	m.consumer.Stop()
 	close(m.exitChannel)
-	m.producer.Stop()
 }
 
 // HandleMessage is MetricDeliver's nsq handle function
@@ -86,9 +80,9 @@ func (m *MetricDeliver) writeLoop() {
 		log.Println("NewHTTPClient error:", err)
 	}
 	defer db.Close()
-	q := client.NewQuery(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", m.InfluxdbDatabase), "", "s")
-	if response, err := db.Query(q); err != nil || response.Error() != nil {
-		log.Fatal("create influxdb database failed:", response.Results)
+	q := client.NewQuery(fmt.Sprintf("CREATE DATABASE %s", m.InfluxdbDatabase), "", "s")
+	if response, err := db.Query(q); err != nil {
+		log.Fatal("create influxdb database failed:", err)
 	}
 	for {
 		bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
