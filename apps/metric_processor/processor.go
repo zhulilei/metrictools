@@ -82,6 +82,9 @@ func (m *MetricDeliver) writeLoop() {
 	defer db.Close()
 	q := client.NewQuery(fmt.Sprintf("CREATE DATABASE %s", m.InfluxdbDatabase), "", "s")
 	if response, err := db.Query(q); err != nil {
+		if response != nil {
+			log.Println(response.Error())
+		}
 		log.Fatal("create influxdb database failed:", err)
 	}
 	for {
