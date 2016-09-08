@@ -37,21 +37,21 @@ func (m *RedisEngine) RunTask() {
 		case <-m.ExitChannel:
 			return
 		case request := <-m.CmdChannel:
-				err = hystrix.Do("RedisCmd", func() error {
-					reply := client.Cmd(request.Cmd, request.Args...)
-					if reply.Err != nil {
-						return reply.Err
-					}
-					request.ReplyChannel <- reply
-					return nil
-				}, func(error) error {
-					if err != nil {
-						log.Println(request.Cmd, request.Args, err)
-					}
-					client.Close()
-					client, err = redis.Dial("tcp", m.RedisServer)
-					return err
-				})
+			err = hystrix.Do("RedisCmd", func() error {
+				reply := client.Cmd(request.Cmd, request.Args...)
+				if reply.Err != nil {
+					return reply.Err
+				}
+				request.ReplyChannel <- reply
+				return nil
+			}, func(error) error {
+				if err != nil {
+					log.Println(request.Cmd, request.Args, err)
+				}
+				client.Close()
+				client, err = redis.Dial("tcp", m.RedisServer)
+				return err
+			})
 
 		}
 	}
