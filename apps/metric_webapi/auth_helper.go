@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"github.com/datastream/aws"
+	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"strings"
@@ -51,14 +52,18 @@ func (m *WebService) awsSignv4(r *http.Request) string {
 	return token.UserName
 }
 
-func (m *WebService) loginFilter(r *http.Request) string {
-	authorizationHeader := r.Header.Get("authorization")
-	idents := strings.Split(authorizationHeader, " ")
-	if idents[0] == "Basic" {
-		return m.basicAuth(r)
+func (m *WebService) loginFilter() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		r := c.Request
+		authorizationHeader := r.Header.Get("authorization")
+		idents := strings.Split(authorizationHeader, " ")
+		user := ""
+		if idents[0] == "Basic" {
+			user = m.basicAuth(r)
+		}
+		if idents[0] == "AWS4-HMAC-SHA256" {
+			user = m.awsSignv4(r)
+		}
+		c.Set("user", user)
 	}
-	if idents[0] == "AWS4-HMAC-SHA256" {
-		return m.awsSignv4(r)
-	}
-	return ""
 }

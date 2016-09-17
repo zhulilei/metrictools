@@ -9,7 +9,7 @@ import (
 )
 
 type RedisEngine struct {
-	*Setting
+	RedisServer string
 	ExitChannel chan int
 	CmdChannel  chan Request
 }

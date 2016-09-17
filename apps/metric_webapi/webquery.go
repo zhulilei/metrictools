@@ -3,16 +3,19 @@ package main
 import (
 	"../.."
 	"fmt"
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/nsqio/go-nsq"
-	"net/http"
 	"os"
 )
 
 type WebService struct {
-	*metrictools.Setting
-	engine   metrictools.StoreEngine
-	producer *nsq.Producer
+	NsqdAddress   string `json:"nsqd_addr"`
+	MetricTopic   string `json:"metric_topic"`
+	RedisServer   string `json:"redis_server"`
+	MaxInFlight   int    `json:"maxinflight"`
+	ListenAddress string `json:"listen_address"`
+	engine        metrictools.StoreEngine
+	producer      *nsq.Producer
 }
 
 func (m *WebService) Run() error {
@@ -29,7 +32,7 @@ func (m *WebService) Run() error {
 		return err
 	}
 	m.engine = &metrictools.RedisEngine{
-		Setting:     m.Setting,
+		RedisServer: m.RedisServer,
 		ExitChannel: make(chan int),
 		CmdChannel:  make(chan metrictools.Request),
 	}
@@ -37,14 +40,11 @@ func (m *WebService) Run() error {
 	for i := 0; i < taskPool; i++ {
 		go m.engine.RunTask()
 	}
-	r := mux.NewRouter()
-	s := r.PathPrefix("/api/v1").Subrouter()
-
-	s.HandleFunc("/collect", m.Collectd).
-		Methods("POST").
-		Headers("Content-Type", "application/json")
-	http.Handle("/", r)
-	http.ListenAndServe(m.ListenAddress, nil)
+	r := gin.Default()
+	r.Use(m.loginFilter())
+	authorized := r.Group("/api/v1")
+	authorized.POST("/collect", m.Collectd)
+	r.Run(m.ListenAddress)
 	return nil
 }
 func (m *WebService) Stop() {
