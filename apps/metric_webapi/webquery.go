@@ -44,7 +44,7 @@ func (m *WebService) Run() error {
 	r.Use(m.loginFilter())
 	authorized := r.Group("/api/v1")
 	authorized.POST("/collect", m.Collectd)
-	r.Run(m.ListenAddress)
+	go r.Run(m.ListenAddress)
 	return nil
 }
 func (m *WebService) Stop() {
